@@ -1,0 +1,25 @@
+{
+  "name": "gianduia-renderer",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "glfw3",
+    "glm",
+    "pugixml",
+    "stb",
+    "tbb",
+    "openexr",
+    {
+      "name": "imgui",
+      "features": [
+        "glfw-binding",
+        "opengl3-binding",
+        "docking-experimental"
+      ]
+    },
+    {
+      "name": "openvdb",
+      "features": ["tools"]
+    }
+  ],
+  "builtin-baseline": "8b1c07e64192e9269d54f85a4381816aefca52e0"
+}
