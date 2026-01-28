@@ -4,6 +4,8 @@
 #include "gianduia/core/bitmap.h"
 #include <iostream>
 
+#include "gianduia/core/shape.h"
+
 using namespace gnd;
 
 int main() {
@@ -24,6 +26,14 @@ int main() {
 
     Bitmap film(width, height);
 
+    PropertyList sphereProps;
+    sphereProps.setFloat("radius", 1.0f);
+    // Spostiamo la sfera a Z = -4 (davanti alla camera che guarda verso -Z)
+    sphereProps.setTransform("toWorld", Transform::Translate(Vector3f(0, 0, -4)));
+
+    GndObject* sphereObj = GndFactory::getInstance()->createInstance("sphere", sphereProps);
+    Shape* sphere = dynamic_cast<Shape*>(sphereObj);
+
     std::cout << "Rendering..." << std::endl;
 
     for (int y = 0; y < height; ++y) {
@@ -34,15 +44,16 @@ int main() {
             Ray ray;
             camera->shootRay(sample, &ray);
 
-            Vector3f d = Normalize(ray.d);
+            float tHit;
+            Color3f pixelColor;
 
-            Color3f color(
-                std::abs(d.v.x),
-                std::abs(d.v.y),
-                std::abs(d.v.z)
-            );
+            if (sphere->rayIntersect(ray, tHit)) {
+                pixelColor = Color3f(1.0f, 0.2f, 0.2f);
+            } else {
+                pixelColor = Color3f(1.0f);
+            }
 
-            film.setPixel(x, y, color);
+            film.setPixel(x, y, pixelColor);
         }
     }
 

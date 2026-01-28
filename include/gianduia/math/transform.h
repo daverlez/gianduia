@@ -19,17 +19,17 @@ namespace gnd {
         explicit Transform(const glm::mat4& mat) : m(mat), mInv(glm::inverse(mat)) {}
         Transform(const glm::mat4& mat, const glm::mat4& inv) : m(mat), mInv(inv) {}
 
-        const glm::mat4& GetMatrix() const { return m; }
-        const glm::mat4& GetInverse() const { return mInv; }
+        const glm::mat4& getMatrix() const { return m; }
+        const glm::mat4& getInverse() const { return mInv; }
 
         bool operator==(const Transform& t) const { return m == t.m; }
         bool operator!=(const Transform& t) const { return m != t.m; }
 
-        bool IsIdentity() const {
+        bool isIdentity() const {
             return m == glm::mat4(1.0f);
         }
 
-        Transform Inverse() const {
+        Transform inverse() const {
             return Transform(mInv, m);
         }
 

@@ -67,6 +67,7 @@ namespace gnd {
         glm::vec3 p;
 
         Point3f() : p(0.f) {}
+        explicit Point3f(float x) : p(x) {}
         Point3f(float x, float y, float z) : p(x, y, z) {}
         explicit Point3f(const glm::vec3& _p) : p(_p) {}
 
