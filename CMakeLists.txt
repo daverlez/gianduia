@@ -25,6 +25,7 @@ add_executable(Gianduia
         src/shapes/primitive.cpp
         src/scene/scene.cpp
         src/core/parser.cpp
+        src/core/fileResolver.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

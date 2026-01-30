@@ -1,8 +1,9 @@
 #include <gianduia/core/parser.h>
 #include <gianduia/core/factory.h>
 #include <gianduia/core/propertyList.h>
+#include <gianduia/core/fileResolver.h>
+
 #include <pugixml.hpp>
-#include <iostream>
 #include <vector>
 #include <sstream>
 
@@ -153,6 +154,8 @@ namespace gnd {
     }
 
     std::unique_ptr<GndObject> Parser::loadFromXML(const std::string& filename) {
+        FileResolver::setBasePath(filename);
+
         pugi::xml_document doc;
         pugi::xml_parse_result result = doc.load_file(filename.c_str());
 

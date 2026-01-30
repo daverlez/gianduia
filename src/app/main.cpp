@@ -7,19 +7,17 @@
 #include "gianduia/core/object.h"
 #include "gianduia/scene/scene.h"
 #include "gianduia/core/bitmap.h"
+#include "gianduia/core/fileResolver.h"
 #include "gianduia/core/parser.h"
 
 using namespace gnd;
 
 int main() {
-    std::shared_ptr<GndObject> root = Parser::loadFromXML("scene.xml");
+    std::shared_ptr<GndObject> root = Parser::loadFromXML("../scenes/scene.xml");
     std::shared_ptr<Scene> scene = std::static_pointer_cast<Scene>(root);
 
     int width = scene->getCamera()->getWidth();
     int height = scene->getCamera()->getHeight();
-
-    std::cout << "width: " << width << std::endl;
-    std::cout << "height: " << height << std::endl;
 
     Bitmap film(width, height);
 
@@ -37,7 +35,7 @@ int main() {
             Color3f pixelColor(1.0f);
 
             if (scene->rayIntersect(ray, isect)) {
-                pixelColor = Color3f(1.0f, 0.2f, 0.2f);
+                pixelColor = Color3f(0.0f, 0.0f, 0.0f);
             }
 
             film.setPixel(x, y, pixelColor);
