@@ -31,6 +31,10 @@ namespace gnd {
 
         Vector3f operator-() const { return Vector3f(-v); }
 
+        float x() const { return v[0]; }
+        float y() const { return v[1]; }
+        float z() const { return v[2]; }
+
         float lengthSquared() const {
             return glm::dot(v, v);
         }
@@ -59,6 +63,9 @@ namespace gnd {
         Point2f& operator*=(float s) { p *= s; return *this; }
         Point2f operator/(float s) const { return Point2f(p / s); }
         Point2f& operator/=(float s) { p /= s; return *this; }
+
+        float x() const { return p[0]; }
+        float y() const { return p[1]; }
     };
 
     inline Point2f operator*(float s, const Point2f& p) { return p * s; }
@@ -91,6 +98,10 @@ namespace gnd {
         Point3f operator/(float s) const { return Point3f(p / s); }
         Point3f& operator/=(float s) { p /= s; return *this; }
 
+        float x() const { return p[0]; }
+        float y() const { return p[1]; }
+        float z() const { return p[2]; }
+
         bool hasNaNs() const {
             return (std::isnan(p.x) || std::isnan(p.y) || std::isnan(p.z));
         }
@@ -119,6 +130,10 @@ namespace gnd {
         Normal3f& operator-=(const Normal3f& other) { n -= other.n; return *this; }
         Normal3f& operator*=(float s) { n *= s; return *this; }
         Normal3f& operator/=(float s) { n /= s; return *this; }
+
+        float x() const { return n[0]; }
+        float y() const { return n[1]; }
+        float z() const { return n[2]; }
 
         float lengthSquared() const { return glm::dot(n, n); }
         float length() const { return glm::length(n); }

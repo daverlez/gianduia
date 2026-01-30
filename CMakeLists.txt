@@ -24,6 +24,7 @@ add_executable(Gianduia
         src/shapes/sphere.cpp
         src/shapes/primitive.cpp
         src/scene/scene.cpp
+        src/core/parser.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

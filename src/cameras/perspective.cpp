@@ -7,14 +7,6 @@ namespace gnd {
     class PerspectiveCamera : public Camera {
     public:
         explicit PerspectiveCamera(const PropertyList& props) : Camera(props) {
-            if (props.hasPoint("origin") || props.hasPoint("target")) {
-                Point3f origin = Point3f(props.getPoint("origin", Point3f(0, 0, 0)));
-                Point3f target = Point3f(props.getPoint("target", Point3f(0, 0, -1)));
-                Vector3f up    = props.getVector("up", Vector3f(0, 1, 0));
-
-                m_cameraToWorld = Transform::LookAt(origin, target, up);
-            }
-
             m_fov = props.getFloat("fov", 45.0f);
             m_scale = std::tan(Radians(m_fov * 0.5f));
         }
