@@ -22,6 +22,8 @@ add_executable(Gianduia
         src/cameras/perspective.cpp
         src/core/bitmap.cpp
         src/shapes/sphere.cpp
+        src/shapes/primitive.cpp
+        src/scene/scene.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

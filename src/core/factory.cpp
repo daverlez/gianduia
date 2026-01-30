@@ -14,7 +14,7 @@ namespace gnd {
         m_constructors[name] = constructor;
     }
 
-    GndObject* GndFactory::createInstance(const std::string& name, const PropertyList& props) {
+    std::unique_ptr<GndObject> GndFactory::createInstance(const std::string& name, const PropertyList& props) {
         if (!m_constructors.contains(name)) {
             throw std::runtime_error("Cannot instantiate object: class '" + name + "' is not registered!");
         }

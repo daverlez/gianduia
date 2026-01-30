@@ -25,7 +25,7 @@ namespace gnd {
         int getHeight() const { return m_outputHeight; }
         float getAspectRatio() const { return m_outputWidth / (float)m_outputHeight; }
 
-        std::string getClassType() const override { return "Camera"; }
+        EClassType getClassType() const override { return ECamera; }
 
         void addChild(std::shared_ptr<GndObject> child) override {
             throw std::runtime_error("Camera: addChild operation not supported!");

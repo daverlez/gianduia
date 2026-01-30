@@ -13,7 +13,7 @@ namespace gnd {
 
         void registerClass(const std::string& name, const ObjectFactory& constructor);
 
-        GndObject* createInstance(const std::string& name, const PropertyList& props);
+        std::unique_ptr<GndObject> createInstance(const std::string& name, const PropertyList& props);
 
     private:
         GndFactory() = default;
@@ -25,11 +25,13 @@ namespace gnd {
 }
 
 #define GND_REGISTER_CLASS(Cls, XmlName) \
-    gnd::GndObject* Cls##_Constructor(const gnd::PropertyList& list) { \
-        return new Cls(list); \
-    } \
-    static struct Cls##_Registrar { \
-        Cls##_Registrar() { \
-            gnd::GndFactory::getInstance()->registerClass(XmlName, Cls##_Constructor); \
+    class Cls##_Factory { \
+    public: \
+        Cls##_Factory() { \
+            gnd::GndFactory::getInstance()->registerClass(XmlName, \
+                [](const gnd::PropertyList& props) -> std::unique_ptr<gnd::GndObject> { \
+                    return std::make_unique<Cls>(props); \
+                }); \
         } \
-    } Cls##_Registrar_Instance;
+    }; \
+    static Cls##_Factory global_##Cls##_Factory;

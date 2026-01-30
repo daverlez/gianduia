@@ -5,22 +5,31 @@
 
 namespace gnd {
 
+    enum EClassType {
+        EScene,
+        EPrimitive,
+        EShape,
+        ECamera,
+        EIntegrator,
+        ESampler
+    };
+
     class GndObject {
     public:
         virtual ~GndObject() {}
 
         virtual void addChild(std::shared_ptr<GndObject> child) {
             throw std::runtime_error(
-                "GndObject::addChild() not implemented for class " + getClassType()
+                "GndObject::addChild() not implemented!"
             );
         }
 
         virtual void activate() { /* Default: empty */ }
 
         virtual std::string toString() const = 0;
-        virtual std::string getClassType() const = 0;
+        virtual EClassType getClassType() const = 0;
     };
 
-    using ObjectFactory = GndObject* (*)(const PropertyList&);
+    using ObjectFactory = std::function<std::unique_ptr<GndObject>(const PropertyList&)>;
 
 }
