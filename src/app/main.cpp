@@ -4,6 +4,7 @@
 #include "gianduia/core/bitmap.h"
 #include <iostream>
 
+#include "gianduia/core/primitive.h"
 #include "gianduia/core/shape.h"
 
 using namespace gnd;
@@ -28,11 +29,15 @@ int main() {
 
     PropertyList sphereProps;
     sphereProps.setFloat("radius", 1.0f);
-    // Spostiamo la sfera a Z = -4 (davanti alla camera che guarda verso -Z)
-    sphereProps.setTransform("toWorld", Transform::Translate(Vector3f(0, 0, -4)));
 
     GndObject* sphereObj = GndFactory::getInstance()->createInstance("sphere", sphereProps);
-    Shape* sphere = dynamic_cast<Shape*>(sphereObj);
+    std::shared_ptr<GndObject> sphere(sphereObj);
+
+    PropertyList instProps;
+    instProps.setTransform("toWorld", Transform::Translate(Vector3f(0, 0, -4)));
+
+    Primitive sphereInstance(instProps);
+    sphereInstance.addChild(sphere);
 
     std::cout << "Rendering..." << std::endl;
 
@@ -44,10 +49,10 @@ int main() {
             Ray ray;
             camera->shootRay(sample, &ray);
 
-            float tHit;
             Color3f pixelColor;
+            SurfaceInteraction isect;
 
-            if (sphere->rayIntersect(ray, tHit)) {
+            if (sphereInstance.rayIntersect(ray, isect)) {
                 pixelColor = Color3f(1.0f, 0.2f, 0.2f);
             } else {
                 pixelColor = Color3f(1.0f);

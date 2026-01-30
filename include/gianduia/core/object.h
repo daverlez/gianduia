@@ -9,7 +9,7 @@ namespace gnd {
     public:
         virtual ~GndObject() {}
 
-        virtual void addChild(GndObject* child) {
+        virtual void addChild(std::shared_ptr<GndObject> child) {
             throw std::runtime_error(
                 "GndObject::addChild() not implemented for class " + getClassType()
             );

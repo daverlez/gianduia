@@ -9,35 +9,39 @@ namespace gnd {
             m_radius = props.getFloat("radius", 1.0f);
         }
 
-        bool rayIntersect(const Ray& ray, float& tHit) const override {
-            Ray rLocal = m_objectToWorld.inverse()(ray);
-            rLocal.d = Normalize(rLocal.d);
+        bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const override {
+            Vector3f originVector = ray.o - Point3f(0.0f);
 
-            Vector3f centerDistance = Point3f(0.0f) - rLocal.o;        // ray origin -> center vector
-            float rayDistance = Dot(centerDistance, rLocal.d);           // ray distance closest to sphere center
+            float A = ray.d.lengthSquared();
+            float B = 2.0f * Dot(originVector, ray.d);
+            float C = originVector.lengthSquared() - (m_radius * m_radius);
 
-            // Early exit if ray points away and it's outside the sphere
-            if (rayDistance < 0.f && centerDistance.length() > m_radius)
+            float discrim = B * B - 4.0f * A * C;
+            if (discrim < 0.0f)
                 return false;
 
-            float squaredDist = centerDistance.lengthSquared() - rayDistance * rayDistance;
-            if (squaredDist > m_radius * m_radius)
+            float rootDiscrim = std::sqrt(discrim);
+            float q = (B < 0) ? -0.5f * (B - rootDiscrim) : -0.5f * (B + rootDiscrim);
+
+            float t0 = q / A;
+            float t1 = C / q;
+
+            if (t0 > t1) std::swap(t0, t1);
+
+            float tHit;
+
+            if (t0 >= ray.tMin && t0 < ray.tMax)
+                tHit = t0;
+            else if (t1 >= ray.tMin && t1 < ray.tMax)
+                tHit = t1;
+            else
                 return false;
 
-            float t_1 = rayDistance - std::sqrt(m_radius * m_radius - squaredDist);
-            float t_2 = rayDistance + std::sqrt(m_radius * m_radius - squaredDist);
+            isect.t = tHit;
+            isect.p = ray.o + ray.d * tHit;
+            isect.n = Normal3f(Normalize(isect.p - Point3f(0.0f)));
 
-            if (t_1 >= ray.tMin && t_1 < ray.tMax) {
-                tHit = t_1;
-                return true;
-            }
-
-            if (t_2 >= ray.tMin && t_2 < ray.tMax) {
-                tHit = t_2;
-                return true;
-            }
-
-            return false;
+            return true;
         }
 
         Bounds3f getBounds() const override {
@@ -46,7 +50,7 @@ namespace gnd {
                 Point3f(m_radius)
             );
 
-            return m_objectToWorld(objectBounds);
+            return objectBounds;
         }
 
         std::string toString() const override {

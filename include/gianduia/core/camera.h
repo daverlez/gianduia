@@ -27,7 +27,7 @@ namespace gnd {
 
         std::string getClassType() const override { return "Camera"; }
 
-        void addChild(GndObject* child) override {
+        void addChild(std::shared_ptr<GndObject> child) override {
             throw std::runtime_error("Camera: addChild operation not supported!");
         }
 

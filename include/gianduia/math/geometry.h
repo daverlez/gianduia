@@ -12,6 +12,7 @@ namespace gnd {
         glm::vec3 v;
 
         Vector3f() : v(0.f) {}
+        explicit Vector3f(float x) : v(x) {}
         Vector3f(float x, float y, float z) : v(x, y, z) {}
         explicit Vector3f(const glm::vec3& _v) : v(_v) {}
 
