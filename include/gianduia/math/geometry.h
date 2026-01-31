@@ -114,6 +114,7 @@ namespace gnd {
         glm::vec3 n;
 
         Normal3f() : n(0.f) {}
+        explicit Normal3f(float x) : n(x) {}
         Normal3f(float x, float y, float z) : n(x, y, z) {}
         explicit Normal3f(const glm::vec3& _n) : n(_n) {}
         explicit Normal3f(const Vector3f& v) : n(v.v) {}

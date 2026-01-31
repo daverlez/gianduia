@@ -23,6 +23,7 @@ add_executable(Gianduia
         src/core/bitmap.cpp
         src/shapes/sphere.cpp
         src/shapes/primitive.cpp
+        src/shapes/cylinder.cpp
         src/scene/scene.cpp
         src/core/parser.cpp
         src/core/fileResolver.cpp

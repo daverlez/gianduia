@@ -10,9 +10,10 @@
 
     <primitive>
         <transform name="toWorld">
+            <rotate angle="30" x="0" y="1" z="0"/>
             <translate x="0" y="0" z="-4"/>
         </transform>
-        <shape type="sphere">
+        <shape type="cylinder">
             <float name="radius" value="1.0f"/>
         </shape>
     </primitive>

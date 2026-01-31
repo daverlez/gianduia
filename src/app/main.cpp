@@ -35,7 +35,7 @@ int main() {
             Color3f pixelColor(1.0f);
 
             if (scene->rayIntersect(ray, isect)) {
-                pixelColor = Color3f(0.0f, 0.0f, 0.0f);
+                pixelColor = Color3f(1.0f, 0.0f, 0.0f) * Dot(isect.n, Vector3f(-1.0f, 1.0f, 1.0f));
             }
 
             film.setPixel(x, y, pixelColor);

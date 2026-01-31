@@ -39,4 +39,14 @@ namespace gnd {
         return (1.f - t) * v1 + t * v2;
     }
 
+    inline bool SolveQuadratic(float a, float b, float c, float& r0, float& r1) {
+        float discrim = b * b - 4.0f * a * c;
+        if (discrim < 0) return false;
+
+        float rootDiscrim = std::sqrt(discrim);
+        r0 = (-b - rootDiscrim) / (2.0f * a);
+        r1 = (-b + rootDiscrim) / (2.0f * a);
+        return true;
+    };
+
 }
