@@ -16,17 +16,8 @@ namespace gnd {
             float B = 2.0f * Dot(originVector, ray.d);
             float C = originVector.lengthSquared() - (m_radius * m_radius);
 
-            float discrim = B * B - 4.0f * A * C;
-            if (discrim < 0.0f)
-                return false;
-
-            float rootDiscrim = std::sqrt(discrim);
-            float q = (B < 0) ? -0.5f * (B - rootDiscrim) : -0.5f * (B + rootDiscrim);
-
-            float t0 = q / A;
-            float t1 = C / q;
-
-            if (t0 > t1) std::swap(t0, t1);
+            float t0, t1;
+            if (!SolveQuadratic(A, B, C, t0, t1)) return false;
 
             float tHit;
 
@@ -42,6 +33,26 @@ namespace gnd {
             isect.n = Normal3f(Normalize(isect.p - Point3f(0.0f)));
 
             return true;
+        }
+
+        void getAllIntersections(const Ray& ray, std::vector<BoundaryEvent>& hits) const override {
+            Vector3f originVector = ray.o - Point3f(0.0f);
+            float A = ray.d.lengthSquared();
+            float B = 2.0f * Dot(originVector, ray.d);
+            float C = originVector.lengthSquared() - (m_radius * m_radius);
+
+            float t0, t1;
+
+            if (!SolveQuadratic(A, B, C, t0, t1)) return;
+
+            if (t0 < ray.tMax) hits.push_back({t0, true, nullptr});
+            if (t1 < ray.tMax) hits.push_back({t1, false, nullptr});
+        }
+
+        void fillInteraction(const Ray& ray, float t, SurfaceInteraction& isect) const override {
+            isect.t = t;
+            isect.p = ray.o + ray.d * t;
+            isect.n = Normal3f(Normalize(isect.p - Point3f(0.0f)));
         }
 
         Bounds3f getBounds() const override {

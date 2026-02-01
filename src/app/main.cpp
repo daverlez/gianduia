@@ -13,7 +13,7 @@
 using namespace gnd;
 
 int main() {
-    std::shared_ptr<GndObject> root = Parser::loadFromXML("../scenes/scene.xml");
+    std::shared_ptr<GndObject> root = Parser::loadFromXML("../scenes/csg.xml");
     std::shared_ptr<Scene> scene = std::static_pointer_cast<Scene>(root);
 
     int width = scene->getCamera()->getWidth();

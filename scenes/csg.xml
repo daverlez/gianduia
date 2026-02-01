@@ -1,0 +1,51 @@
+<scene>
+    <camera type="perspective">
+        <transform name="toWorld">
+            <lookat origin="0,2,4" target="0,0,0" up="0,1,0"/>
+        </transform>
+        <float name="fov" value="45"/>
+        <integer name="width" value="800"/>
+        <integer name="height" value="600"/>
+    </camera>
+
+    <primitive>
+        <transform name="toWorld">
+            <rotate angle="30" x="0" y="1" z="0"/>
+        </transform>
+
+        <shape type="csg">
+            <string name="operation" value="difference"/>
+
+            <primitive>
+                <shape type="sphere">
+                    <float name="radius" value="1.2"/>
+                </shape>
+            </primitive>
+
+            <primitive>
+                <shape type="csg">
+                    <string name="operation" value="union"/>
+
+                    <primitive>
+                        <shape type="cylinder">
+                            <float name="radius" value="0.5"/>
+                            <float name="zMin" value="-1.5"/>
+                            <float name="zMax" value="1.5"/>
+                        </shape>
+                    </primitive>
+
+                    <primitive>
+                        <transform name="toWorld">
+                            <rotate angle="90" x="1" y="0" z="0"/>
+                        </transform>
+                        <shape type="cylinder">
+                            <float name="radius" value="0.5"/>
+                            <float name="zMin" value="-1.5"/>
+                            <float name="zMax" value="1.5"/>
+                        </shape>
+                    </primitive>
+
+                </shape> </primitive>
+
+        </shape> </primitive>
+</scene>

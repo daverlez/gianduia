@@ -58,6 +58,7 @@ namespace gnd {
         glm::vec2 p;
 
         Point2f() : p(0.f) {}
+        explicit Point2f(float x) : p(x) {}
         Point2f(float x, float y) : p(x, y) {}
         explicit Point2f(const glm::vec2& _p) : p(_p) {}
 
@@ -140,6 +141,8 @@ namespace gnd {
         Normal3f& operator-=(const Normal3f& other) { n -= other.n; return *this; }
         Normal3f& operator*=(float s) { n *= s; return *this; }
         Normal3f& operator/=(float s) { n /= s; return *this; }
+
+        Normal3f operator-() const { return Normal3f(-n); }
 
         float x() const { return n[0]; }
         float y() const { return n[1]; }
