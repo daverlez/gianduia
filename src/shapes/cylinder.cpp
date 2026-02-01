@@ -85,7 +85,14 @@ namespace gnd {
         }
 
         std::string toString() const override {
-            return "Cylinder[radius=" + std::to_string(m_radius) + "]";
+            return std::format(
+                "Cylinder[\n"
+                "  radius = {:.2f},\n"
+                "  zMin = {:.2f},\n"
+                "  zMax = {:.2f},\n"
+                "]",
+                m_radius, m_zMin, m_zMax
+            );
         }
 
     private:

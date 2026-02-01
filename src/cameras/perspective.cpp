@@ -29,7 +29,22 @@ namespace gnd {
         }
 
         std::string toString() const override {
-            return "PerspectiveCamera[fov=" + std::to_string(m_fov) + "]";
+            return std::format(
+                "PerspectiveCamera[\n"
+                "  width = {}\n"
+                "  height = {}\n"
+                "  fov = {},\n"
+                "  position = {},\n"
+                "  forward = {},\n"
+                "  up = {}\n"
+                "]",
+                m_outputWidth,
+                m_outputHeight,
+                m_fov,
+                m_cameraToWorld.getPosition().toString(),
+                m_cameraToWorld.getForward().toString(),
+                m_cameraToWorld.getUp().toString()
+            );
         }
 
     private:

@@ -54,7 +54,7 @@ namespace gnd {
         }
 
         std::string toString() const override {
-            return "Sphere[radius=" + std::to_string(m_radius) + "]";
+            return std::format("Sphere[radius={:.2f}]", m_radius);
         }
 
     private:

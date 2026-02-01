@@ -21,6 +21,8 @@ int main() {
 
     Bitmap film(width, height);
 
+    std::cout << scene->toString() << std::endl;
+
     std::cout << "Rendering started..." << std::endl;
 
     for (int y = 0; y < height; ++y) {

@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <cmath>
+#include <format>
 
 namespace gnd {
 
@@ -43,6 +44,10 @@ namespace gnd {
         }
         bool hasNaNs() const {
             return (std::isnan(v.x) || std::isnan(v.y) || std::isnan(v.z));
+        }
+
+        std::string toString() const {
+            return std::format("({}, {}, {})", v[0], v[1], v[2]);
         }
     };
 
@@ -105,6 +110,10 @@ namespace gnd {
         bool hasNaNs() const {
             return (std::isnan(p.x) || std::isnan(p.y) || std::isnan(p.z));
         }
+
+        std::string toString() const {
+            return std::format("({}, {}, {})", p[0], p[1], p[2]);
+        }
     };
 
     inline Point3f operator*(float s, const Point3f& p) { return p * s; }
@@ -138,6 +147,10 @@ namespace gnd {
 
         float lengthSquared() const { return glm::dot(n, n); }
         float length() const { return glm::length(n); }
+
+        std::string toString() const {
+            return std::format("({}, {}, {})", n[0], n[1], n[2]);
+        }
     };
 
 

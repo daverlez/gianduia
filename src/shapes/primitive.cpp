@@ -47,9 +47,14 @@ namespace gnd {
     }
 
     std::string Primitive::toString() const {
-        return "Primitive[\n  shape = " +
-               m_shape->toString() +
-               "\n]";
+        return std::format(
+            "Primitive[\n"
+            "  position = {},\n"
+            "  shape = \n{}\n"
+            "]",
+            m_objectToWorld.getPosition().toString(),
+            indent(m_shape->toString(), 2)
+        );
     }
 
     GND_REGISTER_CLASS(Primitive, "primitive");

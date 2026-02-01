@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <limits>
+#include <sstream>
 
 namespace gnd {
 
@@ -48,5 +49,27 @@ namespace gnd {
         r1 = (-b + rootDiscrim) / (2.0f * a);
         return true;
     };
+
+    /// Indents every line in a string.
+    /// @param amount Numer of indentation levels (one level == two spaces)
+    inline std::string indent(const std::string& str, int amount = 1) {
+        if (str.empty()) return "";
+
+        std::string result;
+        std::string spaces(amount * 2, ' ');
+        std::stringstream ss(str);
+        std::string line;
+        bool first = true;
+
+        while (std::getline(ss, line)) {
+            if (!first) result += "\n";
+            result += (line.empty() ? "" : spaces) + line;
+            first = false;
+        }
+
+        if (!str.empty() && str.back() == '\n') result += "\n";
+
+        return result;
+    }
 
 }

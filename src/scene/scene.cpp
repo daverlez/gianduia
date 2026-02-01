@@ -1,5 +1,4 @@
 #include "gianduia/scene/scene.h"
-
 #include "gianduia/core/factory.h"
 
 namespace gnd {
@@ -49,7 +48,25 @@ namespace gnd {
     }
 
     std::string Scene::toString() const {
-        return "Scene[\n  shape = ";
+        std::string primitivesStr;
+        //
+        for (size_t i = 0; i < m_primitives.size(); ++i) {
+            primitivesStr += indent(m_primitives[i]->toString());
+            if (i + 1 < m_primitives.size())
+                primitivesStr += ",\n";
+        }
+
+        return std::format(
+            "Scene[\n"
+            "  camera = \n"
+            "{}\n"
+            "  primitives = {{\n"
+            "{}\n"
+            "  }}\n"
+            "]",
+            indent(m_camera->toString(),2),
+            indent(primitivesStr)
+        );
     }
 
     GND_REGISTER_CLASS(Scene, "scene");

@@ -74,6 +74,23 @@ namespace gnd {
             return ret;
         }
 
+        /* Camera utilities */
+        Point3f getPosition() const {
+            return Point3f(glm::vec3(m[3]));
+        }
+
+        Vector3f getForward() const {
+            return Vector3f(-glm::vec3(m[2]));
+        }
+
+        Vector3f getUp() const {
+            return Vector3f(glm::vec3(m[1]));
+        }
+
+        Vector3f getRight() const {
+            return Vector3f(glm::vec3(m[0]));
+        }
+
         /* Static factories */
 
         static Transform Translate(const Vector3f& delta) {
