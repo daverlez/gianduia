@@ -1,7 +1,6 @@
-
-#include "gianduia/core/factory.h"
-#include "gianduia/core/primitive.h"
-#include "gianduia/core/shape.h"
+#include <gianduia/core/factory.h>
+#include <gianduia/core/primitive.h>
+#include <gianduia/core/shape.h>
 
 namespace gnd {
 

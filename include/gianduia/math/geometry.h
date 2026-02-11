@@ -32,9 +32,12 @@ namespace gnd {
 
         Vector3f operator-() const { return Vector3f(-v); }
 
-        float x() const { return v[0]; }
-        float y() const { return v[1]; }
-        float z() const { return v[2]; }
+        const float& x() const  { return v[0]; }
+        float& x()              { return v[0]; }
+        const float& y() const  { return v[1]; }
+        float& y()              { return v[1]; }
+        const float& z() const  { return v[2]; }
+        float& z()              { return v[2]; }
 
         float lengthSquared() const {
             return glm::dot(v, v);
@@ -70,8 +73,10 @@ namespace gnd {
         Point2f operator/(float s) const { return Point2f(p / s); }
         Point2f& operator/=(float s) { p /= s; return *this; }
 
-        float x() const { return p[0]; }
-        float y() const { return p[1]; }
+        const float& x() const  { return p[0]; }
+        float& x()              { return p[0]; }
+        const float& y() const  { return p[1]; }
+        float& y()              { return p[1]; }
     };
 
     inline Point2f operator*(float s, const Point2f& p) { return p * s; }
@@ -104,9 +109,12 @@ namespace gnd {
         Point3f operator/(float s) const { return Point3f(p / s); }
         Point3f& operator/=(float s) { p /= s; return *this; }
 
-        float x() const { return p[0]; }
-        float y() const { return p[1]; }
-        float z() const { return p[2]; }
+        const float& x() const  { return p[0]; }
+        float& x()              { return p[0]; }
+        const float& y() const  { return p[1]; }
+        float& y()              { return p[1]; }
+        const float& z() const  { return p[2]; }
+        float& z()              { return p[2]; }
 
         bool hasNaNs() const {
             return (std::isnan(p.x) || std::isnan(p.y) || std::isnan(p.z));
@@ -144,9 +152,12 @@ namespace gnd {
 
         Normal3f operator-() const { return Normal3f(-n); }
 
-        float x() const { return n[0]; }
-        float y() const { return n[1]; }
-        float z() const { return n[2]; }
+        const float& x() const  { return n[0]; }
+        float& x()              { return n[0]; }
+        const float& y() const  { return n[1]; }
+        float& y()              { return n[1]; }
+        const float& z() const  { return n[2]; }
+        float& z()              { return n[2]; }
 
         float lengthSquared() const { return glm::dot(n, n); }
         float length() const { return glm::length(n); }
