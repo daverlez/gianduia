@@ -24,34 +24,18 @@ namespace gnd {
             throw std::runtime_error("Scene: no camera specified!");
 
         // TODO: checking integrator and sampler availability
-        // TODO: BVH activation code
+
+        m_bvh = BVH(m_primitives);
+        m_bvh.build();
     }
 
     bool Scene::rayIntersect(const Ray& ray, SurfaceInteraction& isect) const {
-        // TODO: reimplement with BVH traversal after implementation
-
-        isect.t = std::numeric_limits<float>::infinity();
-
-        bool hitAny = false;
-
-        for (const auto& primitive : m_primitives) {
-            SurfaceInteraction isectLocal;
-            if (primitive->rayIntersect(ray, isectLocal)) {
-                if (isectLocal.t < isect.t) {
-                    isect = isectLocal;
-                    hitAny = true;
-                }
-            }
-        }
-
-        if (hitAny)
-            isect.primitive->fillInteraction(ray, isect);
-
-        return hitAny;
+        return m_bvh.rayIntersect(ray, isect, false);
     }
 
     bool Scene::rayIntersect(const Ray& ray) const {
-        return true;
+        SurfaceInteraction isect;
+        return m_bvh.rayIntersect(ray, isect, true);
     }
 
     std::string Scene::toString() const {

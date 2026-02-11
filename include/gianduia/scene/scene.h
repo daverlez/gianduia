@@ -1,4 +1,5 @@
 #pragma once
+#include "bvh.h"
 #include "gianduia/core/camera.h"
 #include "gianduia/core/object.h"
 #include "gianduia/core/primitive.h"
@@ -21,6 +22,7 @@ namespace gnd {
     private:
         std::vector<std::shared_ptr<Primitive>> m_primitives;
         std::shared_ptr<Camera> m_camera;
+        BVH m_bvh;
         // std::shared_ptr<Sampler> m_sampler;
         // std::shared_ptr<Integrator> m_integrator;
         // std::vector<std::shared_ptr<Emitter>> m_emitters;

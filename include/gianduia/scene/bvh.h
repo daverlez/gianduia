@@ -24,7 +24,10 @@ namespace gnd {
 
     class BVH {
     public:
+        BVH() {}
         BVH(std::vector<std::shared_ptr<Primitive>>& primitives) : m_primitives{primitives} {}
+
+        void build();
 
         bool rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool shadowRay) const;
 
@@ -34,8 +37,6 @@ namespace gnd {
         // Linear BVH
         std::vector<BVHNode> m_nodes;
         std::vector<std::shared_ptr<Primitive>> m_primitives;
-
-        void build();
     };
 
 }
