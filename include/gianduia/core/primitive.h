@@ -15,8 +15,7 @@ namespace gnd {
         void activate() override;
 
         bool rayIntersect(const Ray& rWorld, SurfaceInteraction& isect) const;
-        void getAllIntersections(const Ray& rWorld, std::vector<BoundaryEvent>& hits) const;
-        void fillInteraction(const Ray& rWorld, float t, SurfaceInteraction& isect) const;
+        void fillInteraction(const Ray& rWorld, SurfaceInteraction& isect) const;
 
         Bounds3f getWorldBounds() const;
 

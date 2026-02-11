@@ -44,7 +44,14 @@ namespace gnd {
             }
         }
 
+        if (hitAny)
+            isect.primitive->fillInteraction(ray, isect);
+
         return hitAny;
+    }
+
+    bool Scene::rayIntersect(const Ray& ray) const {
+        return true;
     }
 
     std::string Scene::toString() const {

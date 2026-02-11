@@ -16,6 +16,7 @@ namespace gnd {
         std::shared_ptr<Camera> getCamera() { return m_camera; }
 
         bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const;
+        bool rayIntersect(const Ray& ray) const;
 
     private:
         std::vector<std::shared_ptr<Primitive>> m_primitives;

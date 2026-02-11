@@ -20,19 +20,6 @@ namespace gnd {
         bool isValid() const { return t > 0.0f; }
     };
 
-    /// Record indicating the status of a boundary event (i.e. ray distance, getting inside/outside the primitive).
-    /// This is meant for CSG shapes, which require a listing of ray distances intersecting a shape.
-    struct BoundaryEvent {
-        float t;
-        bool isEntry;
-        const Primitive* hitPrimitive;
-        bool flipNormal = false;
-
-        bool operator<(const BoundaryEvent& other) const {
-            return t < other.t;
-        }
-    };
-
     class Shape : public GndObject {
     public:
         Shape(const PropertyList& props) { }
@@ -40,15 +27,7 @@ namespace gnd {
 
         virtual bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const = 0;
 
-        /// Fills the hits vector with BoundaryEvent records. This is meant for methods requiring a listing of
-        /// different ray distances for intersection testing, e.g. CSG shapes.
-        virtual void getAllIntersections(const Ray& ray, std::vector<BoundaryEvent>& hits) const = 0;
-
-        /// Fills the SurfaceInteraction record with information about the hit point. This is done by default in
-        /// the rayIntersect method, and it's meant only for methods testing different ray distances (using
-        /// getAllIntersections method) before actually filling the SurfaceInteraction record. When used in CSG trees,
-        /// this method is meant to be called on leaf nodes (actual geometric primitives), NOT on intermediate CSG nodes.
-        virtual void fillInteraction(const Ray& ray, float t, SurfaceInteraction& isect) const = 0;
+        virtual void fillInteraction(const Ray& ray, SurfaceInteraction& isect) const = 0;
 
         virtual Bounds3f getBounds() const = 0;
 

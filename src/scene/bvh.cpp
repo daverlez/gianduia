@@ -212,6 +212,9 @@ namespace gnd {
     bool BVH::rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool shadowRay) const {
         if (m_nodes.empty()) return false;
 
+        bool hitAny = false;
+        isect.t = std::numeric_limits<float>::max();
+
         int toVisitOffset = 0;
         int currentNodeIndex = 0;
         int nodesToVisit[64];
@@ -227,8 +230,11 @@ namespace gnd {
                         if (m_primitives[node->primitivesOffset + i]->rayIntersect(ray, its)) {
                             if (shadowRay)
                                 return true;
-                            ray.tMax = its.t;
-                            isect = its;
+                            if (its.t < isect.t) {
+                                ray.tMax = its.t;
+                                isect = its;
+                                hitAny = true;
+                            }
                         }
                     }
                     if (toVisitOffset == 0) break;
@@ -244,7 +250,10 @@ namespace gnd {
             }
         }
 
-        return isect.isValid();
+        if (hitAny)
+            isect.primitive->fillInteraction(ray, isect);
+
+        return hitAny;
     }
 
 }

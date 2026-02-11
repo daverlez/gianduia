@@ -35,23 +35,8 @@ namespace gnd {
             return true;
         }
 
-        void getAllIntersections(const Ray& ray, std::vector<BoundaryEvent>& hits) const override {
-            Vector3f originVector = ray.o - Point3f(0.0f);
-            float A = ray.d.lengthSquared();
-            float B = 2.0f * Dot(originVector, ray.d);
-            float C = originVector.lengthSquared() - (m_radius * m_radius);
-
-            float t0, t1;
-
-            if (!SolveQuadratic(A, B, C, t0, t1)) return;
-
-            if (t0 < ray.tMax) hits.push_back({t0, true, nullptr});
-            if (t1 < ray.tMax) hits.push_back({t1, false, nullptr});
-        }
-
-        void fillInteraction(const Ray& ray, float t, SurfaceInteraction& isect) const override {
-            isect.t = t;
-            isect.p = ray.o + ray.d * t;
+        void fillInteraction(const Ray& ray, SurfaceInteraction& isect) const override {
+            isect.p = ray.o + ray.d * isect.t;
             isect.n = Normal3f(Normalize(isect.p - Point3f(0.0f)));
         }
 

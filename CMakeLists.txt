@@ -27,7 +27,6 @@ add_executable(Gianduia
         src/scene/scene.cpp
         src/core/parser.cpp
         src/core/fileResolver.cpp
-        src/shapes/csg.cpp
         src/scene/bvh.cpp
 )
 
