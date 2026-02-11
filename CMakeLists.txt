@@ -11,6 +11,7 @@ find_package(pugixml CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 find_package(OpenVDB CONFIG REQUIRED)
+find_package(tinyobjloader CONFIG REQUIRED)
 
 find_package(OpenGL REQUIRED)
 
@@ -28,6 +29,8 @@ add_executable(Gianduia
         src/core/parser.cpp
         src/core/fileResolver.cpp
         src/scene/bvh.cpp
+        src/core/bvhBuilder.cpp
+        src/shapes/mesh.cpp
 )
 
 target_include_directories(Gianduia PRIVATE
@@ -49,4 +52,5 @@ target_link_libraries(Gianduia PRIVATE
         TBB::tbb
         OpenEXR::OpenEXR
         OpenVDB::openvdb
+        tinyobjloader::tinyobjloader
 )

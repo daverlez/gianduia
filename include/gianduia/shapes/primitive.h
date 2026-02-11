@@ -1,7 +1,7 @@
 #pragma once
 
 #include <gianduia/core/object.h>
-#include <gianduia/core/shape.h>
+#include <gianduia/shapes/shape.h>
 #include <memory>
 
 namespace gnd {

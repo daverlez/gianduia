@@ -1,26 +1,13 @@
 #pragma once
 
-#include <gianduia/math/bounds.h>
-#include <gianduia/core/primitive.h>
+#include <gianduia/shapes/primitive.h>
+#include <gianduia/core/bvhBuilder.h>
 #include <vector>
 #include <memory>
 
 namespace gnd {
 
     struct SurfaceInteraction;
-
-    struct alignas(32) BVHNode {
-        Bounds3f bounds;                    // BBox of the node
-
-        union {
-            uint32_t primitivesOffset;      // Leaf node: index in sorted primitives array
-            uint32_t rightChildOffset;      // Internal node: index of right child (left is always this + 1)
-        };
-
-        uint16_t nPrimitives;               // Primitives count; 0 for internal nodes
-        uint8_t axis;                       // Split axis
-        uint8_t pad;                        // Explicit 1 byte padding for 32 bytes alignment
-    };
 
     class BVH {
     public:

@@ -1,4 +1,4 @@
-#include <gianduia/core/shape.h>
+#include <gianduia/shapes/shape.h>
 #include <gianduia/core/factory.h>
 
 namespace gnd {

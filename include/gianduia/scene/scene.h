@@ -1,8 +1,8 @@
 #pragma once
 #include "bvh.h"
-#include "gianduia/core/camera.h"
-#include "gianduia/core/object.h"
-#include "gianduia/core/primitive.h"
+#include <gianduia/core/camera.h>
+#include <gianduia/core/object.h>
+#include <gianduia/shapes/primitive.h>
 
 namespace gnd {
     class Scene : public GndObject {

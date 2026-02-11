@@ -72,6 +72,10 @@ namespace gnd {
         /// @param hitt1  If hit, stores the exit distance. Can be nullptr.
         /// @return True if the ray intersects, False otherwise.
         inline bool rayIntersect(const Ray& ray, float* hitt0 = nullptr, float* hitt1 = nullptr) const;
+
+        Point3f centroid() const {
+            return pMin * 0.5f + pMax * 0.5f;
+        }
     };
 
 

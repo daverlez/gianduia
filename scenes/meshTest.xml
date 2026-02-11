@@ -1,0 +1,24 @@
+<scene>
+    <camera type="perspective">
+        <transform name="toWorld">
+            <lookat origin="5, 5, 8" target="0, 1.0, 0" up="0, 1, 0"/>
+        </transform>
+
+        <float name="fov" value="45"/>
+
+        <integer name="width" value="800"/>
+        <integer name="height" value="600"/>
+    </camera>
+
+    <primitive>
+        <transform name="toWorld">
+            <translate x="0" y="0" z="0"/>
+            <scale x="1.0" y="1.0" z="1.0"/>
+        </transform>
+
+        <shape type="mesh">
+            <string name="filename" value="teapot.obj"/>
+        </shape>
+    </primitive>
+
+</scene>

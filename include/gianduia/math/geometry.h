@@ -73,6 +73,8 @@ namespace gnd {
         Point2f operator/(float s) const { return Point2f(p / s); }
         Point2f& operator/=(float s) { p /= s; return *this; }
 
+        Point2f operator+(Point2f other) const { return Point2f(p + other.p); }
+
         const float& x() const  { return p[0]; }
         float& x()              { return p[0]; }
         const float& y() const  { return p[1]; }

@@ -9,11 +9,12 @@ namespace gnd {
 
     /// Record containing data on hit surface point.
     struct SurfaceInteraction {
-        float t;            // Distance along the ray
-        Point3f p;          // Intersection point (world coordinates)
-        Normal3f n;         // Surface normal (world space)
-        Point2f uv;         // UV coordinates
+        float t;                        // Distance along the ray
+        Point3f p;                      // Intersection point (world coordinates)
+        Normal3f n;                     // Surface normal (world space)
+        Point2f uv;                     // UV coordinates
         const Primitive* primitive;
+        uint32_t primIndex = 0;         // Triangle indexing in meshes
 
         SurfaceInteraction() : t(0.0f), p(0.0f), uv(0.0f), primitive(nullptr) {}
 
