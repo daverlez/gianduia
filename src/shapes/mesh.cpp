@@ -130,11 +130,11 @@ namespace gnd {
         float invDet = 1.0f / det;
         Vector3f tvec = ray.o - p0;
         u = Dot(tvec, pvec) * invDet;
-        if (u < 0.0f || u > 1.0f) return false;
+        if (u < -Epsilon || u > 1.0f + Epsilon) return false;
 
         Vector3f qvec = Cross(tvec, edge1);
         v = Dot(ray.d, qvec) * invDet;
-        if (v < 0.0f || u + v > 1.0f) return false;
+        if (v < -Epsilon || u + v > 1.0f + Epsilon) return false;
 
         t = Dot(edge2, qvec) * invDet;
         return true;
