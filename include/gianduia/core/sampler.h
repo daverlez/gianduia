@@ -18,7 +18,12 @@ namespace gnd {
 
         virtual Point2f next2D() = 0;
 
+        virtual size_t getSampleCount() const { return m_sampleCount; }
+
         EClassType getClassType() const override { return ESampler; }
+
+    protected:
+        size_t m_sampleCount;
     };
 
 }

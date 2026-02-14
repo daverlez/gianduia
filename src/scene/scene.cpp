@@ -1,5 +1,6 @@
-#include "gianduia/scene/scene.h"
-#include "gianduia/core/factory.h"
+#include <gianduia/scene/scene.h>
+#include <gianduia/core/factory.h>
+#include <gianduia/core/integrator.h>
 
 namespace gnd {
     Scene::Scene(const PropertyList& props) { }
@@ -14,6 +15,16 @@ namespace gnd {
                     throw std::runtime_error("Scene: cannot add multiple cameras!");
                 m_camera = std::static_pointer_cast<Camera>(child);
                 break;
+            case EIntegrator :
+                if (m_integrator)
+                    throw std::runtime_error("Scene: cannot add multiple integrators!");
+                m_integrator = std::static_pointer_cast<Integrator>(child);
+                break;
+            case ESampler :
+                if (m_sampler)
+                    throw std::runtime_error("Scene: cannot add multiple samplers!");
+                m_sampler = std::static_pointer_cast<Sampler>(child);
+                break;
             default:
                 throw std::runtime_error("Scene: cannot add specified child!");
         }
@@ -22,8 +33,10 @@ namespace gnd {
     void Scene::activate() {
         if (!m_camera)
             throw std::runtime_error("Scene: no camera specified!");
-
-        // TODO: checking integrator and sampler availability
+        if (!m_integrator)
+            throw std::runtime_error("Scene: no integrator specified!");
+        if (!m_sampler)
+            throw std::runtime_error("Scene: no sampler specified!");
 
         m_bvh = BVH(m_primitives);
         m_bvh.build();
@@ -36,6 +49,10 @@ namespace gnd {
     bool Scene::rayIntersect(const Ray& ray) const {
         SurfaceInteraction isect;
         return m_bvh.rayIntersect(ray, isect, true);
+    }
+
+    void Scene::render() {
+        m_integrator->render(this);
     }
 
     std::string Scene::toString() const {

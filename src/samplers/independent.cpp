@@ -11,7 +11,9 @@ namespace gnd {
         }
 
         IndependentSampler(const IndependentSampler& other)
-            : m_sampleCount(other.m_sampleCount), m_rng(other.m_rng) {}
+            : m_rng(other.m_rng) {
+            m_sampleCount = other.m_sampleCount;
+        }
 
         std::unique_ptr<Sampler> clone() const override {
             return std::make_unique<IndependentSampler>(*this);
@@ -34,7 +36,6 @@ namespace gnd {
         }
 
     private:
-        size_t m_sampleCount;
         PCG32 m_rng;
     };
 

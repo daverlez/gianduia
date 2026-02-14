@@ -31,6 +31,8 @@ add_executable(Gianduia
         src/scene/bvh.cpp
         src/core/bvhBuilder.cpp
         src/shapes/mesh.cpp
+        src/samplers/independent.cpp
+        src/integrators/normals.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

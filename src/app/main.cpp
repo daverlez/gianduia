@@ -16,35 +16,12 @@ int main() {
     std::shared_ptr<GndObject> root = Parser::loadFromXML("../scenes/meshTest.xml");
     std::shared_ptr<Scene> scene = std::static_pointer_cast<Scene>(root);
 
-    int width = scene->getCamera()->getWidth();
-    int height = scene->getCamera()->getHeight();
-
-    Bitmap film(width, height);
-
     std::cout << scene->toString() << std::endl;
 
     std::cout << "Rendering started..." << std::endl;
 
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
+    scene->render();
 
-            Point2f sample((x + 0.5f) / width, 1.0f - (y + 0.5f) / height);
-
-            Ray ray;
-            scene->getCamera()->shootRay(sample, &ray);
-
-            SurfaceInteraction isect;
-            Color3f pixelColor(1.0f);
-
-            if (scene->rayIntersect(ray, isect)) {
-                pixelColor = Color3f(isect.n.x() / 2.f + 0.5f, isect.n.y() / 2.f + 0.5f, isect.n.z() / 2.f + 0.5f);
-            }
-
-            film.setPixel(x, y, pixelColor);
-        }
-    }
-
-    film.savePNG("scene_render.png");
     std::cout << "Done!" << std::endl;
 
     return 0;
