@@ -9,7 +9,9 @@
         <integer name="width" value="800"/>
         <integer name="height" value="600"/>
     </camera>
-    <sampler type="independent"/>
+    <sampler type="independent">
+        <integer name="spp" value="128"/>
+    </sampler>
     <integrator type="normals"/>
 
     <primitive>

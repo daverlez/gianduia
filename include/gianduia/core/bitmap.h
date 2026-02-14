@@ -23,6 +23,10 @@ namespace gnd {
             return m_pixels[y * m_width + x];
         }
 
+        void clear() {
+            std::ranges::fill(m_pixels, Color3f(0.0f));
+        }
+
         void savePNG(const std::string& filename) const;
 
         int width() const { return m_width; }

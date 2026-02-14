@@ -7,7 +7,7 @@ namespace gnd {
     class IndependentSampler : public Sampler {
     public:
         IndependentSampler(const PropertyList& props) {
-            m_sampleCount = props.getInteger("sampleCount", 1);
+            m_sampleCount = props.getInteger("spp", 1);
         }
 
         IndependentSampler(const IndependentSampler& other)

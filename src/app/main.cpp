@@ -18,11 +18,7 @@ int main() {
 
     std::cout << scene->toString() << std::endl;
 
-    std::cout << "Rendering started..." << std::endl;
-
     scene->render();
-
-    std::cout << "Done!" << std::endl;
 
     return 0;
 }

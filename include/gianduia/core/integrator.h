@@ -2,17 +2,20 @@
 #include <gianduia/core/object.h>
 #include <gianduia/core/sampler.h>
 #include <gianduia/scene/scene.h>
+#include <gianduia/core/bitmap.h>
 
-#include "bitmap.h"
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+
+#include <iostream>
+#include <functional>
 
 namespace gnd {
 
     class Integrator : public GndObject {
     public:
         virtual ~Integrator() = default;
-
         virtual void render(Scene *scene) = 0;
-
         EClassType getClassType() const override { return EIntegrator; }
     };
 
@@ -22,39 +25,68 @@ namespace gnd {
 
         virtual Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler) const = 0;
 
+        virtual void onSampleFinished(int sampleIndex, const Bitmap& film) {}
+
         void render(Scene *scene) override {
             auto camera = scene->getCamera();
             auto masterSampler = scene->getSampler();
 
+            size_t sampleCount = masterSampler->getSampleCount();
+
             int width = camera->getWidth();
             int height = camera->getHeight();
 
-            Bitmap film(width, height);
+            Bitmap* film = camera->getFilm();
+            film->clear();
 
-            for (int y = 0; y < height; ++y) {
+            std::cout << "Rendering started..." << std::endl;
 
-                std::unique_ptr<Sampler> threadSampler = masterSampler->clone();
+            for (size_t s = 0; s < sampleCount; ++s) {
+                tbb::parallel_for(tbb::blocked_range<int>(0, height), [&](const tbb::blocked_range<int>& range) {
 
-                for (int x = 0; x < width; ++x) {
+                    std::unique_ptr<Sampler> threadSampler = masterSampler->clone();
 
-                    uint64_t pixelIdx = y * width + x;
-                    threadSampler->seed(pixelIdx);
+                    for (int y = range.begin(); y != range.end(); ++y) {
+                        for (int x = 0; x < width; ++x) {
 
-                    Point2f pixelSample = threadSampler->next2D();
-                    Point2f screenSample((x + pixelSample.x()) / width,
-                                         1.0f - (y + pixelSample.y()) / height);
+                            uint64_t pixelIdx = y * width + x;
+                            uint64_t globalIdx = pixelIdx + s * (width * height);
+                            threadSampler->seed(globalIdx);
 
-                    Ray ray;
-                    camera->shootRay(screenSample, &ray);
+                            // Pixel jittering
+                            Point2f pixelSample = threadSampler->next2D();
+                            Point2f screenSample((x + pixelSample.x()) / width,
+                                                 1.0f - (y + pixelSample.y()) / height);
 
-                    Color3f color = Li(ray, *scene, *threadSampler);
+                            Ray ray;
+                            camera->shootRay(screenSample, &ray);
 
-                    if (!color.hasNaNs())
-                        film.setPixel(x, y, color);
+                            Color3f newColor = Li(ray, *scene, *threadSampler);
+
+                            if (newColor.hasNaNs()) {
+                                std::cerr << "Warning: NaN value " << newColor << " detected at pixel (" <<
+                                    x << ", " << y << ")!" << std::endl;
+                                newColor = Color3f(0.0f);
+                            }
+
+                            // Avg_n = Avg_{n-1} + (Val_n - Avg_{n-1}) / n
+                            Color3f oldColor = film->getPixel(x, y);
+                            float weight = 1.0f / (float)(s + 1);
+                            Color3f blendedColor = oldColor + (newColor - oldColor) * weight;
+                            film->setPixel(x, y, blendedColor);
+                        }
+                    }
+                });
+
+                onSampleFinished(s, *film);
+
+                if ((s + 1) % 10 == 0 || s == sampleCount - 1) {
+                    std::cout << "Sample " << (s + 1) << "/" << sampleCount << " done." << std::endl;
                 }
             }
 
-            film.savePNG("output.png");
+            film->savePNG("output.png");
+            std::cout << "Done!" << std::endl;
         }
     };
 }

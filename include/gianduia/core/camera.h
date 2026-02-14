@@ -4,6 +4,8 @@
 #include <gianduia/math/transform.h>
 #include <gianduia/math/geometry.h>
 
+#include "bitmap.h"
+
 namespace gnd {
 
     class Camera : public GndObject {
@@ -14,6 +16,8 @@ namespace gnd {
 
             m_outputWidth = props.getInteger("width", 1280);
             m_outputHeight = props.getInteger("height", 720);
+
+            m_film = std::make_unique<Bitmap>(m_outputWidth, m_outputHeight);
         }
 
         virtual ~Camera() {}
@@ -24,6 +28,7 @@ namespace gnd {
         int getWidth() const { return m_outputWidth; }
         int getHeight() const { return m_outputHeight; }
         float getAspectRatio() const { return m_outputWidth / (float)m_outputHeight; }
+        Bitmap* getFilm() const { return m_film.get(); }
 
         EClassType getClassType() const override { return ECamera; }
 
@@ -35,6 +40,7 @@ namespace gnd {
         Transform m_cameraToWorld;
         int m_outputWidth;
         int m_outputHeight;
+        std::unique_ptr<Bitmap> m_film;
     };
 
 }
