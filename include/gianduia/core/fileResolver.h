@@ -13,8 +13,20 @@ namespace gnd {
         /// Sets the current working directory (called by the parser).
         static void setBasePath(const std::filesystem::path& path);
 
+        /// Sets the path to output file
+        static void setOutputPath(const std::filesystem::path& path);
+
+        /// Sets output file name
+        static void setOutputName(const std::string& name);
+
         /// Returns the current working directory.
         static std::filesystem::path getBasePath();
+
+        /// Returns the path to output file
+        static std::filesystem::path getOutputPath();
+
+        /// Returns output file name
+        static std::string getOutputName();
 
         /// Resolves a path into an absolute path.
         static std::filesystem::path resolve(const std::string& path);
@@ -24,6 +36,8 @@ namespace gnd {
 
     private:
         static std::filesystem::path m_basePath;
+        static std::filesystem::path m_outputPath;
+        static std::string m_outputName;
     };
 
 }

@@ -155,6 +155,8 @@ namespace gnd {
 
     std::unique_ptr<GndObject> Parser::loadFromXML(const std::string& filename) {
         FileResolver::setBasePath(filename);
+        FileResolver::setOutputPath(filename);
+        FileResolver::setOutputName(filename);
 
         pugi::xml_document doc;
         pugi::xml_parse_result result = doc.load_file(filename.c_str());

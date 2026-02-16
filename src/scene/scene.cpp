@@ -40,6 +40,10 @@ namespace gnd {
 
         m_bvh = BVH(m_primitives);
         m_bvh.build();
+
+        std::cout << "Scene: built a BVH with " << m_primitives.size()
+                    << (m_primitives.size() == 1 ? " primitive" : " primitives")
+                    << " occupying " << m_bvh.getSizeBytes() << " bytes." << std::endl;
     }
 
     bool Scene::rayIntersect(const Ray& ray, SurfaceInteraction& isect) const {

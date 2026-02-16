@@ -61,6 +61,9 @@ namespace gnd {
             orderedIndices.push_back(m_indices[originalTriIdx * 3 + 2]);
         }
         m_indices = std::move(orderedIndices);
+
+        std::cout << "Mesh: Done! Built a BVH with " << m_nodes.size()
+                    << " nodes occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes." << std::endl;
     }
 
     void Mesh::loadOBJ(const std::string& filename) {

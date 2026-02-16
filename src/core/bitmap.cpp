@@ -3,10 +3,11 @@
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#include "gianduia/core/fileResolver.h"
 
 namespace gnd {
 
-    void Bitmap::savePNG(const std::string& filename) const {
+    void Bitmap::savePNG() const {
         std::vector<uint8_t> data(m_width * m_height * 3);
 
         int index = 0;
@@ -23,6 +24,8 @@ namespace gnd {
                 data[index++] = static_cast<uint8_t>(final.b());
             }
         }
+
+        std::string filename = FileResolver::getOutputPath().string() + "/" + FileResolver::getOutputName() + ".png";
 
         int success = stbi_write_png(filename.c_str(), m_width, m_height, 3, data.data(), m_width * 3);
 

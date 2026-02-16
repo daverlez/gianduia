@@ -4,6 +4,8 @@
 namespace gnd {
 
     std::filesystem::path FileResolver::m_basePath = std::filesystem::current_path();
+    std::filesystem::path FileResolver::m_outputPath = std::filesystem::current_path();
+    std::string FileResolver::m_outputName = "output";
 
     void FileResolver::setBasePath(const std::filesystem::path& path) {
         try {
@@ -23,8 +25,37 @@ namespace gnd {
         }
     }
 
+    void FileResolver::setOutputPath(const std::filesystem::path& path) {
+        try {
+            std::filesystem::path absPath = std::filesystem::canonical(path);
+
+            if (std::filesystem::is_regular_file(absPath)) {
+                m_outputPath = absPath.parent_path();
+            } else {
+                m_outputPath = absPath;
+            }
+
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "FileResolver Error: Could not resolve path " << path << "\n"
+                      << e.what() << std::endl;
+        }
+    }
+
+    void FileResolver::setOutputName(const std::string& name) {
+        std::filesystem::path p(name);
+        m_outputName = p.stem().string();
+    }
+
     std::filesystem::path FileResolver::getBasePath() {
         return m_basePath;
+    }
+
+    std::filesystem::path FileResolver::getOutputPath() {
+        return m_outputPath;
+    }
+
+    std::string FileResolver::getOutputName() {
+        return m_outputName;
     }
 
     std::filesystem::path FileResolver::resolve(const std::string& pathStr) {

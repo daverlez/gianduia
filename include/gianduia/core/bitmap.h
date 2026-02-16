@@ -32,7 +32,7 @@ namespace gnd {
             return reinterpret_cast<const float*>(m_pixels.data());
         }
 
-        void savePNG(const std::string& filename) const;
+        void savePNG() const;
 
         int width() const { return m_width; }
         int height() const { return m_height; }

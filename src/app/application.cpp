@@ -163,8 +163,9 @@ void Application::loadScene(const std::string& path) {
     try {
         std::shared_ptr<gnd::GndObject> root = gnd::Parser::loadFromXML(path);
         m_scene = std::static_pointer_cast<gnd::Scene>(root);
-        m_scene->activate();
         m_textureDirty = true;
+
+        std::cout << m_scene->toString() << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Error loading scene: " << e.what() << std::endl;
     }

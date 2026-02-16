@@ -103,7 +103,7 @@ namespace gnd {
                 }
             }
 
-            film->savePNG("output.png");
+            film->savePNG();
             std::cout << "Done!" << std::endl;
         }
     };
