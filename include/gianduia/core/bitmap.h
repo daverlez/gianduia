@@ -27,6 +27,11 @@ namespace gnd {
             std::ranges::fill(m_pixels, Color3f(0.0f));
         }
 
+        const float* data() const {
+            if (m_pixels.empty()) return nullptr;
+            return reinterpret_cast<const float*>(m_pixels.data());
+        }
+
         void savePNG(const std::string& filename) const;
 
         int width() const { return m_width; }

@@ -16,7 +16,23 @@ namespace gnd {
     public:
         virtual ~Integrator() = default;
         virtual void render(Scene *scene) = 0;
+        virtual void cancel() { m_stopRequested = true; }
+
+        using RenderCallback = std::function<void(int sampleIndex, const Bitmap& film)>;
+        void setCallback(RenderCallback cb) { m_callback = cb; }
+
         EClassType getClassType() const override { return EIntegrator; }
+
+    protected:
+        void notifyUpdate(int sampleIndex, const Bitmap& film) {
+            if (m_callback && !m_stopRequested) {
+                m_callback(sampleIndex, film);
+            }
+        }
+
+        std::atomic<bool> m_stopRequested = false;
+
+        RenderCallback m_callback;
     };
 
     class SamplerIntegrator : public Integrator {
@@ -25,9 +41,9 @@ namespace gnd {
 
         virtual Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler) const = 0;
 
-        virtual void onSampleFinished(int sampleIndex, const Bitmap& film) {}
-
         void render(Scene *scene) override {
+            m_stopRequested = false;
+
             auto camera = scene->getCamera();
             auto masterSampler = scene->getSampler();
 
@@ -42,6 +58,8 @@ namespace gnd {
             std::cout << "Rendering started..." << std::endl;
 
             for (size_t s = 0; s < sampleCount; ++s) {
+                if (m_stopRequested) break;
+
                 tbb::parallel_for(tbb::blocked_range<int>(0, height), [&](const tbb::blocked_range<int>& range) {
 
                     std::unique_ptr<Sampler> threadSampler = masterSampler->clone();
@@ -78,7 +96,7 @@ namespace gnd {
                     }
                 });
 
-                onSampleFinished(s, *film);
+                notifyUpdate(s, *film);
 
                 if ((s + 1) % 10 == 0 || s == sampleCount - 1) {
                     std::cout << "Sample " << (s + 1) << "/" << sampleCount << " done." << std::endl;
