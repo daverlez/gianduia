@@ -36,6 +36,8 @@ add_executable(Gianduia
         src/integrators/normals.cpp
         src/app/application.cpp
         src/app/postProcessor.cpp
+        src/math/warp.cpp
+        src/integrators/ao.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

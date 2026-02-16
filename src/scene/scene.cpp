@@ -72,11 +72,17 @@ namespace gnd {
             "Scene[\n"
             "  camera = \n"
             "{}\n"
+            "  integrator = \n"
+            "{}\n"
+            "  sampler = \n"
+            "{}\n"
             "  primitives = {{\n"
             "{}\n"
             "  }}\n"
             "]",
             indent(m_camera->toString(),2),
+            indent(m_integrator->toString(),2),
+            indent(m_sampler->toString(),2),
             indent(primitivesStr)
         );
     }

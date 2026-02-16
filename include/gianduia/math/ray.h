@@ -14,7 +14,7 @@ namespace gnd {
         mutable float tMin;
         mutable float tMax; 
 
-        Ray() : tMax(std::numeric_limits<float>::infinity()) {}
+        Ray() : tMax(std::numeric_limits<float>::infinity()), tMin(Epsilon) {}
 
         Ray(const Point3f& origin, const Vector3f& direction, float _tMax = std::numeric_limits<float>::infinity())
             : o(origin), d(direction), tMax(_tMax), tMin(Epsilon) {}

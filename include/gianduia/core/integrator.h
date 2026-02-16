@@ -97,10 +97,6 @@ namespace gnd {
                 });
 
                 notifyUpdate(s, *film);
-
-                if ((s + 1) % 10 == 0 || s == sampleCount - 1) {
-                    std::cout << "Sample " << (s + 1) << "/" << sampleCount << " done." << std::endl;
-                }
             }
 
             film->savePNG();

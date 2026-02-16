@@ -177,6 +177,8 @@ namespace gnd {
         }
     };
 
+    inline Vector3f operator+(const Vector3f& v, const Normal3f& n) { return Vector3f(v.v + n.n); }
+    inline Vector3f operator+(const Normal3f& n, const Vector3f& v) { return Vector3f(v.v + n.n); }
 
     /* Geometry utility functions */
 
