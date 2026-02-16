@@ -74,11 +74,19 @@ namespace gnd {
         Point2f& operator/=(float s) { p /= s; return *this; }
 
         Point2f operator+(Point2f other) const { return Point2f(p + other.p); }
+        Point2f operator-(Point2f other) const { return Point2f(p - other.p); }
 
         const float& x() const  { return p[0]; }
         float& x()              { return p[0]; }
         const float& y() const  { return p[1]; }
         float& y()              { return p[1]; }
+
+        float lengthSquared() const {
+            return glm::dot(p, p);
+        }
+        float length() const {
+            return glm::length(p);
+        }
     };
 
     inline Point2f operator*(float s, const Point2f& p) { return p * s; }
