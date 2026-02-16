@@ -6,8 +6,8 @@
 
         <float name="fov" value="50"/>
 
-        <integer name="width" value="1024"/>
-        <integer name="height" value="768"/>
+        <integer name="width" value="800"/>
+        <integer name="height" value="600"/>
     </camera>
 
     <sampler type="independent">

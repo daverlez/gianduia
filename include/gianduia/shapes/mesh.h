@@ -14,7 +14,7 @@ namespace gnd {
 
         virtual void activate() override;
 
-        virtual bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const override;
+        virtual bool rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const override;
 
         virtual void fillInteraction(const Ray& ray, SurfaceInteraction& isect) const override;
 

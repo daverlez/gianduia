@@ -9,7 +9,7 @@ namespace gnd {
             m_radius = props.getFloat("radius", 1.0f);
         }
 
-        bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const override {
+        bool rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const override {
             Vector3f originVector = ray.o - Point3f(0.0f);
 
             float A = ray.d.lengthSquared();
@@ -21,11 +21,13 @@ namespace gnd {
 
             float tHit;
 
-            if (t0 >= ray.tMin && t0 < ray.tMax)
+            if (t0 >= ray.tMin && t0 < ray.tMax) {
                 tHit = t0;
-            else if (t1 >= ray.tMin && t1 < ray.tMax)
+                if (predicate) return true;
+            } else if (t1 >= ray.tMin && t1 < ray.tMax) {
                 tHit = t1;
-            else
+                if (predicate) return true;
+            } else
                 return false;
 
             isect.t = tHit;

@@ -52,15 +52,37 @@ namespace gnd {
         if (!m_nodes.empty())
             m_bounds = m_nodes[0].bounds;
 
+        std::vector<Point3f> orderedPositions;
+        std::vector<Normal3f> orderedNormals;
+        std::vector<Point2f> orderedUVs;
         std::vector<uint32_t> orderedIndices;
+
+        orderedPositions.reserve(m_indices.size());
+        if (!m_normals.empty()) orderedNormals.reserve(m_indices.size());
+        if (!m_uvs.empty()) orderedUVs.reserve(m_indices.size());
         orderedIndices.reserve(m_indices.size());
 
+        uint32_t currentVertexIndex = 0;
+
         for (int originalTriIdx : result.orderedIndices) {
-            orderedIndices.push_back(m_indices[originalTriIdx * 3 + 0]);
-            orderedIndices.push_back(m_indices[originalTriIdx * 3 + 1]);
-            orderedIndices.push_back(m_indices[originalTriIdx * 3 + 2]);
+            for (int k = 0; k < 3; ++k) {
+                uint32_t oldIndex = m_indices[originalTriIdx * 3 + k];
+                orderedPositions.push_back(m_positions[oldIndex]);
+
+                if (!m_normals.empty())
+                    orderedNormals.push_back(m_normals[oldIndex]);
+
+                if (!m_uvs.empty())
+                    orderedUVs.push_back(m_uvs[oldIndex]);
+
+                orderedIndices.push_back(currentVertexIndex++);
+            }
         }
-        m_indices = std::move(orderedIndices);
+
+        m_positions = std::move(orderedPositions);
+        m_normals   = std::move(orderedNormals);
+        m_uvs       = std::move(orderedUVs);
+        m_indices   = std::move(orderedIndices);
 
         std::cout << "Mesh: Done! Built a BVH with " << m_nodes.size()
                     << " nodes occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes." << std::endl;
@@ -110,8 +132,6 @@ namespace gnd {
                 m_indices.push_back((uint32_t)m_indices.size());
             }
         }
-
-        // TODO: if no normals are defined, assign manually
     }
 
     bool Mesh::intersectTriangle(const Ray& ray, uint32_t triIndex, float& t, float& u, float& v) const {
@@ -143,8 +163,10 @@ namespace gnd {
         return true;
     }
 
-    bool Mesh::rayIntersect(const Ray& ray, SurfaceInteraction& isect) const {
+    bool Mesh::rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const {
         if (m_nodes.empty()) return false;
+
+        Vector3f invDir = {1.0f / ray.d.x(), 1.0f / ray.d.y(), 1.0f / ray.d.z()};
 
         bool hitAny = false;
         int toVisitOffset = 0;
@@ -154,7 +176,7 @@ namespace gnd {
         while (true) {
             const BVHNode* node = &m_nodes[currentNodeIndex];
 
-            if (node->bounds.rayIntersect(ray)) {
+            if (node->bounds.rayIntersect(ray, invDir)) {
 
                 if (node->nPrimitives > 0) {
                     // Leaf node
@@ -164,6 +186,7 @@ namespace gnd {
                         float t, u, v;
                         if (intersectTriangle(ray, triIdx, t, u, v)) {
                             if (t > ray.tMin && t < ray.tMax) {
+                                if (predicate) return true;
                                 ray.tMax = t; // Ray Shrinking
 
                                 isect.t = t;
@@ -177,8 +200,19 @@ namespace gnd {
                     currentNodeIndex = nodesToVisit[--toVisitOffset];
                 } else {
                     // Internal node
-                    nodesToVisit[toVisitOffset++] = node->rightChildOffset;
-                    currentNodeIndex = currentNodeIndex + 1;
+                    int firstChild, secondChild;
+                    bool dirIsNeg = ray.d[node->axis] < 0; // splitAxis 0=X, 1=Y, 2=Z
+
+                    if (dirIsNeg) {
+                        firstChild = node->rightChildOffset;
+                        secondChild = currentNodeIndex + 1; // Left child
+                    } else {
+                        firstChild = currentNodeIndex + 1;  // Left child
+                        secondChild = node->rightChildOffset;
+                    }
+
+                    nodesToVisit[toVisitOffset++] = secondChild;
+                    currentNodeIndex = firstChild;
                 }
             } else {
                 if (toVisitOffset == 0) break;

@@ -23,11 +23,11 @@ namespace gnd {
             throw std::runtime_error("Primitive: defined without a Shape!");
     }
 
-    bool Primitive::rayIntersect(const Ray& rWorld, SurfaceInteraction& isect) const {
+    bool Primitive::rayIntersect(const Ray& rWorld, SurfaceInteraction& isect, bool predicate) const {
         Transform worldToObject = m_objectToWorld.inverse();
         Ray rLocal = worldToObject(rWorld);
 
-        if (!m_shape->rayIntersect(rLocal, isect)) {
+        if (!m_shape->rayIntersect(rLocal, isect, predicate)) {
             return false;
         }
 

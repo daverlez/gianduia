@@ -12,7 +12,7 @@ namespace gnd {
             m_zMax = props.getFloat("zMax", 1.0f);
         }
 
-        bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const override {
+        bool rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const override {
             float A = ray.d.x() * ray.d.x() + ray.d.y() * ray.d.y();
             float B = 2.0f * (ray.d.x() * ray.o.x() + ray.d.y() * ray.o.y());
             float C = ray.o.x() * ray.o.x() + ray.o.y() * ray.o.y() - m_radius * m_radius;
@@ -27,6 +27,7 @@ namespace gnd {
                     if (z >= m_zMin && z <= m_zMax) {
                         tSide = t0;
                         hitSide = true;
+                        if (predicate) return true;
                     }
                 }
                 if (!hitSide && t1 > ray.tMin && t1 < ray.tMax) {
@@ -34,6 +35,7 @@ namespace gnd {
                     if (z >= m_zMin && z <= m_zMax) {
                         tSide = t1;
                         hitSide = true;
+                        if (predicate) return true;
                     }
                 }
             }
@@ -61,6 +63,7 @@ namespace gnd {
 
             intersectCap(m_zMin, Normal3f(0, 0, -1));
             intersectCap(m_zMax, Normal3f(0, 0, 1));
+            if (hitCap && predicate) return true;
 
             if (!hitSide && !hitCap) return false;
 

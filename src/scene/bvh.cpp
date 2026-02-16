@@ -31,6 +31,8 @@ namespace gnd {
     bool BVH::rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool shadowRay) const {
         if (m_nodes.empty()) return false;
 
+        Vector3f invDir = {1.0f / ray.d.x(), 1.0f / ray.d.y(), 1.0f / ray.d.z()};
+
         bool hitAny = false;
         isect.t = std::numeric_limits<float>::max();
 
@@ -41,12 +43,12 @@ namespace gnd {
         while (true) {
             const BVHNode* node = &m_nodes[currentNodeIndex];
 
-            if (node->bounds.rayIntersect(ray)) {
+            if (node->bounds.rayIntersect(ray, invDir)) {
                 if (node->nPrimitives > 0) {
                     // Leaf node
                     for (int i = 0; i < node->nPrimitives; ++i) {
                         SurfaceInteraction its;
-                        if (m_primitives[node->primitivesOffset + i]->rayIntersect(ray, its)) {
+                        if (m_primitives[node->primitivesOffset + i]->rayIntersect(ray, its, shadowRay)) {
                             if (shadowRay)
                                 return true;
                             if (its.t < isect.t) {

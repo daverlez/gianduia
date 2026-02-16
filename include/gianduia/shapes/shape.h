@@ -26,7 +26,7 @@ namespace gnd {
         Shape(const PropertyList& props) { }
         virtual ~Shape() { }
 
-        virtual bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const = 0;
+        virtual bool rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate = false) const = 0;
 
         virtual void fillInteraction(const Ray& ray, SurfaceInteraction& isect) const = 0;
 

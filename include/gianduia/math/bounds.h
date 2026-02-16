@@ -73,6 +73,8 @@ namespace gnd {
         /// @return True if the ray intersects, False otherwise.
         inline bool rayIntersect(const Ray& ray, float* hitt0 = nullptr, float* hitt1 = nullptr) const;
 
+        inline bool rayIntersect(const Ray& ray, const Vector3f& invDir, float* hitt0 = nullptr, float* hitt1 = nullptr) const;
+
         Point3f centroid() const {
             return pMin * 0.5f + pMax * 0.5f;
         }
@@ -120,6 +122,28 @@ namespace gnd {
             if (t0 > t1) return false;
         }
         
+        if (hitt0) *hitt0 = t0;
+        if (hitt1) *hitt1 = t1;
+        return true;
+    }
+
+    inline bool Bounds3f::rayIntersect(const Ray& ray, const Vector3f& invDir, float* hitt0, float* hitt1) const {
+        float t0 = 0.f;
+        float t1 = ray.tMax;
+
+        for (int i = 0; i < 3; ++i) {
+            float invRayDir = invDir[i];
+            float tNear = (pMin.p[i] - ray.o.p[i]) * invRayDir;
+            float tFar  = (pMax.p[i] - ray.o.p[i]) * invRayDir;
+
+            if (tNear > tFar) std::swap(tNear, tFar);
+
+            t0 = tNear > t0 ? tNear : t0;
+            t1 = tFar  < t1 ? tFar  : t1;
+
+            if (t0 > t1) return false;
+        }
+
         if (hitt0) *hitt0 = t0;
         if (hitt1) *hitt1 = t1;
         return true;

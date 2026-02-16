@@ -6,6 +6,7 @@
 
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
+#include <tbb/enumerable_thread_specific.h>
 
 #include <iostream>
 #include <functional>
@@ -60,26 +61,32 @@ namespace gnd {
             for (size_t s = 0; s < sampleCount; ++s) {
                 if (m_stopRequested) break;
 
+                tbb::enumerable_thread_specific<std::unique_ptr<Sampler>> threadSamplers(
+                    [&]() {
+                        return masterSampler->clone();
+                    }
+                );
+
                 tbb::parallel_for(tbb::blocked_range<int>(0, height), [&](const tbb::blocked_range<int>& range) {
 
-                    std::unique_ptr<Sampler> threadSampler = masterSampler->clone();
+                    Sampler& threadSampler = *threadSamplers.local();
 
                     for (int y = range.begin(); y != range.end(); ++y) {
                         for (int x = 0; x < width; ++x) {
 
                             uint64_t pixelIdx = y * width + x;
                             uint64_t globalIdx = pixelIdx + s * (width * height);
-                            threadSampler->seed(globalIdx);
+                            threadSampler.seed(globalIdx);
 
                             // Pixel jittering
-                            Point2f pixelSample = threadSampler->next2D();
+                            Point2f pixelSample = threadSampler.next2D();
                             Point2f screenSample((x + pixelSample.x()) / width,
                                                  1.0f - (y + pixelSample.y()) / height);
 
                             Ray ray;
                             camera->shootRay(screenSample, &ray);
 
-                            Color3f newColor = Li(ray, *scene, *threadSampler);
+                            Color3f newColor = Li(ray, *scene, threadSampler);
 
                             if (newColor.hasNaNs()) {
                                 std::cerr << "Warning: NaN value " << newColor << " detected at pixel (" <<

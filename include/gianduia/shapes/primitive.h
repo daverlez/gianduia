@@ -14,7 +14,7 @@ namespace gnd {
         void addChild(std::shared_ptr<GndObject> child) override;
         void activate() override;
 
-        bool rayIntersect(const Ray& rWorld, SurfaceInteraction& isect) const;
+        bool rayIntersect(const Ray& rWorld, SurfaceInteraction& isect, bool predicate) const;
         void fillInteraction(const Ray& rWorld, SurfaceInteraction& isect) const;
 
         Bounds3f getWorldBounds() const;

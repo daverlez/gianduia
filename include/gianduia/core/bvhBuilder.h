@@ -26,7 +26,7 @@ namespace gnd {
 
     struct BVHBuildResult {
         std::vector<BVHNode> nodes;
-        std::vector<int> orderedIndices; // Permutazione: nuovo indice -> vecchio indice
+        std::vector<int> orderedIndices;
     };
 
     class BVHBuilder {
