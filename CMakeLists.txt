@@ -35,6 +35,7 @@ add_executable(Gianduia
         src/samplers/independent.cpp
         src/integrators/normals.cpp
         src/app/application.cpp
+        src/app/postProcessor.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

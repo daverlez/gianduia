@@ -8,6 +8,8 @@
 #include <app/glTexture.h>
 #include <gianduia/scene/scene.h>
 
+#include "postProcessor.h"
+
 struct GLFWwindow; // GLFW forward declaration
 
 class Application {
@@ -48,4 +50,5 @@ private:
     std::mutex m_textureMutex;
     bool m_textureDirty = false;
 
+    PostProcessor m_postProcessor;
 };

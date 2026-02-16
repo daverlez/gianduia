@@ -40,6 +40,8 @@ void Application::initWindow() {
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cerr << "Failed to initialize GLAD" << std::endl;
     }
+
+    m_postProcessor.init();
 }
 
 void Application::initImGui() {
@@ -136,19 +138,21 @@ void Application::renderViewport() {
 
     if (m_texture.id != 0) {
         ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+
+        m_postProcessor.resize((int)viewportSize.x, (int)viewportSize.y);
+
+        m_postProcessor.render(m_texture.id);
+
         float aspect = (float)m_texture.width / (float)m_texture.height;
         float viewAspect = viewportSize.x / viewportSize.y;
-
         ImVec2 imageSize = viewportSize;
-        if (viewAspect > aspect) {
-            imageSize.x = viewportSize.y * aspect;
-        } else {
-            imageSize.y = viewportSize.x / aspect;
-        }
+        if (viewAspect > aspect) imageSize.x = viewportSize.y * aspect;
+        else imageSize.y = viewportSize.x / aspect;
 
         ImGui::SetCursorPosX((viewportSize.x - imageSize.x) * 0.5f);
 
-        ImGui::Image((ImTextureID)(uintptr_t)m_texture.id, imageSize, ImVec2(0, 0), ImVec2(1, 1));
+        ImGui::Image((ImTextureID)(uintptr_t)m_postProcessor.getOutputTexture(),
+                     imageSize, ImVec2(0, 0), ImVec2(1, 1));
     }
 
     ImGui::End();
