@@ -22,16 +22,16 @@ namespace gnd {
         std::map<std::string, ObjectFactory> m_constructors;
     };
 
-}
-
-#define GND_REGISTER_CLASS(Cls, XmlName) \
-    class Cls##_Factory { \
-    public: \
-        Cls##_Factory() { \
-            gnd::GndFactory::getInstance()->registerClass(XmlName, \
-                [](const gnd::PropertyList& props) -> std::unique_ptr<gnd::GndObject> { \
-                    return std::make_unique<Cls>(props); \
-                }); \
-        } \
-    }; \
+    #define GND_REGISTER_CLASS(Cls, XmlName) \
+        class Cls##_Factory { \
+        public: \
+            Cls##_Factory() { \
+                gnd::GndFactory::getInstance()->registerClass(XmlName, \
+                    [](const gnd::PropertyList& props) -> std::unique_ptr<gnd::GndObject> { \
+                        return std::make_unique<Cls>(props); \
+                    }); \
+            } \
+        }; \
     static Cls##_Factory global_##Cls##_Factory;
+
+}

@@ -46,22 +46,22 @@ namespace gnd {
             else if (tagName == "point") {
                 if (child.attribute("value")) {
                     Vector3f v = parseVector(child.attribute("value").value());
-                    props.setPoint(name, Point3f(v.x(), v.y(), v.z()));
+                    props.setPoint3(name, Point3f(v.x(), v.y(), v.z()));
                 } else {
                     float x = child.attribute("x").as_float(0.f);
                     float y = child.attribute("y").as_float(0.f);
                     float z = child.attribute("z").as_float(0.f);
-                    props.setPoint(name, Point3f(x, y, z));
+                    props.setPoint3(name, Point3f(x, y, z));
                 }
             }
             else if (tagName == "vector") {
                 if (child.attribute("value")) {
-                    props.setVector(name, parseVector(child.attribute("value").value()));
+                    props.setVector3(name, parseVector(child.attribute("value").value()));
                 } else {
                     float x = child.attribute("x").as_float(0.f);
                     float y = child.attribute("y").as_float(0.f);
                     float z = child.attribute("z").as_float(0.f);
-                    props.setVector(name, Vector3f(x, y, z));
+                    props.setVector3(name, Vector3f(x, y, z));
                 }
             }
             else if (tagName == "color") {

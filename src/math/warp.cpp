@@ -5,7 +5,7 @@
 namespace gnd {
 
     Point2f Warp::squareToUniformDisk(const Point2f &sample) {
-        Point2f p = 2.0f * sample - Point2f(1.0f);
+        Vector2f p = 2.0f * sample - Point2f(1.0f);
         float r, theta;
 
         if (std::abs(p.x()) < Epsilon && std::abs(p.y()) < Epsilon) {

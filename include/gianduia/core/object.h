@@ -11,7 +11,8 @@ namespace gnd {
         EShape,
         ECamera,
         EIntegrator,
-        ESampler
+        ESampler,
+        ETexture
     };
 
     class GndObject {

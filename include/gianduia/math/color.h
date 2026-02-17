@@ -106,6 +106,10 @@ namespace gnd {
             }
             return ret;
         }
+
+        std::string toString() const {
+            return std::format("[{:.2f}, {:.2f}, {:.2f}]", v.x, v.y, v.z);
+        }
     };
 
     inline Color3f operator*(float s, const Color3f& c) {

@@ -38,6 +38,8 @@ add_executable(Gianduia
         src/app/postProcessor.cpp
         src/math/warp.cpp
         src/integrators/ao.cpp
+        src/textures/constant.cpp
+        src/textures/checkerboard.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

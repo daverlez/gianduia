@@ -9,6 +9,49 @@ namespace gnd {
     struct Point3f;
     struct Normal3f;
 
+    struct Vector2f {
+        glm::vec2 v;
+
+        Vector2f() : v(0.f) {}
+        explicit Vector2f(float x) : v(x) {}
+        Vector2f(float x, float y) : v(x, y) {}
+        explicit Vector2f(const glm::vec2& _v) : v(_v) {}
+
+        float operator[](int i) const { return v[i]; }
+        float& operator[](int i) { return v[i]; }
+
+        Vector2f operator+(const Vector2f& other) const { return Vector2f(v + other.v); }
+        Vector2f operator-(const Vector2f& other) const { return Vector2f(v - other.v); }
+        Vector2f operator*(float s) const { return Vector2f(v * s); }
+        Vector2f operator/(float s) const { return Vector2f(v / s); }
+
+        Vector2f& operator+=(const Vector2f& other) { v += other.v; return *this; }
+        Vector2f& operator-=(const Vector2f& other) { v -= other.v; return *this; }
+        Vector2f& operator*=(float s) { v *= s; return *this;}
+        Vector2f& operator/=(float s) { v /= s; return *this; }
+
+        Vector2f operator-() const { return Vector2f(-v); }
+
+        const float& x() const  { return v[0]; }
+        float& x()              { return v[0]; }
+        const float& y() const  { return v[1]; }
+        float& y()              { return v[1]; }
+
+        float lengthSquared() const {
+            return glm::dot(v, v);
+        }
+        float length() const {
+            return glm::length(v);
+        }
+        bool hasNaNs() const {
+            return (std::isnan(v.x) || std::isnan(v.y));
+        }
+
+        std::string toString() const {
+            return std::format("({}, {})", v[0], v[1]);
+        }
+    };
+
     struct Vector3f {
         glm::vec3 v;
 
@@ -68,13 +111,19 @@ namespace gnd {
         float operator[](int i) const { return p[i]; }
         float& operator[](int i) { return p[i]; }
 
+        Point2f operator+(const Vector2f& v) const { return Point2f(p + v.v); }
+        Point2f operator-(const Vector2f& v) const { return Point2f(p - v.v); }
+
+        Point2f& operator+=(const Vector2f& v) { p += v.v; return *this; }
+        Point2f& operator-=(const Vector2f& v) { p -= v.v; return *this; }
+
         Point2f operator*(float s) const { return Point2f(p * s); }
         Point2f& operator*=(float s) { p *= s; return *this; }
         Point2f operator/(float s) const { return Point2f(p / s); }
         Point2f& operator/=(float s) { p /= s; return *this; }
 
         Point2f operator+(Point2f other) const { return Point2f(p + other.p); }
-        Point2f operator-(Point2f other) const { return Point2f(p - other.p); }
+        Vector2f operator-(Point2f other) const { return Vector2f(p - other.p); }
 
         const float& x() const  { return p[0]; }
         float& x()              { return p[0]; }
@@ -86,6 +135,10 @@ namespace gnd {
         }
         float length() const {
             return glm::length(p);
+        }
+
+        std::string toString() const {
+            return std::format("({}, {})", p[0], p[1]);
         }
     };
 
