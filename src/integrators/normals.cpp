@@ -7,7 +7,7 @@ namespace gnd {
     public:
         NormalIntegrator(const PropertyList& props) : SamplerIntegrator(props) {}
 
-        Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler) const override {
+        Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena) const override {
             SurfaceInteraction isect;
 
             if (scene.rayIntersect(ray, isect)) {
