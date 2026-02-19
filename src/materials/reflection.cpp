@@ -1,6 +1,5 @@
 #include <gianduia/materials/reflection.h>
-
-#include "gianduia/math/warp.h"
+#include <gianduia/math/warp.h>
 
 namespace gnd {
 
@@ -11,13 +10,16 @@ namespace gnd {
     Color3f LambertianReflection::sample(const Vector3f &wo, Vector3f &wi,
                                             const Point2f &sample, float &pdf,
                                             BxDFType *sampledType) const {
-        if (wi.z() <= 0.0f) {
+        if (wo.z() <= 0.0f) {
             pdf = 0.0f;
             return Color3f(0.0f);
         }
 
         wi = Warp::squareToCosineHemisphere(sample);
-        pdf = pdf(wo, wi);
+        pdf = Warp::squareToCosineHemispherePdf(wi);
+
+        if (sampledType) *sampledType = type;
+
         return f(wo, wi);
     }
 

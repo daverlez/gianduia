@@ -71,8 +71,9 @@ namespace gnd {
             }
         }
 
-        if (hitAny)
+        if (hitAny) {
             isect.primitive->fillInteraction(ray, isect);
+        }
 
         return hitAny;
     }

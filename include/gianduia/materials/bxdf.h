@@ -38,10 +38,10 @@ namespace gnd {
         /// @return the value of f computed on the two directions
         virtual Color3f sample(const Vector3f& wo, Vector3f& wi,
                                  const Point2f& sample, float& pdf,
-                                 BxDFType* sampledType = nullptr) const;
+                                 BxDFType* sampledType = nullptr) const = 0;
 
         /// Computes the PDF of sampling wi given wo.
-        virtual float pdf(const Vector3f& wo, const Vector3f& wi) const;
+        virtual float pdf(const Vector3f& wo, const Vector3f& wi) const = 0;
 
         const BxDFType type;
     };

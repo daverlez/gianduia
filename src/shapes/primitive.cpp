@@ -26,8 +26,14 @@ namespace gnd {
     void Primitive::activate() {
         if (!m_shape)
             throw std::runtime_error("Primitive: defined without a Shape!");
-        if (!m_material)
-            throw std::runtime_error("Primitive: defined without a Material!");
+        if (!m_material) {
+            // Fallback: missing texture matte
+            PropertyList p;
+            m_material = std::static_pointer_cast<Material>(
+                        std::shared_ptr<GndObject>(
+                            GndFactory::getInstance()->createInstance("matte", p)));
+            m_material->activate();
+        }
     }
 
     bool Primitive::rayIntersect(const Ray& rWorld, SurfaceInteraction& isect, bool predicate) const {
@@ -55,6 +61,10 @@ namespace gnd {
 
     Bounds3f Primitive::getWorldBounds() const {
         return m_objectToWorld(m_shape->getBounds());
+    }
+
+    std::shared_ptr<Material> Primitive::getMaterial() const {
+        return m_material;
     }
 
     EClassType Primitive::getClassType() const {

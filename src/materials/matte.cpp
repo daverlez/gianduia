@@ -29,8 +29,17 @@ namespace gnd {
         }
 
         void activate() override {
-            if (!m_albedo)
-                throw std::runtime_error("Matte: no albedo assigned!");
+            if (!m_albedo) {
+                // Default: missing texture checkerboard pattern
+                PropertyList p;
+                p.setColor("value1", Color3f(0.0f));
+                p.setColor("value2", Color3f(1.0f, 0.0f, 1.0f));
+                p.setVector2("scale", Vector2f(0.1f, 0.1f));
+                m_albedo = std::static_pointer_cast<Texture<Color3f>>(
+                            std::shared_ptr<GndObject>(
+                                GndFactory::getInstance()->createInstance("checkerboard_color", p)));
+                m_albedo->activate();
+            }
         }
 
         void computeScatteringFunctions(SurfaceInteraction& isect, MemoryArena& arena) const override {
@@ -39,6 +48,14 @@ namespace gnd {
 
             if (!r.isBlack())
                 isect.bsdf->add(arena.create<LambertianReflection>(r));
+        }
+
+        std::string toString() const override {
+            return std::format(
+                "Matte[\n"
+                        "  albedo =\n{}\n"
+                        "]",
+                        indent(m_albedo->toString(), 2));
         }
 
     private:

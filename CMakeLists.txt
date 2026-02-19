@@ -41,6 +41,9 @@ add_executable(Gianduia
         src/textures/constant.cpp
         src/textures/checkerboard.cpp
         src/materials/bsdf.cpp
+        src/materials/reflection.cpp
+        src/materials/matte.cpp
+        src/integrators/material.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

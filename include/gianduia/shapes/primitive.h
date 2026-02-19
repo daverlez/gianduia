@@ -19,6 +19,7 @@ namespace gnd {
         void fillInteraction(const Ray& rWorld, SurfaceInteraction& isect) const;
 
         Bounds3f getWorldBounds() const;
+        std::shared_ptr<Material> getMaterial() const;
 
         EClassType getClassType() const override;
         std::string toString() const override;
