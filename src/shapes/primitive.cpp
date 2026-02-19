@@ -13,6 +13,11 @@ namespace gnd {
                 throw std::runtime_error("Primitive: shape already registered!");
 
             m_shape = std::static_pointer_cast<Shape>(child);
+        } else if (child->getClassType() == EMaterial) {
+            if (m_material)
+                throw std::runtime_error("Primitive: material already registered!");
+
+            m_material = std::static_pointer_cast<Material>(child);
         } else {
             throw std::runtime_error("Primitive: invalid child class! Expected Shape.");
         }
@@ -21,6 +26,8 @@ namespace gnd {
     void Primitive::activate() {
         if (!m_shape)
             throw std::runtime_error("Primitive: defined without a Shape!");
+        if (!m_material)
+            throw std::runtime_error("Primitive: defined without a Material!");
     }
 
     bool Primitive::rayIntersect(const Ray& rWorld, SurfaceInteraction& isect, bool predicate) const {
@@ -59,9 +66,11 @@ namespace gnd {
             "Primitive[\n"
             "  position = {},\n"
             "  shape = \n{}\n"
+            "  material = \n{}\n"
             "]",
             m_objectToWorld.getPosition().toString(),
-            indent(m_shape->toString(), 2)
+            indent(m_shape->toString(), 2),
+            indent(m_material->toString(), 2)
         );
     }
 

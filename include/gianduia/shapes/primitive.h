@@ -2,6 +2,7 @@
 
 #include <gianduia/core/object.h>
 #include <gianduia/shapes/shape.h>
+#include <gianduia/materials/material.h>
 #include <memory>
 
 namespace gnd {
@@ -25,6 +26,7 @@ namespace gnd {
     private:
         std::shared_ptr<Shape> m_shape;
         Transform m_objectToWorld;
-        // std::shared_ptr<Material> m_material;
+        std::shared_ptr<Material> m_material;
     };
+
 }

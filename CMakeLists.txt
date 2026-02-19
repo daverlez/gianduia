@@ -40,6 +40,7 @@ add_executable(Gianduia
         src/integrators/ao.cpp
         src/textures/constant.cpp
         src/textures/checkerboard.cpp
+        src/materials/bsdf.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

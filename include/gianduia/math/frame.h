@@ -1,9 +1,7 @@
 #pragma once
-#include <gianduia/core/math.h> // Per Vector3f, Point2f, ecc.
+#include <gianduia/math/geometry.h>
 #include <cmath>
 #include <algorithm>
-
-#include "geometry.h"
 
 namespace gnd {
 
