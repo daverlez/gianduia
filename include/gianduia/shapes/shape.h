@@ -2,6 +2,8 @@
 
 #include <gianduia/core/object.h>
 
+#include "gianduia/materials/bsdf.h"
+
 namespace gnd {
 
     // Forward declaration
@@ -15,6 +17,8 @@ namespace gnd {
         Point2f uv;                     // UV coordinates
         const Primitive* primitive;
         uint32_t primIndex = 0;         // Triangle indexing in meshes
+
+        BSDF* bsdf = nullptr;           // BSDF at intersection point
 
         SurfaceInteraction() : t(0.0f), p(0.0f), uv(0.0f), primitive(nullptr) {}
 

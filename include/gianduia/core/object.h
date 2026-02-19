@@ -30,6 +30,10 @@ namespace gnd {
 
         virtual std::string toString() const = 0;
         virtual EClassType getClassType() const = 0;
+        const std::string& getName() const { return m_name; }
+
+    protected:
+        std::string m_name;
     };
 
     using ObjectFactory = std::function<std::unique_ptr<GndObject>(const PropertyList&)>;
