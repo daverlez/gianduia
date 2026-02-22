@@ -4,7 +4,7 @@
 namespace gnd {
 
     Color3f LambertianReflection::f(const Vector3f& wo, const Vector3f& wi) const {
-        return m_albedo / M_1_PI;
+        return m_albedo * M_1_PI;
     }
 
     Color3f LambertianReflection::sample(const Vector3f &wo, Vector3f &wi,

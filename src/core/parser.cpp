@@ -13,8 +13,8 @@ namespace gnd {
     static Vector3f parseVector3(const std::string& value) {
         std::stringstream ss(value);
         float x, y, z;
-        char comma;
-        if (!(ss >> x >> comma >> y >> comma >> z)) {
+        char comma1, comma2;
+        if (!((ss >> x >> comma1 >> y >> comma2 >> z) && comma1 == ',' && comma2 == ',')) {
             // Fallback: tries reading with spaces
             std::stringstream ss2(value);
             if (!(ss2 >> x >> y >> z))
@@ -27,7 +27,7 @@ namespace gnd {
         std::stringstream ss(value);
         float x, y;
         char comma;
-        if (!(ss >> x >> comma >> y)) {
+        if (!((ss >> x >> comma >> y) && comma == ',')) {
             // Fallback: tries reading with spaces
             std::stringstream ss2(value);
             if (!(ss2 >> x >> y))

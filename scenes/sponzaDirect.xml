@@ -9,7 +9,7 @@
     </camera>
 
     <sampler type="independent">
-        <integer name="spp" value="512"/>
+        <integer name="spp" value="64"/>
     </sampler>
 
     <integrator type="direct"/>
