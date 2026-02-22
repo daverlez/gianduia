@@ -68,6 +68,7 @@ namespace gnd {
         }
 
         *wiWorld = frame.toWorld(wi);
+        *pdf = lobePdf;
 
         if (!(bxdf->type & BSDF_SPECULAR) && matchingComps > 1) {
             *pdf = lobePdf;
@@ -77,11 +78,9 @@ namespace gnd {
                     f_val += m_bxdfs[i]->f(wo, wi);
                 }
             }
-        } else if (matchingComps > 1) {
-            *pdf = lobePdf;
         }
 
-        *pdf /= matchingComps;
+        *pdf /= (float)matchingComps;
 
         return f_val;
     }

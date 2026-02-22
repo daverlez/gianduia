@@ -76,12 +76,11 @@ namespace gnd {
 
             info.uv = Point2f(u, v);
 
-            return Warp::squareToUniformSpherePdf(res) / (m_radius * m_radius);
+            return Inv4Pi / (m_radius * m_radius);
         }
 
         float pdfSurface(const Point3f& ref, const SurfaceInteraction& info) const override {
-            Vector3f normalized = Normalize(Vector3f(info.p.x(), info.p.y(), info.p.z()));
-            return Warp::squareToUniformSpherePdf(normalized) / (m_radius * m_radius);
+            return Inv4Pi / (m_radius * m_radius);
         }
 
         std::string toString() const override {

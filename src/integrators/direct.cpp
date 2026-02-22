@@ -70,9 +70,8 @@ namespace gnd {
                         float p_light = lightPdfGeo * lightSelectPdf;
                         float p_bsdf = bsdfPdf;
 
-                        float misDenom = bsdfPdf + p_light;
+                        float misDenom = p_bsdf + p_light;
                         if (misDenom > 1e-6f) {
-                            float weight = bsdfPdf / misDenom;
                             L += f * Li_bsdf * std::abs(Dot(isect.n, wi)) / misDenom;
                         }
                     }

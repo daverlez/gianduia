@@ -9,7 +9,7 @@
     </camera>
 
     <sampler type="independent">
-        <integer name="spp" value="64"/>
+        <integer name="spp" value="512"/>
     </sampler>
 
     <integrator type="direct"/>
@@ -24,16 +24,16 @@
         </shape>
         <material type="matte">
             <texture type="checkerboard_color" name="albedo">
-                <color name="value1" value="0.5 0.5 0.5"/>
-                <color name="value2" value="0.2 0.2 0.2"/>
-                <vector2 name="scale" value="0.5 0.5"/>
+                <color name="value1" value="0.2 0.2 0.2"/>
+                <color name="value2" value="0.5 0.5 0.5"/>
+                <vector2 name="scale" value="1 1"/>
             </texture>
         </material>
     </primitive>
 
     <primitive>
         <transform name="toWorld">
-            <translate x="0" y="10" z="0"/>
+            <translate x="0" y="2" z="0"/>
         </transform>
         <shape type="sphere">
             <float name="radius" value="1.5"/>
