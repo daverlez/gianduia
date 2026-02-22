@@ -7,9 +7,13 @@ namespace gnd {
 
     void Scene::addChild(std::shared_ptr<GndObject> child) {
         switch (child->getClassType()) {
-            case EPrimitive :
-                m_primitives.push_back(std::static_pointer_cast<Primitive>(child));
+            case EPrimitive : {
+                std::shared_ptr<Primitive> prim = std::static_pointer_cast<Primitive>(child);
+                m_primitives.push_back(prim);
+                if (prim->getEmitter())
+                    m_emitters.push_back(prim->getEmitter());
                 break;
+            }
             case ECamera :
                 if (m_camera)
                     throw std::runtime_error("Scene: cannot add multiple cameras!");
@@ -24,6 +28,9 @@ namespace gnd {
                 if (m_sampler)
                     throw std::runtime_error("Scene: cannot add multiple samplers!");
                 m_sampler = std::static_pointer_cast<Sampler>(child);
+                break;
+            case EEmitter :
+                m_emitters.push_back(std::static_pointer_cast<Emitter>(child));
                 break;
             default:
                 throw std::runtime_error("Scene: cannot add specified child!");

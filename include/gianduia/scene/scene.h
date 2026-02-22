@@ -21,6 +21,15 @@ namespace gnd {
         std::shared_ptr<Camera> getCamera() { return m_camera; }
         std::shared_ptr<Sampler> getSampler() { return m_sampler; }
         std::shared_ptr<Integrator> getIntegrator() { return m_integrator; }
+        const std::vector<std::shared_ptr<Emitter>>& getEmitters() { return m_emitters; }
+
+        const std::shared_ptr<Emitter> getRandomEmitter(float rnd) {
+            size_t n = m_emitters.size();
+            size_t index = std::min(
+                    static_cast<size_t>(std::floor(n*rnd)),
+                    n-1);
+            return m_emitters[index];
+        }
 
         bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const;
         bool rayIntersect(const Ray& ray) const;
@@ -33,6 +42,6 @@ namespace gnd {
         BVH m_bvh;
         std::shared_ptr<Sampler> m_sampler;
         std::shared_ptr<Integrator> m_integrator;
-        // std::vector<std::shared_ptr<Emitter>> m_emitters;
+        std::vector<std::shared_ptr<Emitter>> m_emitters;
     };
 }

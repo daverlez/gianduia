@@ -100,7 +100,7 @@ namespace gnd {
             m_objectToWorld.getPosition().toString(),
             indent(m_shape->toString(), 2),
             indent(m_material->toString(), 2),
-            indent(m_emitter->toString(), 2)
+            indent(m_emitter ? m_emitter->toString() : "null", 2)
         );
     }
 

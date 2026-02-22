@@ -13,8 +13,11 @@
             <rotate angle="30" x="0" y="1" z="0"/>
             <translate x="0" y="0" z="-4"/>
         </transform>
-        <shape type="cylinder">
+        <shape type="sphere">
             <float name="radius" value="1.0f"/>
         </shape>
+        <emitter type="area">
+            <color name="radiance" value="5 5 5"/>
+        </emitter>
     </primitive>
 </scene>

@@ -46,8 +46,7 @@ namespace gnd {
             isect.bsdf = arena.create<BSDF>(isect);
             Color3f r = m_albedo->evaluate(isect);
 
-            if (!r.isBlack())
-                isect.bsdf->add(arena.create<LambertianReflection>(r));
+            isect.bsdf->add(arena.create<LambertianReflection>(r));
         }
 
         std::string toString() const override {

@@ -70,7 +70,7 @@ namespace gnd {
             Vector3f wi = Normalize(info.p - ref.p);
             float cosTheta = Dot(info.n, -wi);
 
-            if (areaPdf == 0.0f || cosTheta <= 0.0f)
+            if (areaPdf <= Epsilon || cosTheta <= Epsilon)
                 return Color3f(0.0f);
 
             float anglePdf = areaPdf * dist / cosTheta;
@@ -93,7 +93,7 @@ namespace gnd {
             Vector3f wi = Normalize(info.p - ref.p);
             float cosTheta = Dot(info.n, -wi);
 
-            if (areaPdf == 0.0f || cosTheta <= 0.0f)
+            if (areaPdf <= Epsilon || cosTheta <= Epsilon)
                 return 0.0f;
 
             float anglePdf = areaPdf * dist / cosTheta;
