@@ -20,6 +20,10 @@ namespace gnd {
 
         virtual Bounds3f getBounds() const override;
 
+        virtual float sampleSurface(const Point3f& ref, const Point2f& sample, SurfaceInteraction& isect) const override;
+
+        virtual float pdfSurface(const Point3f& ref, const SurfaceInteraction& isect) const override;
+
         virtual std::string toString() const override;
 
     private:

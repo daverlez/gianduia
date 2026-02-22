@@ -13,7 +13,8 @@ namespace gnd {
         EIntegrator,
         ESampler,
         ETexture,
-        EMaterial
+        EMaterial,
+        EEmitter
     };
 
     class GndObject {
@@ -30,6 +31,7 @@ namespace gnd {
 
         virtual std::string toString() const = 0;
         virtual EClassType getClassType() const = 0;
+        void setName(const std::string& name) { this->m_name = name; }
         const std::string& getName() const { return m_name; }
 
     protected:

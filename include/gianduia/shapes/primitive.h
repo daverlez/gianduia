@@ -5,6 +5,8 @@
 #include <gianduia/materials/material.h>
 #include <memory>
 
+#include "gianduia/core/emitter.h"
+
 namespace gnd {
 
     class Primitive : public GndObject {
@@ -19,7 +21,10 @@ namespace gnd {
         void fillInteraction(const Ray& rWorld, SurfaceInteraction& isect) const;
 
         Bounds3f getWorldBounds() const;
+        std::shared_ptr<Shape> getShape() const;
+        const Transform& getToWorld() const;
         std::shared_ptr<Material> getMaterial() const;
+        std::shared_ptr<Emitter> getEmitter() const;
 
         EClassType getClassType() const override;
         std::string toString() const override;
@@ -28,6 +33,7 @@ namespace gnd {
         std::shared_ptr<Shape> m_shape;
         Transform m_objectToWorld;
         std::shared_ptr<Material> m_material;
+        std::shared_ptr<Emitter> m_emitter;
     };
 
 }

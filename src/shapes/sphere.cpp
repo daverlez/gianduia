@@ -1,6 +1,8 @@
 #include <gianduia/shapes/shape.h>
 #include <gianduia/core/factory.h>
 
+#include "gianduia/math/warp.h"
+
 namespace gnd {
 
     class Sphere : public Shape {
@@ -34,6 +36,15 @@ namespace gnd {
             isect.p = ray.o + ray.d * tHit;
             isect.n = Normal3f(Normalize(isect.p - Point3f(0.0f)));
 
+            float u = std::atan2(isect.n.x(), isect.n.z());
+            if (u < 0.0f)
+                u += 2.0f * M_PI;
+            u *= Inv2Pi;
+            float v = std::acos(std::clamp(isect.n.y(), -1.0f, 1.0f));
+            v *= InvPi;
+
+            isect.uv = Point2f(u, v);
+
             return true;
         }
 
@@ -49,6 +60,28 @@ namespace gnd {
             );
 
             return objectBounds;
+        }
+
+        float sampleSurface(const Point3f& ref, const Point2f& sample, SurfaceInteraction& info) const override {
+            Vector3f res = Warp::squareToUniformSphere(sample);
+            info.p = m_radius * Point3f(res.x(), res.y(), res.z());
+            info.n = Normal3f(Normalize(info.p - Point3f(0.0f)));
+
+            float u = std::atan2(info.n.x(), info.n.z());
+            if (u < 0.0f)
+                u += 2.0f * M_PI;
+            u *= Inv2Pi;
+            float v = std::acos(std::clamp(info.n.y(), -1.0f, 1.0f));
+            v *= InvPi;
+
+            info.uv = Point2f(u, v);
+
+            return Warp::squareToUniformSpherePdf(res) / (m_radius * m_radius);
+        }
+
+        float pdfSurface(const Point3f& ref, const SurfaceInteraction& info) const override {
+            Vector3f normalized = Normalize(Vector3f(info.p.x(), info.p.y(), info.p.z()));
+            return Warp::squareToUniformSpherePdf(normalized) / (m_radius * m_radius);
         }
 
         std::string toString() const override {

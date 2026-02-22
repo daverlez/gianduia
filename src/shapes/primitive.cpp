@@ -18,6 +18,12 @@ namespace gnd {
                 throw std::runtime_error("Primitive: material already registered!");
 
             m_material = std::static_pointer_cast<Material>(child);
+        } else if (child->getClassType() == EEmitter) {
+            if (m_emitter)
+                throw std::runtime_error("Primitive: emitter already registered!");
+
+            m_emitter = std::static_pointer_cast<Emitter>(child);
+            m_emitter->setPrimitive(this);
         } else {
             throw std::runtime_error("Primitive: invalid child class! Expected Shape.");
         }
@@ -63,8 +69,20 @@ namespace gnd {
         return m_objectToWorld(m_shape->getBounds());
     }
 
+    std::shared_ptr<Shape> Primitive::getShape() const {
+        return m_shape;
+    }
+
+    const Transform& Primitive::getToWorld() const {
+        return m_objectToWorld;
+    }
+
     std::shared_ptr<Material> Primitive::getMaterial() const {
         return m_material;
+    }
+
+    std::shared_ptr<Emitter> Primitive::getEmitter() const {
+        return m_emitter;
     }
 
     EClassType Primitive::getClassType() const {
@@ -77,10 +95,12 @@ namespace gnd {
             "  position = {},\n"
             "  shape = \n{}\n"
             "  material = \n{}\n"
+            "  emitter = \n{}\n"
             "]",
             m_objectToWorld.getPosition().toString(),
             indent(m_shape->toString(), 2),
-            indent(m_material->toString(), 2)
+            indent(m_material->toString(), 2),
+            indent(m_emitter->toString(), 2)
         );
     }
 

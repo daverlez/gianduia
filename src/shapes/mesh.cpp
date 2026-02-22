@@ -262,6 +262,14 @@ namespace gnd {
         return m_bounds;
     }
 
+    float Mesh::sampleSurface(const Point3f& ref, const Point2f& sample, SurfaceInteraction& isect) const {
+        throw std::runtime_error("Not implemented");
+    }
+
+    float Mesh::pdfSurface(const Point3f& ref, const SurfaceInteraction& isect) const {
+        throw std::runtime_error("Not implemented");
+    }
+
     std::string Mesh::toString() const {
         return std::format("Mesh[file={}, tris={}]", m_filename, m_indices.size()/3);
     }

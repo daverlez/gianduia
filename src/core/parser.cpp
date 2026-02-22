@@ -10,7 +10,7 @@
 namespace gnd {
 
     // Converts string "x,y,z" in Vector3f
-    static Vector3f parseVector(const std::string& value) {
+    static Vector3f parseVector3(const std::string& value) {
         std::stringstream ss(value);
         float x, y, z;
         char comma;
@@ -21,6 +21,19 @@ namespace gnd {
                 throw std::runtime_error("Could not parse vector from string: " + value);
         }
         return Vector3f(x, y, z);
+    }
+
+    static Vector2f parseVector2(const std::string& value) {
+        std::stringstream ss(value);
+        float x, y;
+        char comma;
+        if (!(ss >> x >> comma >> y)) {
+            // Fallback: tries reading with spaces
+            std::stringstream ss2(value);
+            if (!(ss2 >> x >> y))
+                throw std::runtime_error("Could not parse vector from string: " + value);
+        }
+        return Vector2f(x, y);
     }
 
     std::unique_ptr<GndObject> parseObject(pugi::xml_node node) {
@@ -45,7 +58,7 @@ namespace gnd {
             }
             else if (tagName == "point") {
                 if (child.attribute("value")) {
-                    Vector3f v = parseVector(child.attribute("value").value());
+                    Vector3f v = parseVector3(child.attribute("value").value());
                     props.setPoint3(name, Point3f(v.x(), v.y(), v.z()));
                 } else {
                     float x = child.attribute("x").as_float(0.f);
@@ -54,9 +67,18 @@ namespace gnd {
                     props.setPoint3(name, Point3f(x, y, z));
                 }
             }
-            else if (tagName == "vector") {
+            else if (tagName == "vector2") {
                 if (child.attribute("value")) {
-                    props.setVector3(name, parseVector(child.attribute("value").value()));
+                    props.setVector2(name, parseVector2(child.attribute("value").value()));
+                } else {
+                    float x = child.attribute("x").as_float(0.f);
+                    float y = child.attribute("y").as_float(0.f);
+                    props.setVector2(name, Vector2f(x, y));
+                }
+            }
+            else if (tagName == "vector" || tagName == "vector3") {
+                if (child.attribute("value")) {
+                    props.setVector3(name, parseVector3(child.attribute("value").value()));
                 } else {
                     float x = child.attribute("x").as_float(0.f);
                     float y = child.attribute("y").as_float(0.f);
@@ -66,7 +88,7 @@ namespace gnd {
             }
             else if (tagName == "color") {
                 if (child.attribute("value")) {
-                    Vector3f c = parseVector(child.attribute("value").value());
+                    Vector3f c = parseVector3(child.attribute("value").value());
                     props.setColor(name, Color3f(c.x(), c.y(), c.z()));
                 } else {
                     float r = child.attribute("r").as_float(0.f);
@@ -110,13 +132,13 @@ namespace gnd {
                         step = Transform::Rotate(angle, Vector3f(x, y, z));
                     }
                     else if (transName == "lookat") {
-                        Vector3f originV = parseVector(transChild.attribute("origin").value());
+                        Vector3f originV = parseVector3(transChild.attribute("origin").value());
                         Point3f origin = Point3f(originV.x(), originV.y(), originV.z());
 
-                        Vector3f targetV = parseVector(transChild.attribute("target").value());
+                        Vector3f targetV = parseVector3(transChild.attribute("target").value());
                         Point3f target = Point3f(targetV.x(), targetV.y(), targetV.z());
 
-                        Vector3f up     = parseVector(transChild.attribute("up").value());
+                        Vector3f up     = parseVector3(transChild.attribute("up").value());
                         step = Transform::LookAt(origin, target, up);
                     }
 
@@ -139,6 +161,11 @@ namespace gnd {
 
         if (!obj) {
             throw std::runtime_error("Could not create instance of type: " + type);
+        }
+
+        std::string name = node.attribute("name").value();
+        if (!name.empty()) {
+            obj->setName(name);
         }
 
         // Recursive call on child nodes

@@ -11,7 +11,7 @@
     </camera>
 
     <sampler type="independent">
-        <integer name="spp" value="1024"/>
+        <integer name="spp" value="64"/>
     </sampler>
 
     <integrator type="ao">

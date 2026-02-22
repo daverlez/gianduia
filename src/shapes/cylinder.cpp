@@ -93,6 +93,14 @@ namespace gnd {
             );
         }
 
+        float sampleSurface(const Point3f& ref, const Point2f &sample, SurfaceInteraction &info) const override {
+            throw std::runtime_error("Not implemented");
+        }
+
+        float pdfSurface(const Point3f& ref, const SurfaceInteraction& info) const override {
+            throw std::runtime_error("Not implemented");
+        }
+
         std::string toString() const override {
             return std::format(
                 "Cylinder[\n"

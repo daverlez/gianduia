@@ -44,6 +44,7 @@ add_executable(Gianduia
         src/materials/reflection.cpp
         src/materials/matte.cpp
         src/integrators/material.cpp
+        src/emitters/area.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

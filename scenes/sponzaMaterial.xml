@@ -11,7 +11,7 @@
     </camera>
 
     <sampler type="independent">
-        <integer name="spp" value="1024"/>
+        <integer name="spp" value="64"/>
     </sampler>
 
     <integrator type="materialPreview"/>
@@ -25,5 +25,13 @@
         <shape type="mesh">
             <string name="filename" value="sponza.obj"/>
         </shape>
+
+        <material type="matte">
+            <texture type="checkerboard_color" name="albedo">
+                <color name="value1" value="0 1 0"/>
+                <color name="value2" value="0 0 0"/>
+                <vector2 name="scale" value="0.1 0.1"/>
+            </texture>
+        </material>
     </primitive>
 </scene>
