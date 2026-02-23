@@ -4,8 +4,18 @@
 
 namespace gnd {
 
+    enum EmitterType {
+        EMITTER_POINT       = 1 << 0,
+        EMITTER_DIRECTIONAL = 1 << 1,
+        EMITTER_AREA        = 1 << 2,
+        EMITTER_ENV         = 1 << 3,
+
+        EMITTER_DELTA       = EMITTER_POINT | EMITTER_DIRECTIONAL
+    };
+
     class Emitter : public GndObject {
     public:
+        explicit Emitter(EmitterType type = EMITTER_AREA) : m_type(type) {}
         virtual ~Emitter() = default;
 
         /// Evaluates emitted radiance at the given surface interaction.
@@ -30,10 +40,14 @@ namespace gnd {
 
         virtual void setPrimitive(const Primitive* primitive) { m_primitive = primitive; }
 
+        bool isDelta() const { return (m_type & EMITTER_DELTA) != 0; }
+        EmitterType getType() const { return m_type; }
+
         EClassType getClassType() const override { return EEmitter; }
 
     protected:
         const Primitive* m_primitive = nullptr;
+        EmitterType m_type;
     };
 
 }

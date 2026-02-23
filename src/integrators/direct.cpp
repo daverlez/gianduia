@@ -39,7 +39,7 @@ namespace gnd {
 
                 if (!f.isBlack() && bsdfPdf > 1e-6f) {
                     float p_light = lightPdf * lightSelectPdf;
-                    float p_bsdf = bsdfPdf;
+                    float p_bsdf = emitter->isDelta() ? 0.0f : bsdfPdf;
 
                     float misDenom = p_light + p_bsdf;
                     if (misDenom > 1e-6f) {

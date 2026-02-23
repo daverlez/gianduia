@@ -7,7 +7,7 @@ namespace gnd {
 
     class AreaLight : public Emitter {
     public:
-        AreaLight(const PropertyList& props) {
+        AreaLight(const PropertyList& props) : Emitter(EMITTER_AREA) {
             if (props.hasColor("radiance")) {
                 PropertyList p;
                 p.setColor("value", props.getColor("radiance"));
