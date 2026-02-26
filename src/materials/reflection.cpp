@@ -52,4 +52,49 @@ namespace gnd {
     }
 
 
+    // ---- Fresnel specular (joint specular reflection and transmission)
+
+    Color3f FresnelSpecular::f(const Vector3f &wo, const Vector3f &wi) const {
+        return Color3f(0.0f);
+    }
+
+    Color3f FresnelSpecular::sample(const Vector3f& wo, Vector3f& wi,
+                                           const Point2f& sample, float& pdf,
+                                           BxDFType* sampledType) const {
+        float F = FrDielectric(wo.z(), m_etaExt, m_etaInt);
+
+        if (sample.x() < F) {
+            // Sampling reflection lobe
+            wi = Vector3f(-wo.x(), -wo.y(), wo.z());
+            if (sampledType) *sampledType = BxDFType(BSDF_SPECULAR | BSDF_REFLECTION);
+            pdf = F;
+
+            return m_R;
+        }
+
+        // Sampling transmission lobe
+        bool entering = wo.z() > 0;
+        float etaI = entering ? m_etaExt : m_etaInt;
+        float etaT = entering ? m_etaExt : m_etaInt;
+
+        Normal3f n(0, 0, 1);
+        if (!entering) n = Normal3f(0, 0, -1);
+
+        Vector3f wi_refracted;
+        if (!Refract(wo, n, etaI / etaT, &wi_refracted)) {
+            return Color3f(0.f);
+        }
+
+        wi = wi_refracted;
+        if (sampledType) *sampledType = BxDFType(BSDF_SPECULAR | BSDF_TRANSMISSION);
+        pdf = 1.f - F;
+
+        float etaRatio = etaI / etaT;
+        return m_T * etaRatio * etaRatio;
+    }
+
+    float FresnelSpecular::pdf(const Vector3f &wo, const Vector3f &wi) const {
+        return 0.0f;
+    }
+
 }
