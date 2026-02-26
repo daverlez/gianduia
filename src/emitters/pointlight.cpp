@@ -1,7 +1,6 @@
 #include "gianduia/core/emitter.h"
 #include "gianduia/core/factory.h"
 #include "gianduia/shapes/primitive.h"
-#include "gianduia/textures/texture.h"
 
 namespace gnd {
 
@@ -37,7 +36,7 @@ namespace gnd {
 
         std::string toString() const override {
             return std::format(
-                "AreaLight[\n"
+                "PointLight[\n"
                         "  power = {}\n"
                         "]",
                         m_power.toString());

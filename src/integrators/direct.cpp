@@ -31,6 +31,7 @@ namespace gnd {
             Ray shadowRay;
 
             Color3f Li_nee = emitter->sample(isect, sampler.next2D(), lightIsect, lightPdf, shadowRay);
+            Li_nee /= lightSelectPdf;
 
             if (lightPdf > 1e-6f && !Li_nee.isBlack() && !scene.rayIntersect(shadowRay)) {
                 Vector3f wi = Normalize(lightIsect.p - isect.p);
@@ -43,8 +44,7 @@ namespace gnd {
 
                     float misDenom = p_light + p_bsdf;
                     if (misDenom > 1e-6f) {
-                        // Monte Carlo: f * Li * cos * weight / p_light  --->  f * Li * cos / misDenom
-                        L += f * Li_nee * std::abs(Dot(isect.n, wi)) / misDenom;
+                        L += f * Li_nee * std::abs(Dot(isect.n, wi)) * p_light / misDenom;
                     }
                 }
             }
@@ -72,7 +72,7 @@ namespace gnd {
 
                         float misDenom = p_bsdf + p_light;
                         if (misDenom > 1e-6f) {
-                            L += f * Li_bsdf * std::abs(Dot(isect.n, wi)) / misDenom;
+                            L += f * Li_bsdf * p_bsdf / misDenom;
                         }
                     }
                 }

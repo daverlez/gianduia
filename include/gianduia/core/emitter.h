@@ -29,7 +29,7 @@ namespace gnd {
         /// @param info [out] Sampled point on the emitter
         /// @param pdf [out] Pdf of the sampled direction with respect to solid angle
         /// @param shadowRay [out] Shadow ray to be traced for occlusion test
-        /// @return Emitted radiance along the sampled direction.
+        /// @return Emitted radiance along the sampled direction, divided by the pdf.
         virtual Color3f sample(const SurfaceInteraction& ref, const Point2f& sample,
                                SurfaceInteraction& info, float& pdf, Ray& shadowRay) const = 0;
 

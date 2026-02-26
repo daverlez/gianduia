@@ -52,7 +52,7 @@ namespace gnd {
         }
 
         virtual Color3f sample(const SurfaceInteraction& ref, const Point2f& sample,
-                               SurfaceInteraction& info, float& pdf, Ray& shadowRay) const {
+                               SurfaceInteraction& info, float& pdf, Ray& shadowRay) const override {
             SurfaceInteraction local;
             const Transform& toWorld = m_primitive->getToWorld();
             float areaPdf = m_primitive->getShape()->sampleSurface(ref.p, sample, local);
@@ -76,7 +76,7 @@ namespace gnd {
             float anglePdf = areaPdf * dist / cosTheta;
             pdf = anglePdf;
 
-            return eval(info, Normalize(ref.p - info.p));
+            return eval(info, Normalize(ref.p - info.p)) / pdf;
         }
 
         virtual float pdf(const SurfaceInteraction& ref, const SurfaceInteraction& info) const {
