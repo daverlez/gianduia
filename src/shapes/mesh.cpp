@@ -24,6 +24,7 @@ namespace gnd {
         if (m_indices.empty())
             throw std::runtime_error("Mesh: no geometry loaded!");
 
+        // ---- BVH construction
         size_t triangleCount = m_indices.size() / 3;
         std::vector<BVHBuildInfo> buildData;
         buildData.reserve(triangleCount);
@@ -86,6 +87,33 @@ namespace gnd {
 
         std::cout << "Mesh: Done! Built a BVH with " << m_nodes.size()
                     << " nodes occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes." << std::endl;
+
+        // ---- Computing CDF
+        m_cdf.resize(triangleCount + 1, 0.0f);
+        m_totalArea = 0.0f;
+
+        for (size_t i = 0; i < triangleCount; ++i) {
+            uint32_t i0 = m_indices[i * 3 + 0];
+            uint32_t i1 = m_indices[i * 3 + 1];
+            uint32_t i2 = m_indices[i * 3 + 2];
+
+            const Point3f& p0 = m_positions[i0];
+            const Point3f& p1 = m_positions[i1];
+            const Point3f& p2 = m_positions[i2];
+
+            Vector3f e1 = p1 - p0;
+            Vector3f e2 = p2 - p0;
+            float area = 0.5f * Cross(e1, e2).length();
+
+            m_totalArea += area;
+            m_cdf[i + 1] = m_totalArea;
+        }
+
+        if (m_totalArea > 0.0f) {
+            for (size_t i = 1; i <= triangleCount; ++i) {
+                m_cdf[i] /= m_totalArea;
+            }
+        }
     }
 
     void Mesh::loadOBJ(const std::string& filename) {
@@ -263,11 +291,47 @@ namespace gnd {
     }
 
     float Mesh::sampleSurface(const Point3f& ref, const Point2f& sample, SurfaceInteraction& isect) const {
-        throw std::runtime_error("Not implemented");
+        if (m_totalArea == 0.0f) return 0.0f;
+
+        auto it = std::lower_bound(m_cdf.begin(), m_cdf.end(), sample.x());
+        size_t triIndex = std::distance(m_cdf.begin(), it);
+        triIndex = std::clamp(triIndex, (size_t)1, m_cdf.size() - 1) - 1;
+
+        float pdfTri = m_cdf[triIndex + 1] - m_cdf[triIndex];
+        float remapped_x = (sample.x() - m_cdf[triIndex]) / pdfTri;
+        remapped_x = std::clamp(remapped_x, 0.0f, 1.0f);
+
+        float sqrtXi = std::sqrt(remapped_x);
+        float u = 1.0f - sqrtXi;
+        float v = sample.y() * sqrtXi;
+        float w = 1.0f - u - v;
+
+        uint32_t i0 = m_indices[triIndex * 3 + 0];
+        uint32_t i1 = m_indices[triIndex * 3 + 1];
+        uint32_t i2 = m_indices[triIndex * 3 + 2];
+
+        isect.p = m_positions[i0] * w + m_positions[i1] * u + m_positions[i2] * v;
+
+        if (!m_normals.empty()) {
+            Normal3f n0 = m_normals[i0];
+            Normal3f n1 = m_normals[i1];
+            Normal3f n2 = m_normals[i2];
+            isect.n = Normalize(n0 * w + n1 * u + n2 * v);
+        } else {
+            Vector3f e1 = m_positions[i1] - m_positions[i0];
+            Vector3f e2 = m_positions[i2] - m_positions[i0];
+            isect.n = Normal3f(Normalize(Cross(e1, e2)));
+        }
+
+        if (!m_uvs.empty()) {
+            isect.uv = m_uvs[i0] * w + m_uvs[i1] * u + m_uvs[i2] * v;
+        }
+
+        return 1.0f / m_totalArea;
     }
 
     float Mesh::pdfSurface(const Point3f& ref, const SurfaceInteraction& isect) const {
-        throw std::runtime_error("Not implemented");
+        return m_totalArea > 0.0f ? (1.0f / m_totalArea) : 0.0f;
     }
 
     std::string Mesh::toString() const {

@@ -43,6 +43,10 @@ namespace gnd {
         // BVH (BLAS)
         std::vector<BVHNode> m_nodes;
         Bounds3f m_bounds;
+
+        // Info for uniform area sampling
+        std::vector<float> m_cdf;
+        float m_totalArea = 0.0f;
     };
 
 }

@@ -126,10 +126,15 @@ namespace gnd {
                     }
                     else if (transName == "rotate") {
                         float angle = transChild.attribute("angle").as_float();
-                        float x = transChild.attribute("x").as_float(0.f);
-                        float y = transChild.attribute("y").as_float(0.f);
-                        float z = transChild.attribute("z").as_float(0.f);
-                        step = Transform::Rotate(angle, Vector3f(x, y, z));
+                        if (transChild.attribute("axis")) {
+                            Vector3f axis = parseVector3(transChild.attribute("axis").value());
+                            step = Transform::Rotate(angle, axis);
+                        } else {
+                            float x = transChild.attribute("x").as_float(0.f);
+                            float y = transChild.attribute("y").as_float(0.f);
+                            float z = transChild.attribute("z").as_float(0.f);
+                            step = Transform::Rotate(angle, Vector3f(x, y, z));
+                        }
                     }
                     else if (transName == "lookat") {
                         Vector3f originV = parseVector3(transChild.attribute("origin").value());
