@@ -58,8 +58,17 @@ namespace gnd {
             float areaPdf = m_primitive->getShape()->sampleSurface(ref.p, sample, local);
 
             info.p = toWorld(local.p);
-            info.n = toWorld(local.n);
+            info.n = Normalize(toWorld(local.n));
             info.uv = local.uv;
+
+            Frame frame(Vector3f(local.n.x(), local.n.y(), local.n.z()));
+            Vector3f t1World = toWorld(frame.x);
+            Vector3f t2World = toWorld(frame.y);
+
+            float areaScale = Cross(t1World, t2World).length();
+            if (areaScale > 0.0f) {
+                areaPdf /= areaScale;
+            }
 
             shadowRay.o = ref.p;
             shadowRay.d = Normalize(info.p - ref.p);
@@ -67,7 +76,7 @@ namespace gnd {
             shadowRay.tMax = (info.p - ref.p).length() - Epsilon;
 
             float dist = (ref.p - info.p).lengthSquared();
-            Vector3f wi = Normalize(info.p - ref.p);
+            Vector3f wi = shadowRay.d;
             float cosTheta = Dot(info.n, -wi);
 
             if (areaPdf <= Epsilon || cosTheta <= Epsilon)
@@ -82,11 +91,21 @@ namespace gnd {
         virtual float pdf(const SurfaceInteraction& ref, const SurfaceInteraction& info) const {
             SurfaceInteraction local;
             const Transform toLocal = m_primitive->getToWorld().inverse();
+            const Transform toWorld = m_primitive->getToWorld();
             local.p = toLocal(info.p);
             local.n = toLocal(info.n);
             local.uv = info.uv;
 
             float areaPdf = m_primitive->getShape()->pdfSurface(toLocal(ref.p), local);
+
+            Frame frame(Vector3f(local.n.x(), local.n.y(), local.n.z()));
+            Vector3f t1World = toWorld(frame.x);
+            Vector3f t2World = toWorld(frame.y);
+
+            float areaScale = Cross(t1World, t2World).length();
+            if (areaScale > 0.0f) {
+                areaPdf /= areaScale;
+            }
 
             // Converting pdf from area measure to solid angle measure
             float dist = (ref.p - info.p).lengthSquared();
