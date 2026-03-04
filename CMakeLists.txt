@@ -47,6 +47,8 @@ add_executable(Gianduia
         src/emitters/area.cpp
         src/emitters/pointlight.cpp
         src/integrators/direct.cpp
+        src/materials/glass.cpp
+        src/integrators/path.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

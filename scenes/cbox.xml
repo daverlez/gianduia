@@ -9,10 +9,10 @@
     </camera>
 
     <sampler type="independent">
-        <integer name="spp" value="512"/>
+        <integer name="spp" value="2056"/>
     </sampler>
 
-    <integrator type="direct"/>
+    <integrator type="path"/>
 
     <primitive>
         <transform name="toWorld">
@@ -104,13 +104,13 @@
         <transform name="toWorld">
             <scale x="3.0" y="6.0" z="3.0"/>
             <rotate axis="0 1 0" angle="-15"/>
-            <translate x="1.5" y="3.0" z="-1.5"/>
+            <translate x="1.5" y="3.001" z="-1.5"/>
         </transform>
         <shape type="mesh">
             <string name="filename" value="cube.obj"/>
         </shape>
-        <material type="matte">
-            <color name="albedo" value="0.72 0.72 0.72"/>
+        <material type="glass">
+            <float name="eta" value="2.42"/>
         </material>
     </primitive>
 

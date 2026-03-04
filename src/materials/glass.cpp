@@ -23,7 +23,7 @@ namespace gnd {
                             std::shared_ptr<GndObject>(
                                 GndFactory::getInstance()->createInstance("constant_color", p)));
             }
-            if (props.hasColor("eta")) {
+            if (props.hasFloat("eta")) {
                 PropertyList p;
                 p.setFloat("value", props.getFloat("eta"));
                 m_eta = std::static_pointer_cast<Texture<float>>(
@@ -91,10 +91,24 @@ namespace gnd {
             isect.bsdf->add(arena.create<FresnelSpecular>(r, t, 1.0f, eta));
         }
 
+        std::string toString() const override {
+            return std::format(
+                "Glass[\n"
+                        "  reflectance =\n{}\n"
+                        "  transmittance =\n{}\n"
+                        "  eta =\n{}\n"
+                        "]",
+                        indent(m_R->toString(), 2),
+                        indent(m_T->toString(), 2),
+                        indent(m_eta->toString(), 2));
+        }
+
     private:
         std::shared_ptr<Texture<Color3f>> m_R;
         std::shared_ptr<Texture<Color3f>> m_T;
         std::shared_ptr<Texture<float>> m_eta;
     };
+
+    GND_REGISTER_CLASS(Glass, "glass");
 
 }

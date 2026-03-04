@@ -67,7 +67,7 @@ namespace gnd {
                         float lightPdfGeo = hitEmitter->pdf(isect, secIsect);
                         if (std::isinf(lightPdfGeo)) lightPdfGeo = 0.0f;
 
-                        float p_light = lightPdfGeo * lightSelectPdf;
+                        float p_light = sampledType == BSDF_SPECULAR ? 0.0f : lightPdfGeo * lightSelectPdf;
                         float p_bsdf = bsdfPdf;
 
                         float misDenom = p_bsdf + p_light;

@@ -75,7 +75,7 @@ namespace gnd {
         // Sampling transmission lobe
         bool entering = wo.z() > 0;
         float etaI = entering ? m_etaExt : m_etaInt;
-        float etaT = entering ? m_etaExt : m_etaInt;
+        float etaT = entering ? m_etaInt : m_etaExt;
 
         Normal3f n(0, 0, 1);
         if (!entering) n = Normal3f(0, 0, -1);
