@@ -60,7 +60,7 @@ namespace gnd {
                 Vector3f wi;
                 float bsdfPdf;
                 BxDFType sampledType;
-                tp *= isect.bsdf->sample(-r.d, &wi, sampler.next2D(), &bsdfPdf, &sampledType);
+                tp *= isect.bsdf->sample(-r.d, &wi, sampler.next2D(), sampler.next1D(), &bsdfPdf, &sampledType);
 
                 if (!tp.isBlack() && bsdfPdf > 1e-6f) {
                     Ray secRay(isect.p, wi);

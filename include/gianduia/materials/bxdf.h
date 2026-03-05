@@ -33,12 +33,13 @@ namespace gnd {
         /// @param wo known direction
         /// @param wi sampled direction
         /// @param sample 2D uniform sample in [0,1] x [0,1]
+        /// @param uc 1D uniform sample in [0, 1]
         /// @param pdf probability of sampling wi given wo (same result from pdf(wo, wi))
         /// @param sampledType specifies the sampled lobe type
         /// @return the value of f computed on the two directions, accounting for the foreshortening term and divided
         /// by the pdf with respect to solid angle.
         virtual Color3f sample(const Vector3f& wo, Vector3f& wi,
-                                 const Point2f& sample, float& pdf,
+                                 const Point2f& sample, float uc, float& pdf,
                                  BxDFType* sampledType = nullptr) const = 0;
 
         /// Computes the PDF of sampling wi given wo.

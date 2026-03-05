@@ -23,6 +23,13 @@ namespace gnd {
                             std::shared_ptr<GndObject>(
                                 GndFactory::getInstance()->createInstance("constant_color", p)));
             }
+            if (props.hasFloat("roughness")) {
+                PropertyList p;
+                p.setFloat("value", props.getFloat("roughness"));
+                m_roughness = std::static_pointer_cast<Texture<float>>(
+                            std::shared_ptr<GndObject>(
+                                GndFactory::getInstance()->createInstance("constant_float", p)));
+            }
             if (props.hasFloat("eta")) {
                 PropertyList p;
                 p.setFloat("value", props.getFloat("eta"));
@@ -46,6 +53,12 @@ namespace gnd {
                 if (m_T)
                     throw std::runtime_error("Glass: there's already a transmission texture defined!");
                 m_T = std::static_pointer_cast<Texture<Color3f>>(child);
+            }
+
+            if (child->getName() == "roughness") {
+                if (m_roughness)
+                    throw std::runtime_error("Glass: there's already a roughness texture defined!");
+                m_roughness = std::static_pointer_cast<Texture<float>>(child);
             }
 
             if (child->getName() == "eta") {
@@ -72,6 +85,14 @@ namespace gnd {
                                 GndFactory::getInstance()->createInstance("constant_color", p)));
                 m_T->activate();
             }
+            if (!m_roughness) {
+                PropertyList p;
+                p.setFloat("value", 0.0f);
+                m_roughness = std::static_pointer_cast<Texture<float>>(
+                            std::shared_ptr<GndObject>(
+                                GndFactory::getInstance()->createInstance("constant_float", p)));
+                m_roughness->activate();
+            }
             if (!m_eta) {
                 PropertyList p;
                 p.setFloat("value", 1.5f);
@@ -86,9 +107,16 @@ namespace gnd {
             Color3f r = m_R->evaluate(isect);
             Color3f t = m_T->evaluate(isect);
             float eta = m_eta->evaluate(isect);
+            float roughness = m_roughness->evaluate(isect);
 
             isect.bsdf = arena.create<BSDF>(isect);
-            isect.bsdf->add(arena.create<FresnelSpecular>(r, t, 1.0f, eta));
+            if (roughness == 0.0f) {
+                isect.bsdf->add(arena.create<FresnelSpecular>(r, t, 1.0f, eta));
+            } else {
+                float alpha = TrowbridgeReitzDistribution::roughnessToAlpha(roughness);
+                MicrofacetDistribution* distribution = arena.create<TrowbridgeReitzDistribution>(alpha);
+                isect.bsdf->add(arena.create<MicrofacetFresnel>(r, t, 1.0f, eta, distribution));
+            }
         }
 
         std::string toString() const override {
@@ -96,16 +124,19 @@ namespace gnd {
                 "Glass[\n"
                         "  reflectance =\n{}\n"
                         "  transmittance =\n{}\n"
+                        "  roughness = \n{}\n"
                         "  eta =\n{}\n"
                         "]",
                         indent(m_R->toString(), 2),
                         indent(m_T->toString(), 2),
+                        indent(m_roughness->toString(), 2),
                         indent(m_eta->toString(), 2));
         }
 
     private:
         std::shared_ptr<Texture<Color3f>> m_R;
         std::shared_ptr<Texture<Color3f>> m_T;
+        std::shared_ptr<Texture<float>> m_roughness;
         std::shared_ptr<Texture<float>> m_eta;
     };
 

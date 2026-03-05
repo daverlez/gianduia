@@ -1,4 +1,4 @@
-#include <gianduia/materials/transmission.h>"
+#include <gianduia/materials/transmission.h>
 #include <gianduia/materials/fresnel.h>
 
 namespace gnd {
@@ -8,8 +8,8 @@ namespace gnd {
    }
 
    Color3f SpecularTransmission::sample(const Vector3f& wo, Vector3f& wi,
-                        const Point2f& sample, float& pdf,
-                                    BxDFType* sampledType = nullptr) const {
+                        const Point2f& sample, float uc, float& pdf,
+                                    BxDFType* sampledType) const {
        bool entering = wo.z() > 0;
 
        float etaI = entering ? m_etaExt : m_etaInt;     // eta from the incident side
@@ -33,5 +33,10 @@ namespace gnd {
        ft *= (etaRatio * etaRatio);
        return ft;
    }
+
+    float SpecularTransmission::pdf(const Vector3f &wo, const Vector3f &wi) const {
+        return 0.0f;
+    }
+
 
 }

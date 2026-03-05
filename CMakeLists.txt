@@ -49,6 +49,8 @@ add_executable(Gianduia
         src/integrators/direct.cpp
         src/materials/glass.cpp
         src/integrators/path.cpp
+        src/math/microfacet.cpp
+        src/materials/transmission.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

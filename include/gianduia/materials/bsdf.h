@@ -34,12 +34,13 @@ namespace gnd {
         /// @param woWorld known direction
         /// @param wiWorld sampled direction
         /// @param sample 2D uniform sample in [0,1] x [0,1]
+        /// @param uc 1D uniform sample in [0, 1]
         /// @param pdf probability of sampling wi given wo (same result from pdf(wo, wi))
         /// @param sampledType specifies the sampled lobe type
         /// @param type restricts sampling to the specified lobe flags
         /// @return the value of f computed on the two directions
         Color3f sample(const Vector3f& woWorld, Vector3f* wiWorld,
-                         const Point2f& sample, float* pdf,
+                         const Point2f& sample, float uc, float* pdf,
                          BxDFType* sampledType = nullptr,
                          BxDFType type = BSDF_ALL) const;
 

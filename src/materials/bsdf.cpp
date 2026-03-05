@@ -30,7 +30,7 @@ namespace gnd {
     }
 
     Color3f BSDF::sample(const Vector3f& woWorld, Vector3f* wiWorld,
-                           const Point2f& sample, float* pdf,
+                           const Point2f& sample, float uc, float* pdf,
                            BxDFType* sampledType, BxDFType type) const {
 
         int matchingComps = numComponents(type);
@@ -60,7 +60,7 @@ namespace gnd {
 
         Vector3f wi;
         float lobePdf = 0.0f;
-        Color3f f_val = bxdf->sample(wo, wi, remappedSample, lobePdf, sampledType);
+        Color3f f_val = bxdf->sample(wo, wi, remappedSample, uc, lobePdf, sampledType);
 
         if (lobePdf == 0.0f || f_val.isBlack()) {
             *pdf = 0.0f;
