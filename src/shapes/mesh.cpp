@@ -131,6 +131,40 @@ namespace gnd {
         if (!err.empty()) std::cerr << "OBJ Error: " << err << std::endl;
         if (!ret) throw std::runtime_error("Failed to load OBJ: " + filename);
 
+        bool hasNormals = !attrib.normals.empty();
+        std::vector<Vector3f> generatedNormals;
+
+        if (!hasNormals) {
+            std::cout << "Mesh: Normals missing in OBJ, generating smooth normals..." << std::endl;
+            generatedNormals.resize(attrib.vertices.size() / 3, Vector3f(0.0f, 0.0f, 0.0f));
+
+            for (const auto& shape : shapes) {
+                size_t index_offset = 0;
+                for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+                    tinyobj::index_t idx0 = shape.mesh.indices[index_offset + 0];
+                    tinyobj::index_t idx1 = shape.mesh.indices[index_offset + 1];
+                    tinyobj::index_t idx2 = shape.mesh.indices[index_offset + 2];
+
+                    Point3f p0(attrib.vertices[3 * idx0.vertex_index + 0], attrib.vertices[3 * idx0.vertex_index + 1], attrib.vertices[3 * idx0.vertex_index + 2]);
+                    Point3f p1(attrib.vertices[3 * idx1.vertex_index + 0], attrib.vertices[3 * idx1.vertex_index + 1], attrib.vertices[3 * idx1.vertex_index + 2]);
+                    Point3f p2(attrib.vertices[3 * idx2.vertex_index + 0], attrib.vertices[3 * idx2.vertex_index + 1], attrib.vertices[3 * idx2.vertex_index + 2]);
+
+                    Vector3f weightedNormal = Cross(p1 - p0, p2 - p0);
+
+                    generatedNormals[idx0.vertex_index] = generatedNormals[idx0.vertex_index] + weightedNormal;
+                    generatedNormals[idx1.vertex_index] = generatedNormals[idx1.vertex_index] + weightedNormal;
+                    generatedNormals[idx2.vertex_index] = generatedNormals[idx2.vertex_index] + weightedNormal;
+
+                    index_offset += 3;
+                }
+            }
+
+            for (auto& n : generatedNormals) {
+                float len = n.length();
+                if (len > 0.0f) n = n / len;
+            }
+        }
+
         for (const auto& shape : shapes) {
             for (const auto& index : shape.mesh.indices) {
                 Point3f pos(
@@ -140,13 +174,16 @@ namespace gnd {
                 );
                 m_positions.push_back(pos);
 
-                if (index.normal_index >= 0) {
+                if (hasNormals && index.normal_index >= 0) {
                     Normal3f norm(
                         attrib.normals[3 * index.normal_index + 0],
                         attrib.normals[3 * index.normal_index + 1],
                         attrib.normals[3 * index.normal_index + 2]
                     );
                     m_normals.push_back(Normalize(norm));
+                } else {
+                    Vector3f genN = generatedNormals[index.vertex_index];
+                    m_normals.push_back(Normal3f(genN.x(), genN.y(), genN.z()));
                 }
 
                 if (index.texcoord_index >= 0) {
