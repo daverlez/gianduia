@@ -14,7 +14,8 @@ namespace gnd {
         ESampler,
         ETexture,
         EMaterial,
-        EEmitter
+        EEmitter,
+        EFilter
     };
 
     class GndObject {

@@ -91,31 +91,27 @@ namespace gnd {
                             uint64_t globalIdx = pixelIdx + s * (width * height);
                             threadSampler.seed(globalIdx);
 
-                            // Pixel jittering
                             Point2f pixelSample = threadSampler.next2D();
-                            Point2f screenSample((x + pixelSample.x()) / width,
-                                                 1.0f - (y + pixelSample.y()) / height);
+                            Point2f pFilm(x + pixelSample.x(), y + pixelSample.y());
+
+                            Point2f screenSample(pFilm.x() / width, 1.0f - pFilm.y() / height);
 
                             Ray ray;
                             camera->shootRay(screenSample, &ray);
 
                             Color3f newColor = Li(ray, *scene, threadSampler, threadArena);
-
                             if (newColor.hasNaNs()) {
                                 std::cerr << "Warning: NaN value " << newColor << " detected at pixel (" <<
                                     x << ", " << y << ")!" << std::endl;
                                 newColor = Color3f(0.0f);
                             }
 
-                            // Avg_n = Avg_{n-1} + (Val_n - Avg_{n-1}) / n
-                            Color3f oldColor = film->getPixel(x, y);
-                            float weight = 1.0f / (float)(s + 1);
-                            Color3f blendedColor = oldColor + (newColor - oldColor) * weight;
-                            film->setPixel(x, y, blendedColor);
+                            film->addSample(pFilm, newColor);
                         }
                     }
                 });
 
+                film->resolve();
                 notifyUpdate(s, *film);
             }
 

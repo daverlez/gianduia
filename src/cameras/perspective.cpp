@@ -37,13 +37,15 @@ namespace gnd {
                 "  position = {},\n"
                 "  forward = {},\n"
                 "  up = {}\n"
+                "  fiter = {}\n"
                 "]",
                 m_outputWidth,
                 m_outputHeight,
                 m_fov,
                 m_cameraToWorld.getPosition().toString(),
                 m_cameraToWorld.getForward().toString(),
-                m_cameraToWorld.getUp().toString()
+                m_cameraToWorld.getUp().toString(),
+                m_film->getFilter()->toString()
             );
         }
 

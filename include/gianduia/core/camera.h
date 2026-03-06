@@ -16,10 +16,7 @@ namespace gnd {
 
             m_outputWidth = props.getInteger("width", 1280);
             m_outputHeight = props.getInteger("height", 720);
-
-            m_film = std::make_unique<Bitmap>(m_outputWidth, m_outputHeight);
         }
-
         virtual ~Camera() {}
 
         virtual float shootRay(const Point2f& sample, Ray* ray) const = 0;
@@ -32,8 +29,18 @@ namespace gnd {
 
         EClassType getClassType() const override { return ECamera; }
 
-        void addChild(std::shared_ptr<GndObject> child) override {
-            throw std::runtime_error("Camera: addChild operation not supported!");
+        virtual void addChild(std::shared_ptr<GndObject> child) {
+            if (child->getClassType() == EFilter) {
+                if (m_film)
+                    throw std::runtime_error("Camera: cannot define multiple films!");
+                m_film = std::make_unique<Bitmap>(m_outputWidth, m_outputHeight,
+                            std::static_pointer_cast<Filter>(child));
+            }
+        }
+
+        void activate() {
+            if (!m_film)
+                m_film = std::make_unique<Bitmap>(m_outputWidth, m_outputHeight);
         }
 
     protected:

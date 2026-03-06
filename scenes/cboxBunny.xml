@@ -110,7 +110,7 @@
             <string name="filename" value="bunny.obj"/>
         </shape>
         <material type="glass">
-            <float name="roughness" value="0.1"/>
+            <float name="roughness" value="0.5"/>
             <float name="eta" value="1.6"/>
         </material>
     </primitive>
