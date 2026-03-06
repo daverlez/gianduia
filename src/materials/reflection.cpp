@@ -97,6 +97,55 @@ namespace gnd {
         return 0.0f;
     }
 
+
+    // ---- Microfacet reflection
+
+    Color3f MicrofacetReflection::f(const Vector3f &wo, const Vector3f &wi) const {
+        float cosThetaO = std::abs(wo.z()), cosThetaI = std::abs(wi.z());
+        if (cosThetaO == 0.0f || cosThetaI == 0.0f) return Color3f(0.0f);
+        if (wo.z() * wi.z() <= 0.0f) return Color3f(0.0f);
+
+        Vector3f wh = wo + wi;
+        if (wh.x() == 0.0f && wh.y() == 0.0f && wh.z() == 0.0f) return Color3f(0.0f);
+        wh = Normalize(wh);
+        if (wh.z() < 0.0f) wh = -wh;
+
+        if (Dot(wo, wh) * wo.z() < 0.0f || Dot(wi, wh) * wi.z() < 0.0f)
+            return Color3f(0.0f);
+
+        Color3f F = m_fresnel->evaluate(Dot(wi, wh));
+        float D = m_distribution->D(wh);
+        float G = m_distribution->G(wo, wi);
+
+        return m_R * D * G * F / (4.0f * cosThetaI * cosThetaO);
+    }
+
+    Color3f MicrofacetReflection::sample(const Vector3f& wo, Vector3f& wi, const Point2f& sample, float uc, float& pdf, BxDFType* sampledType) const {
+        if (std::abs(wo.z()) < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
+
+        Vector3f wh = m_distribution->sample_wh(wo, sample);
+        float dotO = Dot(wo, wh);
+        if (dotO <= 0.0f) { pdf = 0.0f; return Color3f(0.0f); }
+
+        wi = -wo + wh * 2.0f * dotO;
+
+        if (wo.z() * wi.z() <= 0.0f) { pdf = 0.0f; return Color3f(0.0f); }
+
+        pdf = this->pdf(wo, wi);
+        if (sampledType) *sampledType = type;
+
+        return f(wo, wi) * std::abs(wi.z()) / pdf;
+    }
+
+    float MicrofacetReflection::pdf(const Vector3f &wo, const Vector3f &wi) const {
+        if (wo.z() * wi.z() <= 0.0f) return 0.0f;
+        Vector3f wh = Normalize(wo + wi);
+        if (wh.z() < 0.0f) wh = -wh;
+
+        return m_distribution->pdf(wo, wh) / (4.0f * Dot(wo, wh));
+    }
+
+
     // ---- Microfacet Fresnel (joint microfacet reflection and transmission)
 
     Color3f MicrofacetFresnel::f(const Vector3f &wo, const Vector3f &wi) const {

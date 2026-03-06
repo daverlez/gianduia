@@ -86,7 +86,44 @@ namespace gnd {
         }
     };
 
+    class FresnelConductor : public Fresnel {
+    public:
+        FresnelConductor(const Color3f& etaI, const Color3f& etaT, const Color3f& k)
+            : m_etaI(etaI), m_etaT(etaT), m_k(k) {}
 
-    // TODO: may add a FresnelConductor for metals
+        Color3f evaluate(float cosThetaI) const override {
+            float cosThetaI2 = cosThetaI * cosThetaI;
+            float sinThetaI2 = std::max(0.0f, 1.f - cosThetaI2);
+
+            auto calculateChannel = [&](float eta_i, float eta_t, float k_c) {
+                float eta = eta_t / eta_i;
+                float etak = k_c / eta_i;
+                float eta2 = eta * eta;
+                float etak2 = etak * etak;
+
+                float t0 = eta2 - etak2 - sinThetaI2;
+                float a2plusb2 = std::sqrt(t0 * t0 + 4.f * eta2 * etak2);
+                float t1 = a2plusb2 + cosThetaI2;
+                float a = std::sqrt(std::max(0.0f, 0.5f * (a2plusb2 + t0)));
+                float t2 = 2.f * std::abs(cosThetaI) * a;
+                float Rs = (t1 - t2) / (t1 + t2);
+
+                float t3 = cosThetaI2 * a2plusb2 + sinThetaI2 * sinThetaI2;
+                float t4 = t2 * sinThetaI2;
+                float Rp = Rs * (t3 - t4) / (t3 + t4);
+
+                return 0.5f * (Rp + Rs);
+            };
+
+            return Color3f(
+                calculateChannel(m_etaI.r(), m_etaT.r(), m_k.r()),
+                calculateChannel(m_etaI.g(), m_etaT.g(), m_k.g()),
+                calculateChannel(m_etaI.b(), m_etaT.b(), m_k.b())
+            );
+        }
+
+    private:
+        Color3f m_etaI, m_etaT, m_k;
+    };
 
 }

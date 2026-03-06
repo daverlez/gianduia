@@ -51,6 +51,7 @@ add_executable(Gianduia
         src/integrators/path.cpp
         src/math/microfacet.cpp
         src/materials/transmission.cpp
+        src/materials/conductor.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

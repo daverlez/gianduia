@@ -52,6 +52,23 @@ namespace gnd {
         float m_etaInt;
     };
 
+    class MicrofacetReflection : public BxDF {
+    public:
+        MicrofacetReflection(const Color3f& R, const MicrofacetDistribution* distribution, Fresnel* fresnel)
+            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_GLOSSY)),
+              m_R(R), m_distribution(distribution), m_fresnel(fresnel) {}
+
+        Color3f f(const Vector3f &wo, const Vector3f &wi) const override;
+        Color3f sample(const Vector3f& wo, Vector3f& wi,
+                       const Point2f& sample, float uc, float& pdf,
+                       BxDFType* sampledType = nullptr) const override;
+        float pdf(const Vector3f &wo, const Vector3f &wi) const override;
+    private:
+        Color3f m_R;
+        const MicrofacetDistribution* m_distribution;
+        const Fresnel* m_fresnel;
+    };
+
     class MicrofacetFresnel : public BxDF {
     public:
         MicrofacetFresnel(const Color3f& R, const Color3f& T,
