@@ -89,4 +89,37 @@ namespace gnd {
         const MicrofacetDistribution* m_distribution;
     };
 
+    class SmoothPlasticBxDF : public BxDF {
+    public:
+        SmoothPlasticBxDF(const Color3f& Kd, const Color3f& Ks, float eta)
+            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE | BSDF_SPECULAR)),
+              m_Kd(Kd), m_Ks(Ks), m_eta(eta) {}
+
+        Color3f f(const Vector3f &wo, const Vector3f &wi) const override;
+        Color3f sample(const Vector3f& wo, Vector3f& wi,
+                       const Point2f& sample, float uc, float& pdf,
+                       BxDFType* sampledType = nullptr) const override;
+        float pdf(const Vector3f &wo, const Vector3f &wi) const override;
+    private:
+        Color3f m_Kd, m_Ks;
+        float m_eta;
+    };
+
+    class RoughPlasticBxDF : public BxDF {
+    public:
+        RoughPlasticBxDF(const Color3f& Kd, const Color3f& Ks, float eta, const MicrofacetDistribution* distribution)
+            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE | BSDF_GLOSSY)),
+              m_Kd(Kd), m_Ks(Ks), m_eta(eta), m_distrib(distribution) {}
+
+        Color3f f(const Vector3f &wo, const Vector3f &wi) const override;
+        Color3f sample(const Vector3f& wo, Vector3f& wi,
+                       const Point2f& sample, float uc, float& pdf,
+                       BxDFType* sampledType = nullptr) const override;
+        float pdf(const Vector3f &wo, const Vector3f &wi) const override;
+    private:
+        Color3f m_Kd, m_Ks;
+        float m_eta;
+        const MicrofacetDistribution* m_distrib;
+    };
+
 }

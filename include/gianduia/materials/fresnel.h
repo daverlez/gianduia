@@ -61,7 +61,6 @@ namespace gnd {
     public:
         virtual ~Fresnel() = default;
 
-        // Valuta il termine di Fresnel dato il coseno dell'angolo incidente
         virtual Color3f evaluate(float cosThetaI) const = 0;
     };
 

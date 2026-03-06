@@ -245,4 +245,99 @@ namespace gnd {
         return (1.0f - F) * pdf_wh * dwh_dwi;
     }
 
+
+    // ---- Smooth Plastic
+
+    Color3f SmoothPlasticBxDF::f(const Vector3f &wo, const Vector3f &wi) const {
+        if (wo.z() < Epsilon || wi.z() < Epsilon) return Color3f(0.0f);
+
+        float Fo = FrDielectric(wo.z(), 1.0f, m_eta);
+        float Fi = FrDielectric(wi.z(), 1.0f, m_eta);
+        return m_Kd * M_1_PI * (1.0f - Fo) * (1.0f - Fi);
+    }
+
+    Color3f SmoothPlasticBxDF::sample(const Vector3f& wo, Vector3f& wi, const Point2f& sample, float uc, float& pdf, BxDFType* sampledType) const {
+        if (wo.z() < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
+
+        float probSpec = FrDielectric(wo.z(), 1.0f, m_eta); // Probabilità dinamica basata su Fresnel!
+
+        if (uc < probSpec) {
+            wi = Vector3f(-wo.x(), -wo.y(), wo.z());
+            pdf = probSpec;
+            if (sampledType) *sampledType = BxDFType(BSDF_REFLECTION | BSDF_SPECULAR);
+            //(Ks * F) / probSpec = Ks
+            return m_Ks;
+        }
+
+        wi = Warp::squareToCosineHemisphere(sample);
+        if (wi.z() < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
+        pdf = (1.0f - probSpec) * Warp::squareToCosineHemispherePdf(wi);
+        if (sampledType) *sampledType = BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE);
+        return f(wo, wi) * std::abs(wi.z()) / pdf;
+    }
+
+    float SmoothPlasticBxDF::pdf(const Vector3f &wo, const Vector3f &wi) const {
+        if (wo.z() < Epsilon || wi.z() < Epsilon) return 0.0f;
+        float Fo = FrDielectric(wo.z(), 1.0f, m_eta);
+        return (1.0f - Fo) * Warp::squareToCosineHemispherePdf(wi);
+    }
+
+
+    // ---- Rough Plastic
+
+    Color3f RoughPlasticBxDF::f(const Vector3f &wo, const Vector3f &wi) const {
+        if (wo.z() < Epsilon || wi.z() < Epsilon) return Color3f(0.0f);
+
+        float Fo = FrDielectric(wo.z(), 1.0f, m_eta);
+        float Fi = FrDielectric(wi.z(), 1.0f, m_eta);
+        Color3f diffuse = m_Kd * M_1_PI * (1.0f - Fo) * (1.0f - Fi);
+
+        Vector3f wh = Normalize(wo + wi);
+        if (wh.z() < 0.0f) wh = -wh;
+        if (Dot(wo, wh) * wo.z() < 0.0f || Dot(wi, wh) * wi.z() < 0.0f)
+            return Color3f(0.0f);
+
+        float Fh = FrDielectric(Dot(wo, wh), 1.0f, m_eta);
+        float D = m_distrib->D(wh);
+        float G = m_distrib->G(wo, wi);
+        Color3f specular = m_Ks * D * G * Fh / (4.0f * wo.z() * wi.z());
+
+        return diffuse + specular;
+    }
+
+    Color3f RoughPlasticBxDF::sample(const Vector3f& wo, Vector3f& wi, const Point2f& sample, float uc, float& pdf, BxDFType* sampledType) const {
+        if (wo.z() < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
+
+        float probSpec = FrDielectric(wo.z(), 1.0f, m_eta);
+
+        if (uc < probSpec) {
+            Vector3f wh = m_distrib->sample_wh(wo, sample);
+            float dotO = Dot(wo, wh);
+            if (dotO <= 0.0f) { pdf = 0.0f; return Color3f(0.0f); }
+            wi = -wo + wh * 2.0f * dotO;
+            if (wi.z() < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
+            if (sampledType) *sampledType = BxDFType(BSDF_REFLECTION | BSDF_GLOSSY);
+        } else {
+            wi = Warp::squareToCosineHemisphere(sample);
+            if (wi.z() < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
+            if (sampledType) *sampledType = BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE);
+        }
+
+        pdf = this->pdf(wo, wi);
+        return f(wo, wi) * std::abs(wi.z()) / pdf;
+    }
+
+    float RoughPlasticBxDF::pdf(const Vector3f &wo, const Vector3f &wi) const {
+        if (wo.z() < Epsilon || wi.z() < Epsilon) return 0.0f;
+        Vector3f wh = Normalize(wo + wi);
+        if (wh.z() < 0.0f) wh = -wh;
+
+        float probSpec = FrDielectric(wo.z(), 1.0f, m_eta);
+
+        float pdfSpec = m_distrib->pdf(wo, wh) / (4.0f * Dot(wo, wh));
+        float pdfDiff = Warp::squareToCosineHemispherePdf(wi);
+
+        return probSpec * pdfSpec + (1.0f - probSpec) * pdfDiff;
+    }
+
 }

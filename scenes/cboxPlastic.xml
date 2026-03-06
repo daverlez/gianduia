@@ -1,0 +1,120 @@
+<scene>
+    <camera type="perspective">
+        <transform name="toWorld">
+            <lookat origin="0.0, 5.0, 16.0" target="0.0, 5.0, 0.0" up="0, 1, 0"/>
+        </transform>
+        <float name="fov" value="40"/>
+        <integer name="width" value="800"/>
+        <integer name="height" value="800"/>
+    </camera>
+
+    <sampler type="independent">
+        <integer name="spp" value="2056"/>
+    </sampler>
+
+    <integrator type="path"/>
+
+    <primitive>
+        <transform name="toWorld">
+            <scale x="10.0" y="1.0" z="10.0"/>
+            <translate x="0.0" y="0.0" z="0.0"/>
+        </transform>
+        <shape type="mesh">
+            <string name="filename" value="plane.obj"/>
+        </shape>
+        <material type="matte">
+            <color name="albedo" value="0.72 0.72 0.72"/>
+        </material>
+    </primitive>
+
+    <primitive>
+        <transform name="toWorld">
+            <scale x="10.0" y="1.0" z="10.0"/>
+            <rotate axis="1 0 0" angle="180"/>
+            <translate x="0.0" y="10.0" z="0.0"/>
+        </transform>
+        <shape type="mesh">
+            <string name="filename" value="plane.obj"/>
+        </shape>
+        <material type="matte">
+            <color name="albedo" value="0.72 0.72 0.72"/>
+        </material>
+    </primitive>
+
+    <primitive>
+        <transform name="toWorld">
+            <scale x="10.0" y="1.0" z="10.0"/>
+            <rotate axis="1 0 0" angle="90"/>
+            <translate x="0.0" y="5.0" z="-5.0"/>
+        </transform>
+        <shape type="mesh">
+            <string name="filename" value="plane.obj"/>
+        </shape>
+        <material type="matte">
+            <color name="albedo" value="0.72 0.72 0.72"/>
+        </material>
+    </primitive>
+
+    <primitive>
+        <transform name="toWorld">
+            <scale x="10.0" y="1.0" z="10.0"/>
+            <rotate axis="0 0 1" angle="-90"/>
+            <translate x="-5.0" y="5.0" z="0.0"/>
+        </transform>
+        <shape type="mesh">
+            <string name="filename" value="plane.obj"/>
+        </shape>
+        <material type="matte">
+            <color name="albedo" value="0.63 0.06 0.05"/>
+        </material>
+    </primitive>
+
+    <primitive>
+        <transform name="toWorld">
+            <scale x="10.0" y="1.0" z="10.0"/>
+            <rotate axis="0 0 1" angle="90"/>
+            <translate x="5.0" y="5.0" z="0.0"/>
+        </transform>
+        <shape type="mesh">
+            <string name="filename" value="plane.obj"/>
+        </shape>
+        <material type="matte">
+            <color name="albedo" value="0.15 0.48 0.09"/>
+        </material>
+    </primitive>
+
+    <primitive>
+        <transform name="toWorld">
+            <scale x="3.0" y="1.0" z="3.0"/>
+            <rotate axis="1 0 0" angle="180"/>
+            <translate x="0.0" y="9.99" z="0.0"/>
+        </transform>
+        <shape type="mesh">
+            <string name="filename" value="plane.obj"/>
+        </shape>
+        <material type="matte">
+            <color name="albedo" value="0 0 0"/>
+        </material>
+        <emitter type="area">
+            <color name="radiance" value="15 15 15"/>
+        </emitter>
+    </primitive>
+
+    <primitive>
+        <transform name="toWorld">
+            <scale x="40.0" y="40.0" z="40.0"/>
+            <rotate axis="0 1 0" angle="00"/>
+            <translate x="1.0" y="0.0" z="0.0"/>
+        </transform>
+        <shape type="mesh">
+            <string name="filename" value="bunny.obj"/>
+        </shape>
+        <material type="plastic">
+            <color name="Kd" value="0.7 0.1 0.1"/>
+            <color name="Ks" value="1.0 1.0 1.0"/>
+            <float name="roughness" value="0.15"/>
+            <float name="eta" value="1.5"/>
+        </material>
+    </primitive>
+
+</scene>
