@@ -53,6 +53,7 @@ add_executable(Gianduia
         src/materials/transmission.cpp
         src/materials/conductor.cpp
         src/materials/plastic.cpp
+        src/core/filter.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

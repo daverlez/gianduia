@@ -35,6 +35,22 @@ namespace gnd {
         void setName(const std::string& name) { this->m_name = name; }
         const std::string& getName() const { return m_name; }
 
+        static std::string classTypeToString(EClassType type) {
+            switch (type) {
+                case EScene:      return "scene";
+                case EPrimitive:  return "primitive";
+                case EShape:       return "shape";
+                case ECamera:     return "camera";
+                case EIntegrator: return "integrator";
+                case ESampler:    return "sampler";
+                case ETexture:    return "texture";
+                case EMaterial:   return "material";
+                case EEmitter:    return "emitter";
+                case EFilter:     return "filter";
+                default:          return "unknown";
+            }
+        }
+
     protected:
         std::string m_name;
     };

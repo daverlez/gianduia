@@ -9,6 +9,8 @@
 
 namespace gnd {
 
+    using ReferenceMap = std::unordered_map<std::string, std::shared_ptr<GndObject>>;
+
     // Converts string "x,y,z" in Vector3f
     static Vector3f parseVector3(const std::string& value) {
         std::stringstream ss(value);
@@ -36,7 +38,17 @@ namespace gnd {
         return Vector2f(x, y);
     }
 
-    std::unique_ptr<GndObject> parseObject(pugi::xml_node node) {
+    std::shared_ptr<GndObject> parseObject(pugi::xml_node node, ReferenceMap& refs) {
+        std::string tagName = node.name();
+
+        if (tagName == "ref") {
+            std::string id = node.attribute("id").value();
+            if (refs.find(id) == refs.end()) {
+                throw std::runtime_error("No reference found: " + id);
+            }
+            return nullptr;
+        }
+
         PropertyList props;
         std::vector<pugi::xml_node> childrenNodes;
 
@@ -168,24 +180,44 @@ namespace gnd {
             throw std::runtime_error("Could not create instance of type: " + type);
         }
 
+        std::string expectedTag = GndObject::classTypeToString(obj->getClassType());
+        if (expectedTag != tagName && tagName != "scene") {
+            throw std::runtime_error("Parsing error: tag <" + tagName + "> cannot host object of type " + expectedTag);
+        }
+
         std::string name = node.attribute("name").value();
         if (!name.empty()) {
             obj->setName(name);
         }
 
-        // Recursive call on child nodes
-        for (pugi::xml_node childNode : childrenNodes) {
-            std::unique_ptr<GndObject> childObj = parseObject(childNode);
-
-            obj->addChild(std::shared_ptr<GndObject>(std::move(childObj)));
+        std::string id = node.attribute("id").value();
+        std::shared_ptr<GndObject> sharedObj(std::move(obj));
+        if (!id.empty()) {
+            if (refs.find(id) != refs.end())
+                throw std::runtime_error("Parsing error: id <" + id + "> already exists.");
+            refs[id] = sharedObj;
         }
 
-        obj->activate();
+        // Recursive call on child nodes
+        for (pugi::xml_node childNode : childrenNodes) {
+            if (std::string(childNode.name()) == "ref") {
+                std::string refId = childNode.attribute("id").value();
+                if (refs.count(refId))
+                    sharedObj->addChild(refs[refId]);
+                else
+                    throw std::runtime_error("Parsing error: no object referencing " + refId + " found.");
+            } else {
+                if (auto childObj = parseObject(childNode, refs))
+                    sharedObj->addChild(std::shared_ptr<GndObject>(childObj));
+            }
+        }
 
-        return obj;
+        sharedObj->activate();
+
+        return sharedObj;
     }
 
-    std::unique_ptr<GndObject> Parser::loadFromXML(const std::string& filename) {
+    std::shared_ptr<GndObject> Parser::loadFromXML(const std::string& filename) {
         FileResolver::setBasePath(filename);
         FileResolver::setOutputPath(filename);
         FileResolver::setOutputName(filename);
@@ -198,7 +230,8 @@ namespace gnd {
         }
 
         pugi::xml_node root = doc.document_element();
-        return parseObject(root);
+        ReferenceMap refs;
+        return parseObject(root, refs);
     }
 
 }

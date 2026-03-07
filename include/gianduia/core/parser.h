@@ -11,7 +11,7 @@ namespace gnd {
         /// Loads the scene from an XML file.
         /// @param filename Path to the XML file.
         /// @return Unique points to the root of the scene.
-        static std::unique_ptr<GndObject> loadFromXML(const std::string& filename);
+        static std::shared_ptr<GndObject> loadFromXML(const std::string& filename);
     };
 
 }

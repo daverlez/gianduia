@@ -25,6 +25,10 @@ namespace gnd {
             if (std::abs(p.x()) <= m_radius.x() && std::abs(p.y()) <= m_radius.y()) return 1.0f;
             return 0.0f;
         }
+
+        std::string toString() const override {
+            return "BoxFilter[]";
+        }
     };
 
     class GaussianFilter : public Filter {
