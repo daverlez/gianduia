@@ -97,6 +97,7 @@
         </material>
         <emitter type="area">
             <color name="radiance" value="15 15 15"/>
+            <boolean name="visible" value="false"/>
         </emitter>
     </primitive>
 

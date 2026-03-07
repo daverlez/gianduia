@@ -15,6 +15,7 @@ namespace gnd {
                             std::shared_ptr<GndObject>(
                                 GndFactory::getInstance()->createInstance("constant_color", p)));
             }
+            m_visible = props.getBoolean("visible", true);
         }
 
         void addChild(std::shared_ptr<GndObject> child) override {
@@ -119,6 +120,8 @@ namespace gnd {
             return anglePdf;
         }
 
+        bool isVisible() const override { return m_visible; }
+
         std::string toString() const override {
             return std::format(
                 "AreaLight[\n"
@@ -129,6 +132,7 @@ namespace gnd {
 
     private:
         std::shared_ptr<Texture<Color3f>> m_radiance;
+        bool m_visible;
     };
 
     GND_REGISTER_CLASS(AreaLight, "area");

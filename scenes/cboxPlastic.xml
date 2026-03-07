@@ -112,7 +112,7 @@
         <material type="plastic">
             <color name="Kd" value="0.7 0.1 0.1"/>
             <color name="Ks" value="1.0 1.0 1.0"/>
-            <float name="roughness" value="0.15"/>
+            <float name="roughness" value="0.5"/>
             <float name="eta" value="1.5"/>
         </material>
     </primitive>

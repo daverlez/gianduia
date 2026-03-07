@@ -41,6 +41,7 @@ namespace gnd {
         virtual void setPrimitive(const Primitive* primitive) { m_primitive = primitive; }
 
         bool isDelta() const { return (m_type & EMITTER_DELTA) != 0; }
+        virtual bool isVisible() const { return true; /* Can be changed in area emitters */ }
         EmitterType getType() const { return m_type; }
 
         EClassType getClassType() const override { return EEmitter; }

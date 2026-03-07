@@ -11,6 +11,10 @@ namespace gnd {
         buildData.reserve(m_primitives.size());
 
         for (size_t i = 0; i < m_primitives.size(); ++i) {
+            // Exclude invisible area emitters
+            if (m_primitives[i]->getEmitter() && !m_primitives[i]->getEmitter()->isVisible())
+                continue;
+
             Bounds3f b = m_primitives[i]->getWorldBounds();
             buildData.push_back({ b, b.pMin * 0.5f + b.pMax * 0.5f, (int)i });
         }
