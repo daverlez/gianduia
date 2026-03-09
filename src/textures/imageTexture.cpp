@@ -1,8 +1,9 @@
 #include <stb_image.h>
 
 #include <gianduia/core/factory.h>
-#include "gianduia/core/fileResolver.h"
-#include "gianduia/textures/texture.h"
+#include <gianduia/core/fileResolver.h>
+#include <gianduia/textures/texture.h>
+#include <gianduia/textures/textureCache.h>
 
 namespace gnd {
     class ImageTexture : public Texture<Color3f> {
@@ -10,8 +11,6 @@ namespace gnd {
         ImageTexture(const PropertyList &props) {
             m_filename = props.getString("filename");
             auto absPath = FileResolver::resolve(m_filename);
-
-            stbi_set_flip_vertically_on_load(true);
 
             // Reading wrap mode (either "closest" or "linear")
             std::string wrapMode = props.getString("interpolation_mode", "closest");
@@ -39,24 +38,15 @@ namespace gnd {
             else
                 throw std::runtime_error("ImageTexture: Unknown repeat mode " + repeatMode);
 
-            m_data = stbi_load(absPath.c_str(), &m_width, &m_height, &m_channels, 3);
-            if (m_data == NULL)
-                throw std::runtime_error("Failed to load image texture " + m_filename);
-        }
-
-        ~ImageTexture() {
-            if (m_data)
-                stbi_image_free(m_data);
+            bool isSRGB = (m_colorSpace == EColorSpace::EsRGB);
+            m_imageData = TextureCache::load(absPath.c_str(), isSRGB);
         }
 
         virtual Color3f evaluate(const SurfaceInteraction& isect) const override {
-            Color3f result;
             if (m_interpolation == EInterpolationMode::EClosest)
-                result = sampleClosest(isect.uv);
+                return sampleClosest(isect.uv);
             else
-                result = sampleLinear(isect.uv);
-
-            return m_colorSpace == EColorSpace::EsRGB ? result.toLinear() : result;
+                return sampleLinear(isect.uv);
         }
 
         virtual std::string toString() const override {
@@ -65,15 +55,13 @@ namespace gnd {
                     "  file = {},\n"
                     "  width = {},\n"
                     "  height = {},\n"
-                    "  channels = {},\n"
                     "  interpolation = {},\n"
                     "  color space = {},\n"
                     "  wrap mode = {}\n"
                     "]",
                 m_filename,
-                m_width,
-                m_height,
-                m_channels,
+                m_imageData->width,
+                m_imageData->height,
                 m_interpolation == EInterpolationMode::EClosest ? "closest" : "linear",
                 m_colorSpace == EColorSpace::EsRGB ? "sRGB" : "linear",
                 m_repeat == ERepeatMode::ERepeat ? "repeat" : "clamp"
@@ -97,11 +85,10 @@ namespace gnd {
         };
 
         std::string m_filename;
-        int m_width, m_height, m_channels;
-        unsigned char *m_data;
         EInterpolationMode m_interpolation;
         EColorSpace m_colorSpace;
         ERepeatMode m_repeat;
+        std::shared_ptr<ImageData> m_imageData;
 
     private:
         Point2f getUV(const Point2f & uv) const {
@@ -118,61 +105,47 @@ namespace gnd {
 
         Color3f sampleClosest(const Point2f & uv) const {
             Point2f local = getUV(uv);
-            float u = local.x();
-            float v = local.y();
 
-            int x = (int)std::floor(u * m_width);
-            if (x > m_width - 1) x = m_width - 1;
-            int y = (int)std::floor(v * m_height);
-            if (y > m_height - 1) y = m_height - 1;
+            int w = m_imageData->width;
+            int h = m_imageData->height;
 
-            int pixelIndex = (y * m_width + x) * m_channels;
+            int x = std::min((int)std::floor(local.x() * w), w - 1);
+            int y = std::min((int)std::floor(local.y() * h), h - 1);
 
-            float r = m_data[pixelIndex] / 255.0f;
-            float g = m_data[pixelIndex + 1] / 255.0f;
-            float b = m_data[pixelIndex + 2] / 255.0f;
-
-            return Color3f(r, g, b);
+            return m_imageData->pixels[y * w + x];
         }
 
         Color3f sampleLinear(const Point2f & uv) const {
             Point2f local = getUV(uv);
-            float u = local.x();
-            float v = local.y();
 
-            float x_coord = u * m_width - 0.5f;
-            float y_coord = v * m_height - 0.5f;
+            int w = m_imageData->width;
+            int h = m_imageData->height;
+
+            float x_coord = local.x() * w - 0.5f;
+            float y_coord = local.y() * h - 0.5f;
 
             int x0 = (int)std::floor(x_coord);
             int y0 = (int)std::floor(y_coord);
 
-            // Interpolation weights
             float tx = x_coord - (float)x0;
             float ty = y_coord - (float)y0;
 
-            auto getPixelColor = [this](int x, int y) -> Color3f {
+            auto getPixelColor = [this, w, h](int x, int y) -> Color3f {
                 if (m_repeat == ERepeatMode::ERepeat) {
-                    x = ((x % m_width) + m_width) % m_width;
-                    y = ((y % m_height) + m_height) % m_height;
+                    x = ((x % w) + w) % w;
+                    y = ((y % h) + h) % h;
                 } else {
-                    x = std::max(0, std::min(x, m_width - 1));
-                    y = std::max(0, std::min(y, m_height - 1));
+                    x = std::max(0, std::min(x, w - 1));
+                    y = std::max(0, std::min(y, h - 1));
                 }
-
-                int pixelIndex = (y * m_width + x) * m_channels;
-                float r = m_data[pixelIndex] / 255.0f;
-                float g = m_data[pixelIndex + 1] / 255.0f;
-                float b = m_data[pixelIndex + 2] / 255.0f;
-                return Color3f(r, g, b);
+                return m_imageData->pixels[y * w + x];
             };
 
-            // Sampling the four pixel colors
             Color3f c00 = getPixelColor(x0, y0);
             Color3f c10 = getPixelColor(x0 + 1, y0);
             Color3f c01 = getPixelColor(x0, y0 + 1);
             Color3f c11 = getPixelColor(x0 + 1, y0 + 1);
 
-            // Bilinear interpolation on both dimensions
             Color3f c_top = c00 * (1.0f - tx) + c10 * tx;
             Color3f c_bottom = c01 * (1.0f - tx) + c11 * tx;
 
