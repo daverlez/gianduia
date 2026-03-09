@@ -45,6 +45,7 @@ namespace gnd {
             else if (child->getName() == "Ks") m_Ks = std::static_pointer_cast<Texture<Color3f>>(child);
             else if (child->getName() == "roughness") m_roughness = std::static_pointer_cast<Texture<float>>(child);
             else if (child->getName() == "eta") m_eta = std::static_pointer_cast<Texture<float>>(child);
+            else Material::addChild(child);
         }
 
         void activate() override {
@@ -71,6 +72,8 @@ namespace gnd {
         }
 
         void computeScatteringFunctions(SurfaceInteraction &isect, MemoryArena &arena) const override {
+            applyNormalMap(isect);
+
             Color3f kd = m_Kd->evaluate(isect);
             Color3f ks = m_Ks->evaluate(isect);
             float roughness = m_roughness->evaluate(isect);
@@ -89,15 +92,17 @@ namespace gnd {
 
         std::string toString() const override {
             return std::format("Plastic[\n"
-                               "  Kd = {},\n "
-                               "  Ks = {},\n "
-                               "  roughness = {},\n "
-                               "  eta = {}\n"
+                               "  Kd = \n{}\n "
+                               "  Ks = \n{}\n "
+                               "  roughness = \n{}\n "
+                               "  eta = \n{}\n"
+                               "  normal = \n{}\n"
                                "]",
-                               m_Kd->toString(),
-                               m_Ks->toString(),
-                               m_roughness->toString(),
-                               m_eta->toString());
+                               indent(m_Kd->toString(), 2),
+                               indent(m_Ks->toString(), 2),
+                               indent(m_roughness->toString(), 2),
+                               indent(m_eta->toString(), 2),
+                               m_normalMap ? indent(m_normalMap->toString(), 2) : "  null");
         }
 
     private:

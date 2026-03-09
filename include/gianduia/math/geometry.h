@@ -200,6 +200,8 @@ namespace gnd {
         explicit Normal3f(const glm::vec3& _n) : n(_n) {}
         explicit Normal3f(const Vector3f& v) : n(v.v) {}
 
+        explicit operator Vector3f() const { return Vector3f(n); }
+
         float operator[](int i) const { return n[i]; }
         float& operator[](int i) { return n[i]; }
 
@@ -232,6 +234,8 @@ namespace gnd {
 
     inline Vector3f operator+(const Vector3f& v, const Normal3f& n) { return Vector3f(v.v + n.n); }
     inline Vector3f operator+(const Normal3f& n, const Vector3f& v) { return Vector3f(v.v + n.n); }
+    inline Vector3f operator-(const Vector3f& v, const Normal3f& n) { return Vector3f(v.v - n.n); }
+    inline Vector3f operator-(const Normal3f& n, const Vector3f& v) { return Vector3f(n.n - v.v); }
 
     /* Geometry utility functions */
 

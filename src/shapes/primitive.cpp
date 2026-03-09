@@ -63,6 +63,7 @@ namespace gnd {
 
         isect.p = m_objectToWorld(isect.p);
         isect.n = Normalize(m_objectToWorld(isect.n));
+        isect.dpdu = Normalize(m_objectToWorld(isect.dpdu));
     }
 
     Bounds3f Primitive::getWorldBounds() const {

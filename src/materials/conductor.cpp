@@ -47,25 +47,20 @@ namespace gnd {
                 if (m_R)
                     throw std::runtime_error("Conductor: there's already a reflection texture defined!");
                 m_R = std::static_pointer_cast<Texture<Color3f>>(child);
-            }
-
-            if (child->getName() == "eta") {
+            } else if (child->getName() == "eta") {
                 if (m_eta)
                     throw std::runtime_error("Conductor: there's already an eta texture defined!");
                 m_eta = std::static_pointer_cast<Texture<Color3f>>(child);
-            }
-
-            if (child->getName() == "k") {
+            } else if (child->getName() == "k") {
                 if (m_k)
                     throw std::runtime_error("Conductor: there's already a k texture defined!");
                 m_k = std::static_pointer_cast<Texture<Color3f>>(child);
-            }
-
-            if (child->getName() == "roughness") {
+            } else if (child->getName() == "roughness") {
                 if (m_roughness)
                     throw std::runtime_error("Conductor: there's already a roughness texture defined!");
                 m_roughness = std::static_pointer_cast<Texture<float>>(child);
-            }
+            } else
+                Material::addChild(child);
         }
 
         void activate() override {
@@ -104,6 +99,8 @@ namespace gnd {
         }
 
         void computeScatteringFunctions(SurfaceInteraction &isect, MemoryArena &arena) const override {
+            applyNormalMap(isect);
+
             Color3f r = m_R->evaluate(isect);
             Color3f eta = m_eta->evaluate(isect);
             Color3f k = m_k->evaluate(isect);
@@ -129,11 +126,13 @@ namespace gnd {
                         "  eta =\n{}\n"
                         "  k =\n{}\n"
                         "  roughness = \n{}\n"
+                        "  normal = \n{}\n"
                         "]",
                         indent(m_R->toString(), 2),
                         indent(m_eta->toString(), 2),
                         indent(m_k->toString(), 2),
-                        indent(m_roughness->toString(), 2));
+                        indent(m_roughness->toString(), 2),
+                        m_normalMap ? indent(m_normalMap->toString(), 2) : "  null");
         }
 
     private:

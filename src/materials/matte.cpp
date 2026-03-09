@@ -25,7 +25,8 @@ namespace gnd {
                 if (m_albedo)
                     throw std::runtime_error("Matte: there's already an albedo defined!");
                 m_albedo = std::static_pointer_cast<Texture<Color3f>>(child);
-            }
+            } else
+                Material::addChild(child);
         }
 
         void activate() override {
@@ -43,9 +44,11 @@ namespace gnd {
         }
 
         void computeScatteringFunctions(SurfaceInteraction& isect, MemoryArena& arena) const override {
-            isect.bsdf = arena.create<BSDF>(isect);
-            Color3f r = m_albedo->evaluate(isect);
+            applyNormalMap(isect);
 
+            isect.bsdf = arena.create<BSDF>(isect);
+
+            Color3f r = m_albedo->evaluate(isect);
             isect.bsdf->add(arena.create<LambertianReflection>(r));
         }
 
@@ -53,8 +56,10 @@ namespace gnd {
             return std::format(
                 "Matte[\n"
                         "  albedo =\n{}\n"
+                        "  normal =\n{}\n"
                         "]",
-                        indent(m_albedo->toString(), 2));
+                        indent(m_albedo->toString(), 2),
+                        m_normalMap ? indent(m_normalMap->toString(), 2) : "  null");
         }
 
     private:

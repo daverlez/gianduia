@@ -13,8 +13,11 @@ namespace gnd {
     struct SurfaceInteraction {
         float t;                        // Distance along the ray
         Point3f p;                      // Intersection point (world coordinates)
-        Normal3f n;                     // Surface normal (world space)
         Point2f uv;                     // UV coordinates
+
+        Normal3f n;                     // Surface normal (world space)
+        Vector3f dpdu;                  // Tangent
+
         const Primitive* primitive;
         uint32_t primIndex = 0;         // Triangle indexing in meshes
 

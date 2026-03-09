@@ -5,8 +5,11 @@
 
 namespace gnd {
 
-    BSDF::BSDF(const SurfaceInteraction& isect, float eta)
-        : eta(eta), frame(Vector3f(isect.n.x(), isect.n.y(), isect.n.z())) { }
+    BSDF::BSDF(const SurfaceInteraction& isect, float eta) : eta(eta) {
+        Vector3f tangent = isect.dpdu;
+        Vector3f bitangent = Normalize(Cross(isect.n, isect.dpdu));
+        frame = Frame(tangent, bitangent, static_cast<Vector3f>(isect.n));
+    }
 
     int BSDF::numComponents(BxDFType flags) const {
         int num = 0;

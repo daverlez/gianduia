@@ -296,7 +296,6 @@ namespace gnd {
         const Point3f& p1 = m_positions[i1];
         const Point3f& p2 = m_positions[i2];
 
-        // Baricentric coordinates
         float u = isect.uv.x();
         float v = isect.uv.y();
         float w = 1.0f - u - v;
@@ -320,6 +319,35 @@ namespace gnd {
             Point2f uv1 = m_uvs[i1];
             Point2f uv2 = m_uvs[i2];
             isect.uv = uv0 * w + uv1 * u + uv2 * v;
+
+            Vector3f dp1 = p1 - p0;
+            Vector3f dp2 = p2 - p0;
+            Vector2f duv1 = uv1 - uv0;
+            Vector2f duv2 = uv2 - uv0;
+
+            float det = duv1.x() * duv2.y() - duv1.y() * duv2.x();
+            Vector3f dpdu;
+
+            if (std::abs(det) < 1e-8f) {
+                if (std::abs(isect.n.x()) > std::abs(isect.n.y()))
+                    dpdu = Vector3f(-isect.n.z(), 0.0f, isect.n.x()) / std::sqrt(isect.n.x() * isect.n.x() + isect.n.z() * isect.n.z());
+                else
+                    dpdu = Vector3f(0.0f, isect.n.z(), -isect.n.y()) / std::sqrt(isect.n.y() * isect.n.y() + isect.n.z() * isect.n.z());
+            } else {
+                float invDet = 1.0f / det;
+                dpdu = (dp1 * duv2.y() - dp2 * duv1.y()) * invDet;
+            }
+
+            isect.dpdu = Normalize(dpdu - isect.n * Dot(isect.n, dpdu));
+
+        } else {
+            Vector3f dpdu;
+            if (std::abs(isect.n.x()) > std::abs(isect.n.y()))
+                dpdu = Vector3f(-isect.n.z(), 0.0f, isect.n.x()) / std::sqrt(isect.n.x() * isect.n.x() + isect.n.z() * isect.n.z());
+            else
+                dpdu = Vector3f(0.0f, isect.n.z(), -isect.n.y()) / std::sqrt(isect.n.y() * isect.n.y() + isect.n.z() * isect.n.z());
+
+            isect.dpdu = Normalize(dpdu);
         }
     }
 
