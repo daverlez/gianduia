@@ -54,6 +54,8 @@ add_executable(Gianduia
         src/materials/conductor.cpp
         src/materials/plastic.cpp
         src/core/filter.cpp
+        src/textures/imageTexture.cpp
+        src/core/stb_image.cpp
 )
 
 target_include_directories(Gianduia PRIVATE

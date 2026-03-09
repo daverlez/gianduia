@@ -259,7 +259,7 @@ namespace gnd {
     Color3f SmoothPlasticBxDF::sample(const Vector3f& wo, Vector3f& wi, const Point2f& sample, float uc, float& pdf, BxDFType* sampledType) const {
         if (wo.z() < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
 
-        float probSpec = FrDielectric(wo.z(), 1.0f, m_eta); // Probabilità dinamica basata su Fresnel!
+        float probSpec = FrDielectric(wo.z(), 1.0f, m_eta);
 
         if (uc < probSpec) {
             wi = Vector3f(-wo.x(), -wo.y(), wo.z());

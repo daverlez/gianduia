@@ -189,7 +189,7 @@ namespace gnd {
                 if (index.texcoord_index >= 0) {
                     Point2f uv(
                         attrib.texcoords[2 * index.texcoord_index + 0],
-                        1.0f - attrib.texcoords[2 * index.texcoord_index + 1] // Flip Y opzionale
+                        attrib.texcoords[2 * index.texcoord_index + 1]
                     );
                     m_uvs.push_back(uv);
                 }
