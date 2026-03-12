@@ -13,55 +13,42 @@ find_package(TBB CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 find_package(OpenVDB CONFIG REQUIRED)
 find_package(tinyobjloader CONFIG REQUIRED)
-
 find_package(OpenGL REQUIRED)
 
 find_path(STB_INCLUDE_DIR "stb_image.h")
 
-add_executable(Gianduia
-        src/app/main.cpp
-        src/core/factory.cpp
-        src/cameras/perspective.cpp
-        src/core/bitmap.cpp
-        src/shapes/sphere.cpp
-        src/shapes/primitive.cpp
-        src/shapes/cylinder.cpp
-        src/scene/scene.cpp
-        src/core/parser.cpp
-        src/core/fileResolver.cpp
-        src/scene/bvh.cpp
-        src/core/bvhBuilder.cpp
-        src/shapes/mesh.cpp
-        src/samplers/independent.cpp
-        src/integrators/normals.cpp
-        src/app/application.cpp
-        src/app/postProcessor.cpp
-        src/math/warp.cpp
-        src/integrators/ao.cpp
-        src/textures/constant.cpp
-        src/textures/checkerboard.cpp
-        src/materials/bsdf.cpp
-        src/materials/reflection.cpp
-        src/materials/matte.cpp
-        src/integrators/material.cpp
-        src/emitters/area.cpp
-        src/emitters/pointlight.cpp
-        src/integrators/direct.cpp
-        src/materials/glass.cpp
-        src/integrators/path.cpp
-        src/math/microfacet.cpp
-        src/materials/transmission.cpp
-        src/materials/conductor.cpp
-        src/materials/plastic.cpp
-        src/core/filter.cpp
-        src/textures/imageTexture.cpp
-        src/core/stb_image.cpp
-)
+add_library(GianduiaEngine OBJECT)
 
-target_include_directories(Gianduia PRIVATE
+target_include_directories(GianduiaEngine PUBLIC
         src
         include
         ${STB_INCLUDE_DIR}
+)
+
+target_link_libraries(GianduiaEngine PUBLIC
+        glm::glm
+        TBB::tbb
+        OpenEXR::OpenEXR
+        OpenVDB::openvdb
+        tinyobjloader::tinyobjloader
+        pugixml::pugixml
+)
+
+add_subdirectory(src/core)
+add_subdirectory(src/cameras)
+add_subdirectory(src/shapes)
+add_subdirectory(src/scene)
+add_subdirectory(src/samplers)
+add_subdirectory(src/integrators)
+add_subdirectory(src/math)
+add_subdirectory(src/textures)
+add_subdirectory(src/materials)
+add_subdirectory(src/emitters)
+
+add_executable(Gianduia
+        src/app/main.cpp
+        src/app/application.cpp
+        src/app/postProcessor.cpp
 )
 
 if(APPLE)
@@ -69,14 +56,9 @@ if(APPLE)
 endif()
 
 target_link_libraries(Gianduia PRIVATE
+        GianduiaEngine
         glad::glad
         glfw
         OpenGL::GL
         imgui::imgui
-        glm::glm
-        pugixml::pugixml
-        TBB::tbb
-        OpenEXR::OpenEXR
-        OpenVDB::openvdb
-        tinyobjloader::tinyobjloader
 )
