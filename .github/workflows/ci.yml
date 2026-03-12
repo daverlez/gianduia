@@ -14,6 +14,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install system dependencies (GLFW & Build Tools)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config build-essential ninja-build
+
       - name: Setup vcpkg and Install Dependencies
         uses: lukka/run-vcpkg@v11
         with:
