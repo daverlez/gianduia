@@ -115,6 +115,7 @@ namespace gnd {
                 notifyUpdate(s, *film);
             }
 
+            film->saveEXR();
             film->savePNG();
             std::cout << "Done!" << std::endl;
         }

@@ -90,6 +90,7 @@ namespace gnd {
         }
 
         void savePNG() const;
+        void saveEXR() const;
 
         int width() const { return m_width; }
         int height() const { return m_height; }
