@@ -1,8 +1,11 @@
 #pragma once
 
+#include <memory>
+#include <atomic>
+#include <vector>
+
 #include <gianduia/core/filter.h>
 #include <gianduia/math/color.h>
-#include <vector>
 
 namespace gnd {
 

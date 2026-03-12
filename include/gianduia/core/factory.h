@@ -3,6 +3,7 @@
 #include <gianduia/core/object.h>
 #include <map>
 #include <string>
+#include <memory>
 #include <iostream>
 
 namespace gnd {

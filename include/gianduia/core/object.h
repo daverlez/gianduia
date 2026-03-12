@@ -1,7 +1,9 @@
 #pragma once
 
-#include <gianduia/core/propertyList.h>
+#include <memory>
+#include <functional>
 #include <string>
+#include <gianduia/core/propertyList.h>
 
 namespace gnd {
 
