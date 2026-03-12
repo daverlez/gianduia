@@ -39,8 +39,7 @@ vcpkg/
 vcpkg_downloads/
 vcpkg_packages/
 
-renders/
-output/
+scenes/
 *.exr
 *.png
 *.jpg

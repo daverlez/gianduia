@@ -62,3 +62,7 @@ target_link_libraries(Gianduia PRIVATE
         OpenGL::GL
         imgui::imgui
 )
+
+enable_testing()
+find_package(GTest CONFIG REQUIRED)
+add_subdirectory(tests)

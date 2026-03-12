@@ -10,14 +10,16 @@
 
 #include "postProcessor.h"
 
-struct GLFWwindow; // GLFW forward declaration
+struct GLFWwindow;
 
 class Application {
 public:
-    Application();
+    explicit Application(bool headless = false);
     ~Application();
 
     void run();
+    void runHeadless(const std::string& scenePath);
+    void cancelRender();
 
 private:
     void initWindow();
@@ -30,11 +32,12 @@ private:
 
     void loadScene(const std::string& path);
     void startRender();
-    void cancelRender();
 
     void onRenderUpdate(int sample, const gnd::Bitmap& film);
 
 private:
+    bool m_headless;
+
     GLFWwindow* m_window = nullptr;
 
     std::shared_ptr<gnd::Scene> m_scene;

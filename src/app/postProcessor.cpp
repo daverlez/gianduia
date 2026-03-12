@@ -1,6 +1,8 @@
 #include <app/postProcessor.h>
 
 PostProcessor::~PostProcessor() {
+    if (!m_isInitialized) return;
+
     glDeleteFramebuffers(1, &m_FBO);
     glDeleteTextures(1, &m_outputTexture);
     glDeleteVertexArrays(1, &m_VAO);
@@ -9,7 +11,6 @@ PostProcessor::~PostProcessor() {
 }
 
 void PostProcessor::init() {
-
     const char* vertexShaderSource = R"(
         #version 330 core
         layout (location = 0) in vec2 aPos;
@@ -88,6 +89,8 @@ void PostProcessor::init() {
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+    bool m_isInitialized = true;
 }
 
 void PostProcessor::resize(int width, int height) {

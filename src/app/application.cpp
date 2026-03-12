@@ -12,15 +12,32 @@
 #include "gianduia/core/integrator.h"
 #include "gianduia/core/parser.h"
 
+#include <csignal>
 
-Application::Application() {
-    initWindow();
-    initImGui();
+static Application* s_appInstance = nullptr;
+
+void handleSignal(int signal) {
+    if (s_appInstance) {
+        std::cout << "\n[Gianduia Headless] Received interrupt (Ctrl+C). Shutting down..." << std::endl;
+        s_appInstance->cancelRender();
+    }
+}
+
+Application::Application(bool headless) : m_headless(headless) {
+    s_appInstance = this;
+
+    if (!m_headless) {
+        initWindow();
+        initImGui();
+    }
 }
 
 Application::~Application() {
     cancelRender();
-    shutdown();
+    if (!m_headless) {
+        shutdown();
+    }
+    s_appInstance = nullptr;
 }
 
 void Application::initWindow() {
@@ -210,4 +227,27 @@ void Application::shutdown() {
     ImGui::DestroyContext();
     glfwDestroyWindow(m_window);
     glfwTerminate();
+}
+
+void Application::runHeadless(const std::string& scenePath) {
+    std::signal(SIGINT, handleSignal);
+
+    std::cout << "[Gianduia Headless] Loading scene: " << scenePath << std::endl;
+    loadScene(scenePath);
+
+    if (!m_scene) {
+        std::cerr << "[Gianduia Headless] Cannot load scene " << scenePath << ". Shutting down" << std::endl;
+        return;
+    }
+
+    std::cout << "[Gianduia Headless] Starting render... (Press Ctrl+C to interrupt and save)" << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    m_isRendering = true;
+    m_scene->render();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    m_isRendering = false;
+    std::cout << "[Gianduia Headless] Rendering finished in " << elapsed.count() << " seconds." << std::endl;
 }

@@ -17,6 +17,8 @@ private:
     void checkCompileErrors(GLuint shader, std::string type);
 
 private:
+    bool m_isInitialized = false;
+
     GLuint m_shaderProgram = 0;
     GLuint m_VAO = 0;
     GLuint m_VBO = 0;
