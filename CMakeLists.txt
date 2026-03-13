@@ -3,6 +3,7 @@ project(Gianduia VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(glad CONFIG REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
@@ -16,6 +17,14 @@ find_package(tinyobjloader CONFIG REQUIRED)
 find_package(OpenGL REQUIRED)
 
 find_path(STB_INCLUDE_DIR "stb_image.h")
+
+if (MSVC)
+    add_compile_definitions(_USE_MATH_DEFINES)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+    add_compile_options(/W4 /MP /bigobj)
+else()
+    add_compile_options(-Wall -Wextra)
+endif()
 
 add_library(GianduiaEngine OBJECT)
 

@@ -1,11 +1,10 @@
 #pragma once
 #include <gianduia/math/color.h>
+#include <gianduia/math/geometry.h>
 #include <cmath>
 #include <algorithm>
 
 namespace gnd {
-
-
 
     /// Computes the Fresnel term for dielectrics
     /// @param cosThetaI cosine of incidence angle. Can be negative.

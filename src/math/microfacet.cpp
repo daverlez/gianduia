@@ -8,6 +8,8 @@ namespace gnd {
 
     // D(wh) = alpha^2 / (PI * ((alpha^2 - 1) * cos^2(theta_h) + 1)^2)
     float TrowbridgeReitzDistribution::D(const Vector3f& wh) const {
+        if (wh.z() <= 0.0f) return 0.0f;
+
         float cos2 = cos2Theta(wh);
         if (cos2 <= 0.0f) return 0.0f;
 
@@ -18,6 +20,8 @@ namespace gnd {
     }
 
     float TrowbridgeReitzDistribution::G1(const Vector3f& w) const {
+        if (w.z() <= 0.0f) return 0.0f;
+
         float cos2 = cos2Theta(w);
         if (cos2 <= 0.0f) return 0.0f;
 

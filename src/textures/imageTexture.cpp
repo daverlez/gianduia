@@ -39,7 +39,7 @@ namespace gnd {
                 throw std::runtime_error("ImageTexture: Unknown repeat mode " + repeatMode);
 
             bool isSRGB = (m_colorSpace == EColorSpace::EsRGB);
-            m_imageData = TextureCache::load(absPath.c_str(), isSRGB);
+            m_imageData = TextureCache::load(absPath.string(), isSRGB);
         }
 
         virtual Color3f evaluate(const SurfaceInteraction& isect) const override {

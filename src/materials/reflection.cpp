@@ -40,7 +40,7 @@ namespace gnd {
     Color3f SpecularReflection::sample(const Vector3f& wo, Vector3f& wi,
                                             const Point2f& sample, float uc, float& pdf,
                                             BxDFType* sampledType) const {
-        wi = Vector3f(-wi.x(), -wi.y(), wi.z());
+        wi = Vector3f(-wo.x(), -wo.y(), wo.z());
         pdf = 1.0f;
         if (sampledType) *sampledType = type;
 
