@@ -15,9 +15,6 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
-    env:
-      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_cache
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,20 +23,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config build-essential ninja-build
-
-      - name: Create Cache Directory
-        run: mkdir -p ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-
-      - name: Setup vcpkg Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-            ${{ github.workspace }}/build/vcpkg_installed
-          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json') }}
-          restore-keys: |
-            ${{ runner.os }}-vcpkg-v2-
+          sudo apt-get install -p -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config build-essential ninja-build
 
       - name: Setup vcpkg and Install Dependencies
         uses: lukka/run-vcpkg@v11
@@ -48,15 +32,17 @@ jobs:
           vcpkgJsonGlob: 'vcpkg.json'
 
       - name: Configure CMake
+        shell: bash
         run: |
           cmake -B build -S . \
-          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
-          -DCMAKE_BUILD_TYPE=Release \
-          -G Ninja || cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+          -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
+        shell: bash
         run: cmake --build build --config Release -j 4
 
       - name: Run Unit Tests
+        shell: bash
         working-directory: ${{ github.workspace }}/build
         run: ctest -C Release --output-on-failure
