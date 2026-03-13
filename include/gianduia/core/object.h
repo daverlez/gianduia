@@ -3,6 +3,7 @@
 #include <memory>
 #include <functional>
 #include <string>
+#include <format>
 #include <gianduia/core/propertyList.h>
 
 namespace gnd {

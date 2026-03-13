@@ -1,6 +1,7 @@
 #include <gianduia/core/camera.h>
 #include <gianduia/core/factory.h>
 #include <gianduia/math/constants.h>
+#include <format>
 
 namespace gnd {
 
