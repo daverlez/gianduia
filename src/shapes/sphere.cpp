@@ -1,7 +1,8 @@
 #include <gianduia/shapes/shape.h>
 #include <gianduia/core/factory.h>
-
-#include "gianduia/math/warp.h"
+#include <gianduia/math/warp.h>
+#include <gianduia/math/constants.h>
+#include <cmath>
 
 namespace gnd {
 
@@ -23,43 +24,41 @@ namespace gnd {
 
             float tHit;
 
-            if (t0 >= ray.tMin && t0 < ray.tMax) {
+            if (t0 > ray.tMin && t0 < ray.tMax) {
                 tHit = t0;
-                if (predicate) return true;
-            } else if (t1 >= ray.tMin && t1 < ray.tMax) {
+            } else if (t1 > ray.tMin && t1 < ray.tMax) {
                 tHit = t1;
-                if (predicate) return true;
-            } else
+            } else {
                 return false;
+            }
+
+            if (predicate) return true;
 
             isect.t = tHit;
-            isect.p = ray.o + ray.d * tHit;
-            isect.n = Normal3f(Normalize(isect.p - Point3f(0.0f)));
-
-            float u = std::atan2(isect.n.x(), isect.n.z());
-            if (u < 0.0f)
-                u += 2.0f * M_PI;
-            u *= Inv2Pi;
-            float v = std::acos(std::clamp(isect.n.y(), -1.0f, 1.0f));
-            v *= InvPi;
-
-            isect.uv = Point2f(u, v);
-
             return true;
         }
 
         void fillInteraction(const Ray& ray, SurfaceInteraction& isect) const override {
             isect.p = ray.o + ray.d * isect.t;
             isect.n = Normal3f(Normalize(isect.p - Point3f(0.0f)));
+
+            float phi = std::atan2(isect.n.x(), isect.n.z());
+            if (phi < 0.0f)
+                phi += 2.0f * M_PI;
+            float u = phi * Inv2Pi;
+
+            float theta = std::acos(std::clamp(isect.n.y(), -1.0f, 1.0f));
+            float v = theta * InvPi;
+
+            isect.uv = Point2f(u, v);
+            isect.dpdu = Vector3f(isect.p.z() * 2.0f * M_PI, 0.0f, -isect.p.x() * 2.0f * M_PI);
         }
 
         Bounds3f getBounds() const override {
-            Bounds3f objectBounds(
+            return Bounds3f(
                 Point3f(-m_radius),
                 Point3f(m_radius)
             );
-
-            return objectBounds;
         }
 
         float sampleSurface(const Point3f& ref, const Point2f& sample, SurfaceInteraction& info) const override {
@@ -67,14 +66,16 @@ namespace gnd {
             info.p = m_radius * Point3f(res.x(), res.y(), res.z());
             info.n = Normal3f(Normalize(info.p - Point3f(0.0f)));
 
-            float u = std::atan2(info.n.x(), info.n.z());
-            if (u < 0.0f)
-                u += 2.0f * M_PI;
-            u *= Inv2Pi;
-            float v = std::acos(std::clamp(info.n.y(), -1.0f, 1.0f));
-            v *= InvPi;
+            float phi = std::atan2(info.n.x(), info.n.z());
+            if (phi < 0.0f)
+                phi += 2.0f * M_PI;
+            float u = phi * Inv2Pi;
+
+            float theta = std::acos(std::clamp(info.n.y(), -1.0f, 1.0f));
+            float v = theta * InvPi;
 
             info.uv = Point2f(u, v);
+            info.dpdu = Vector3f(info.p.z() * 2.0f * M_PI, 0.0f, -info.p.x() * 2.0f * M_PI);
 
             return Inv4Pi / (m_radius * m_radius);
         }

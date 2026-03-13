@@ -4,6 +4,8 @@ add_executable(GianduiaTests
         math/bounds_test.cpp
         math/frame_test.cpp
         math/warp_test.cpp
+        shapes/sphere_test.cpp
+        shapes/cylinder_test.cpp
 )
 
 target_link_libraries(GianduiaTests PRIVATE

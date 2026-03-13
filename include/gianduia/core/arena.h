@@ -39,8 +39,7 @@ public:
             // Trivial destruction: avoid storing destruction node
             void* ptr = alloc_bytes(sizeof(T), alignof(T));
             return new (ptr) T(std::forward<Args>(args)...);
-        }
-        else {
+        } else {
             // Non-trivial destruction: store destruction node
             void* ptr = alloc_bytes(sizeof(T), alignof(T));
             T* obj = new (ptr) T(std::forward<Args>(args)...);

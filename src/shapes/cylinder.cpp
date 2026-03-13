@@ -1,6 +1,9 @@
 #include <gianduia/shapes/shape.h>
 #include <gianduia/core/factory.h>
+#include <gianduia/math/warp.h>
+#include <gianduia/math/constants.h>
 #include <cmath>
+#include <stdexcept>
 
 namespace gnd {
 
@@ -78,12 +81,31 @@ namespace gnd {
         void fillInteraction(const Ray& ray, SurfaceInteraction& isect) const override {
             isect.p = ray.o + ray.d * isect.t;
 
-            if (std::abs(isect.p.z() - m_zMax) < Epsilon)
+            if (std::abs(isect.p.z() - m_zMax) < Epsilon) {
                 isect.n = Normal3f(0.0f, 0.0f, 1.0f);
-            else if (std::abs(isect.p.z() - m_zMin) < Epsilon)
+                float phi = std::atan2(isect.p.y(), isect.p.x());
+                if (phi < 0.0f) phi += 2.0f * M_PI;
+                float r = std::sqrt(isect.p.x() * isect.p.x() + isect.p.y() * isect.p.y());
+
+                isect.uv = Point2f(phi * Inv2Pi, r / m_radius);
+                isect.dpdu = Vector3f(-isect.p.y() * 2.0f * M_PI, isect.p.x() * 2.0f * M_PI, 0.0f);
+
+            } else if (std::abs(isect.p.z() - m_zMin) < Epsilon) {
                 isect.n = Normal3f(0.0f, 0.0f, -1.0f);
-            else
+                float phi = std::atan2(isect.p.y(), isect.p.x());
+                if (phi < 0.0f) phi += 2.0f * M_PI;
+                float r = std::sqrt(isect.p.x() * isect.p.x() + isect.p.y() * isect.p.y());
+
+                isect.uv = Point2f(phi * Inv2Pi, r / m_radius);
+                isect.dpdu = Vector3f(-isect.p.y() * 2.0f * M_PI, isect.p.x() * 2.0f * M_PI, 0.0f);
+
+            } else {
                 isect.n = Normalize(Normal3f(isect.p.x(), isect.p.y(), 0.0f));
+                float phi = std::atan2(isect.p.y(), isect.p.x());
+                if (phi < 0.0f) phi += 2.0f * M_PI;
+                isect.uv = Point2f(phi * Inv2Pi, (isect.p.z() - m_zMin) / (m_zMax - m_zMin));
+                isect.dpdu = Vector3f(-isect.p.y() * 2.0f * M_PI, isect.p.x() * 2.0f * M_PI, 0.0f);
+            }
         }
 
         Bounds3f getBounds() const override {
@@ -94,11 +116,52 @@ namespace gnd {
         }
 
         float sampleSurface(const Point3f& ref, const Point2f &sample, SurfaceInteraction &info) const override {
-            throw std::runtime_error("Not implemented");
+            float areaSide = 2.0f * M_PI * m_radius * (m_zMax - m_zMin);
+            float areaCap = M_PI * m_radius * m_radius;
+            float areaTotal = areaSide + 2.0f * areaCap;
+
+            float pdfSide = areaSide / areaTotal;
+            float pdfCap = areaCap / areaTotal;
+
+            Point2f s = sample;
+            if (s.x() < pdfSide) {
+                // Sample the side
+                s.x() /= pdfSide;
+                float phi = s.x() * 2.0f * M_PI;
+                float z = m_zMin + s.y() * (m_zMax - m_zMin);
+                info.p = Point3f(m_radius * std::cos(phi), m_radius * std::sin(phi), z);
+                info.n = Normal3f(std::cos(phi), std::sin(phi), 0.0f);
+                info.uv = Point2f(s.x(), s.y());
+            } else if (s.x() < pdfSide + pdfCap) {
+                // Sample top cap
+                s.x() = (s.x() - pdfSide) / pdfCap;
+                Point2f d = Warp::squareToUniformDisk(s);
+                info.p = Point3f(d.x() * m_radius, d.y() * m_radius, m_zMax);
+                info.n = Normal3f(0.0f, 0.0f, 1.0f);
+
+                float phi = std::atan2(info.p.y(), info.p.x());
+                if (phi < 0.0f) phi += 2.0f * M_PI;
+                float r = std::sqrt(info.p.x() * info.p.x() + info.p.y() * info.p.y());
+                info.uv = Point2f(phi * Inv2Pi, r / m_radius);
+
+            } else {
+                // Sample bottom cap
+                s.x() = (s.x() - pdfSide - pdfCap) / pdfCap;
+                Point2f d = Warp::squareToUniformDisk(s);
+                info.p = Point3f(d.x() * m_radius, d.y() * m_radius, m_zMin);
+                info.n = Normal3f(0.0f, 0.0f, -1.0f);
+
+                float phi = std::atan2(info.p.y(), info.p.x());
+                if (phi < 0.0f) phi += 2.0f * M_PI;
+                float r = std::sqrt(info.p.x() * info.p.x() + info.p.y() * info.p.y());
+                info.uv = Point2f(phi * Inv2Pi, r / m_radius);
+            }
+            return 1.0f / areaTotal;
         }
 
         float pdfSurface(const Point3f& ref, const SurfaceInteraction& info) const override {
-            throw std::runtime_error("Not implemented");
+            float areaTotal = 2.0f * M_PI * m_radius * (m_zMax - m_zMin) + 2.0f * M_PI * m_radius * m_radius;
+            return 1.0f / areaTotal;
         }
 
         std::string toString() const override {

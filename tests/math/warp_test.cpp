@@ -37,7 +37,6 @@ void runChiSquaredTest(
     EXPECT_LT(chi2, 600.0f) << "Chi-squared test failed! Distribution is likely biased.";
 }
 
-// Statistical test for Uniform Disk sampling
 TEST(WarpTest, UniformDiskStatistical) {
     runChiSquaredTest(20, 20, 100000, [](const gnd::Point2f& u, int& bx, int& by) {
         gnd::Point2f p = gnd::Warp::squareToUniformDisk(u);
@@ -51,13 +50,11 @@ TEST(WarpTest, UniformDiskStatistical) {
     });
 }
 
-// Statistical test for Uniform Sphere sampling
 TEST(WarpTest, UniformSphereStatistical) {
     runChiSquaredTest(20, 20, 100000, [](const gnd::Point2f& u, int& bx, int& by) {
         gnd::Vector3f v = gnd::Warp::squareToUniformSphere(u);
 
-        // Use Z for equal-area binning in Z-Phi space
-        float zNorm = (v.z() + 1.0f) * 0.5f; // Map [-1, 1] to [0, 1]
+        float zNorm = (v.z() + 1.0f) * 0.5f;
         float phi = std::atan2(v.y(), v.x());
         if (phi < 0) phi += 2.0f * gnd::Pi;
 
@@ -66,12 +63,11 @@ TEST(WarpTest, UniformSphereStatistical) {
     });
 }
 
-// Statistical test for Uniform Hemisphere sampling
 TEST(WarpTest, UniformHemisphereStatistical) {
     runChiSquaredTest(20, 20, 100000, [](const gnd::Point2f& u, int& bx, int& by) {
         gnd::Vector3f v = gnd::Warp::squareToUniformHemisphere(u);
 
-        float zNorm = v.z(); // Map [0, 1] to [0, 1]
+        float zNorm = v.z();
         float phi = std::atan2(v.y(), v.x());
         if (phi < 0) phi += 2.0f * gnd::Pi;
 
@@ -80,12 +76,10 @@ TEST(WarpTest, UniformHemisphereStatistical) {
     });
 }
 
-// Statistical test for Cosine-Weighted Hemisphere sampling
 TEST(WarpTest, CosineHemisphereStatistical) {
     runChiSquaredTest(20, 20, 100000, [](const gnd::Point2f& u, int& bx, int& by) {
         gnd::Vector3f v = gnd::Warp::squareToCosineHemisphere(u);
 
-        // For Cosine weight, the PDF integral is proportional to z^2
         float z2 = v.z() * v.z();
         float phi = std::atan2(v.y(), v.x());
         if (phi < 0) phi += 2.0f * gnd::Pi;
