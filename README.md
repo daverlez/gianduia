@@ -1,1 +1,1 @@
-[![Build Status](https://github.com/TUO_USERNAME/NOME_REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/TUO_USERNAME/NOME_REPO/actions/workflows/ci.yml)
+[![Build Status](https://github.com/daverlez/gianduia/actions/workflows/ci.yml/badge.svg)](https://github.com/daverlez/gianduia/actions/workflows/ci.yml)
