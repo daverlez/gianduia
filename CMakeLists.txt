@@ -20,10 +20,6 @@ find_path(STB_INCLUDE_DIR "stb_image.h")
 
 if (MSVC)
     add_compile_definitions(_USE_MATH_DEFINES)
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-    add_compile_options(/W4 /MP /bigobj)
-else()
-    add_compile_options(-Wall -Wextra)
 endif()
 
 add_library(GianduiaEngine OBJECT)

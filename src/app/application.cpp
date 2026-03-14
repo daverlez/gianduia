@@ -78,7 +78,7 @@ void Application::run() {
         glfwPollEvents();
 
         if (m_isRendering) {
-            auto now = std::chrono::high_resolution_clock::now();
+            auto now = std::chrono::steady_clock::now();
             std::chrono::duration<double> elapsed = now - m_startTime;
             m_renderTime = elapsed.count();
         }
@@ -194,7 +194,7 @@ void Application::startRender() {
     m_isRendering = true;
     m_currentSample = 0;
 
-    m_startTime = std::chrono::high_resolution_clock::now();
+    m_startTime = std::chrono::steady_clock::now();
     m_renderTime = 0.0;
 
     if (auto integrator = m_scene->getIntegrator()) {
@@ -241,12 +241,12 @@ void Application::runHeadless(const std::string& scenePath) {
     }
 
     std::cout << "[Gianduia Headless] Starting render... (Press Ctrl+C to interrupt and save)" << std::endl;
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::steady_clock::now();
 
     m_isRendering = true;
     m_scene->render();
 
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     m_isRendering = false;
     std::cout << "[Gianduia Headless] Rendering finished in " << elapsed.count() << " seconds." << std::endl;

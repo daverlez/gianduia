@@ -4,6 +4,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <chrono>
 
 #include <app/glTexture.h>
 #include <gianduia/scene/scene.h>

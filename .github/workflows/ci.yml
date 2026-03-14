@@ -30,17 +30,18 @@ jobs:
         with:
           vcpkgDirectory: '${{ github.workspace }}/vcpkg'
           vcpkgJsonGlob: 'vcpkg.json'
+          vcpkgGitCommitId: '8b1c07e64192e9269d54f85a4381816aefca52e0'
 
       - name: Configure CMake
         shell: bash
         run: |
-          cmake -B build -S . \
+          cmake -B build -S . -G Ninja \
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         shell: bash
-        run: cmake --build build --config Release -j 4
+        run: cmake --build build --config Release
 
       - name: Run Unit Tests
         shell: bash
