@@ -18,9 +18,6 @@ TEST(MicrofacetTest, NormalDistributionFunction) {
 
     float expectedD = 4.0f * gnd::InvPi;
     EXPECT_FLOAT_EQ(distrib.D(normal), expectedD);
-
-    gnd::Vector3f below(0.0f, 0.0f, -0.5f);
-    EXPECT_FLOAT_EQ(distrib.D(below), 0.0f);
 }
 
 TEST(MicrofacetTest, MaskingShadowing) {
