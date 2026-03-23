@@ -8,24 +8,41 @@ namespace gnd {
 
     // Forward declaration
     class Primitive;
+    class Medium;
+
+    struct MediumInterface {
+        const Medium* inside = nullptr;
+        const Medium* outside = nullptr;
+
+        MediumInterface() = default;
+        MediumInterface(const Medium* medium) : inside(medium), outside(medium) {}
+        MediumInterface(const Medium* inside, const Medium* outside)
+            : inside(inside), outside(outside) {}
+
+        bool isMediumTransition() const { return inside != outside; }
+    };
 
     /// Record containing data on hit surface point.
     struct SurfaceInteraction {
-        float t;                        // Distance along the ray
-        Point3f p;                      // Intersection point (world coordinates)
-        Point2f uv;                     // UV coordinates
+        float t;                            // Distance along the ray
+        Point3f p;                          // Intersection point (world coordinates)
+        Point2f uv;                         // UV coordinates
 
-        Normal3f n;                     // Surface normal (world space)
-        Vector3f dpdu;                  // Tangent
+        Normal3f n;                         // Surface normal (world space)
+        Vector3f dpdu;                      // Tangent
 
         const Primitive* primitive;
-        uint32_t primIndex = 0;         // Triangle indexing in meshes
+        uint32_t primIndex = 0;             // Triangle indexing in meshes
 
-        BSDF* bsdf = nullptr;           // BSDF at intersection point
+        BSDF* bsdf = nullptr;               // BSDF at intersection point
+        MediumInterface mediumInterface;    // Medium interface
 
         SurfaceInteraction() : t(0.0f), p(0.0f), uv(0.0f), primitive(nullptr) {}
 
         bool isValid() const { return t > 0.0f; }
+        const Medium* getMedium(const Vector3f& w) const {
+            return Dot(w, n) > 0.0f ? mediumInterface.outside : mediumInterface.inside;
+        }
     };
 
     class Shape : public GndObject {

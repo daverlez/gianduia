@@ -1,0 +1,72 @@
+#include <gianduia/materials//medium.h>
+#include <gianduia/core/factory.h>
+#include <gianduia/core/sampler.h>
+#include <gianduia/math/color.h>
+#include <gianduia/math/warp.h>
+
+#include <cmath>
+#include <algorithm>
+
+namespace gnd {
+
+    class HomogeneousMedium : public Medium {
+    public:
+        HomogeneousMedium(const PropertyList& props) {
+            m_sigma_a = props.getColor("sigma_a", Color3f(0.1f));
+            m_sigma_s = props.getColor("sigma_s", Color3f(0.1f));
+
+            m_sigma_t = m_sigma_a + m_sigma_s;
+        }
+
+        Color3f Tr(const Ray& ray, Sampler& sampler) const override {
+            if (std::isinf(ray.tMax)) return Color3f(0.0f);
+
+            return Color3f(
+                std::exp(-m_sigma_t.r() * ray.tMax),
+                std::exp(-m_sigma_t.g() * ray.tMax),
+                std::exp(-m_sigma_t.b() * ray.tMax)
+            );
+        }
+
+        Color3f sample(const Ray& ray, Sampler& sampler, MemoryArena& arena, MediumInteraction& mi) const override {
+            int channel = std::min(static_cast<int>(sampler.next1D() * 3.0f), 2);
+
+            float dist = -std::log(1.0f - sampler.next1D()) / m_sigma_t[channel];
+
+            float t = std::min(dist, ray.tMax);
+            bool sampledMedium = t < ray.tMax;
+
+            Color3f Tr_val(
+                std::exp(-m_sigma_t.r() * t),
+                std::exp(-m_sigma_t.g() * t),
+                std::exp(-m_sigma_t.b() * t)
+            );
+
+            Color3f pdf_channels = sampledMedium ? (m_sigma_t * Tr_val) : Tr_val;
+            float pdf = (pdf_channels.r() + pdf_channels.g() + pdf_channels.b()) / 3.0f;
+
+            if (pdf == 0.0f) {
+                return Color3f(0.0f);
+            }
+
+            if (sampledMedium) {
+                mi.p = ray.o + ray.d * t;
+                mi.wo = -ray.d;
+                mi.medium = this;
+                
+                // TODO: Allocate phase function and assign it to mi.phase
+
+                return (Tr_val * m_sigma_s) / pdf;
+            }
+
+            return Tr_val / pdf;
+        }
+
+    private:
+        Color3f m_sigma_a;
+        Color3f m_sigma_s;
+        Color3f m_sigma_t;
+    };
+
+    GND_REGISTER_CLASS(HomogeneousMedium, "homogeneous");
+}

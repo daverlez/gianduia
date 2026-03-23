@@ -18,7 +18,8 @@ namespace gnd {
         ETexture,
         EMaterial,
         EEmitter,
-        EFilter
+        EFilter,
+        EMedium
     };
 
     class GndObject {
@@ -42,7 +43,7 @@ namespace gnd {
             switch (type) {
                 case EScene:      return "scene";
                 case EPrimitive:  return "primitive";
-                case EShape:       return "shape";
+                case EShape:      return "shape";
                 case ECamera:     return "camera";
                 case EIntegrator: return "integrator";
                 case ESampler:    return "sampler";
@@ -50,6 +51,7 @@ namespace gnd {
                 case EMaterial:   return "material";
                 case EEmitter:    return "emitter";
                 case EFilter:     return "filter";
+                case EMedium:     return "medium";
                 default:          return "unknown";
             }
         }
