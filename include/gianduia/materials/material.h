@@ -1,6 +1,7 @@
 #pragma once
 #include <gianduia/core/object.h>
 #include <gianduia/core/arena.h>
+#include <gianduia/materials/medium.h>
 #include <gianduia/textures/texture.h>
 
 namespace gnd {
@@ -22,7 +23,18 @@ namespace gnd {
                 if (m_normalMap)
                     throw std::runtime_error("Material: normal map already defined!");
                 m_normalMap = std::static_pointer_cast<Texture<Color3f>>(child);
-            } else {
+            }
+            else if (child->getClassType() == EMedium && child->getName() == "inside") {
+                if (m_inside)
+                    throw std::runtime_error("Material: inside medium already defined!");
+                m_inside = std::static_pointer_cast<Medium>(child);
+            }
+            else if (child->getClassType() == EMedium && child->getName() == "outside") {
+                if (m_outside)
+                    throw std::runtime_error("Material: outside medium already defined!");
+                m_outside = std::static_pointer_cast<Medium>(child);
+            }
+            else {
                 throw std::runtime_error("Material: cannot add specified child (" + child->getName() + ")!");
             }
         }
@@ -31,6 +43,8 @@ namespace gnd {
 
     protected:
         std::shared_ptr<Texture<Color3f>> m_normalMap;
+        std::shared_ptr<Medium> m_inside;
+        std::shared_ptr<Medium> m_outside;
 
         void applyNormalMap(SurfaceInteraction& isect) const {
             if (m_normalMap) {
@@ -51,6 +65,15 @@ namespace gnd {
 
                 Vector3f newDpdu = isect.dpdu - Vector3f(isect.n) * Dot(isect.n, isect.dpdu);
                 isect.dpdu = Normalize(newDpdu);
+            }
+        }
+
+        void applyMediums(SurfaceInteraction& isect) const {
+            if (m_inside || m_outside) {
+                isect.mediumInterface = MediumInterface(
+                    m_inside ? m_inside.get() : nullptr,
+                    m_outside ? m_outside.get() : nullptr
+                );
             }
         }
     };

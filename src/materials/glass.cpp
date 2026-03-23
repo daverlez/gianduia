@@ -40,9 +40,6 @@ namespace gnd {
         }
 
         void addChild(std::shared_ptr<GndObject> child) override {
-            if (child->getClassType() != ETexture)
-                throw std::runtime_error("Glass: cannot add specified child!");
-
             if (child->getName() == "R") {
                 if (m_R)
                     throw std::runtime_error("Glass: there's already a reflection texture defined!");
@@ -100,6 +97,7 @@ namespace gnd {
 
         void computeScatteringFunctions(SurfaceInteraction &isect, MemoryArena &arena) const override {
             applyNormalMap(isect);
+            applyMediums(isect);
 
             Color3f r = m_R->evaluate(isect);
             Color3f t = m_T->evaluate(isect);
@@ -124,12 +122,14 @@ namespace gnd {
                         "  roughness = \n{}\n"
                         "  eta =\n{}\n"
                         "  normal =\n{}\n"
+                        "  inside medium = \n{}\n"
                         "]",
                         indent(m_R->toString(), 2),
                         indent(m_T->toString(), 2),
                         indent(m_roughness->toString(), 2),
                         indent(m_eta->toString(), 2),
-                        m_normalMap ? indent(m_normalMap->toString(), 2) : "  null");
+                        m_normalMap ? indent(m_normalMap->toString(), 2) : "  null",
+                        m_inside ? indent(m_inside->toString(), 2) : "  null");
         }
 
     private:

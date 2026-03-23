@@ -21,8 +21,6 @@ namespace gnd {
 
         Ray(const Point3f& origin, const Vector3f& direction, float _tMax = Infinity)
             : o(origin), d(direction), tMax(_tMax), tMin(Epsilon) {}
-        Ray(const Point3f& o, const Vector3f& d, const Medium* medium = nullptr)
-            : o(o), d(d), tMax(Infinity), tMin(Epsilon), medium(medium) {}
 
         Point3f operator()(float t) const {
             return o + d * t;

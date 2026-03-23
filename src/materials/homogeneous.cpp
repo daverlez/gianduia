@@ -54,12 +54,24 @@ namespace gnd {
                 mi.wo = -ray.d;
                 mi.medium = this;
                 
-                // TODO: Allocate phase function and assign it to mi.phase
+                mi.phase = arena.create<IsotropicPhaseFunction>();
 
                 return (Tr_val * m_sigma_s) / pdf;
             }
 
             return Tr_val / pdf;
+        }
+
+        virtual std::string toString() const override {
+            return std::format(
+                "HomogeneousMedium[\n"
+                        "  absorption = {}\n"
+                        "  scattering = {}\n"
+                        "  transmittance = {}\n"
+                        "]",
+                        m_sigma_a.toString(),
+                        m_sigma_s.toString(),
+                        m_sigma_t.toString());
         }
 
     private:
