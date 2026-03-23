@@ -22,6 +22,7 @@ namespace gnd {
         std::shared_ptr<Sampler> getSampler() { return m_sampler; }
         std::shared_ptr<Integrator> getIntegrator() { return m_integrator; }
         const std::vector<std::shared_ptr<Emitter>>& getEmitters() { return m_emitters; }
+        const std::shared_ptr<Emitter> getEnvMap() { return m_envMap; }
 
         const std::shared_ptr<Emitter> getRandomEmitter(float rnd) {
             size_t n = m_emitters.size();
@@ -43,5 +44,6 @@ namespace gnd {
         std::shared_ptr<Sampler> m_sampler;
         std::shared_ptr<Integrator> m_integrator;
         std::vector<std::shared_ptr<Emitter>> m_emitters;
+        std::shared_ptr<Emitter> m_envMap;
     };
 }

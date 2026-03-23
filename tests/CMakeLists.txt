@@ -1,5 +1,6 @@
 add_executable(GianduiaTests
         cameras/perspective_test.cpp
+        emitters/environment_test.cpp
         materials/fresnel_test.cpp
         materials/reflection_test.cpp
         materials/transmission_test.cpp

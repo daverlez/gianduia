@@ -72,4 +72,28 @@ namespace gnd {
         return result;
     }
 
+    /// Yields the spherical coordinates of the given vector.
+    /// Theta is the first coordinate, Phi is the second.
+    inline Point2f SphericalCoordinates(const Vector3f& w) {
+        Point2f result(std::acos(std::clamp(w.z(), -1.0f, 1.0f)), std::atan2(w.y(), w.x()));
+        if (result.y() < 0.0f) result.y() += 2.0f * Pi;
+
+        return result;
+    }
+
+    inline Vector3f SphericalDirection(const Point2f& p) {
+        float cosTheta = std::cos(p.x());
+        float sinTheta = std::sin(p.x());
+        float cosPhi = std::cos(p.y());
+        float sinPhi = std::sin(p.y());
+
+        Vector3f result(
+            sinTheta * cosPhi,
+            sinTheta * sinPhi,
+            cosTheta
+        );
+
+        return result;
+    }
+
 }

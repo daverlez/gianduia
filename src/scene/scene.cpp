@@ -1,6 +1,7 @@
 #include <gianduia/scene/scene.h>
 #include <gianduia/core/factory.h>
 #include <gianduia/core/integrator.h>
+#include <gtest/gtest.h>
 
 namespace gnd {
     Scene::Scene(const PropertyList& props) { }
@@ -31,6 +32,11 @@ namespace gnd {
                 break;
             case EEmitter :
                 m_emitters.push_back(std::static_pointer_cast<Emitter>(child));
+                if (m_emitters.back()->isInfiniteAreaLight()) {
+                    if (m_envMap)
+                        throw std::runtime_error("Scene: cannot add multiple infinite area lights!");
+                    m_envMap = m_emitters.back();
+                }
                 break;
             default:
                 throw std::runtime_error("Scene: cannot add specified child!");

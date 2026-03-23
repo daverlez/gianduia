@@ -190,7 +190,6 @@ namespace gnd {
 
     inline Point3f operator*(float s, const Point3f& p) { return p * s; }
 
-
     struct Normal3f {
         glm::vec3 n;
 

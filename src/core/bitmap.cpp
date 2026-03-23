@@ -1,10 +1,12 @@
 #include <gianduia/core/bitmap.h>
 #include <iostream>
 
+#include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfOutputFile.h>
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfHeader.h>
 #include <OpenEXR/ImfFrameBuffer.h>
+#include <Imath/ImathBox.h>
 #include <exception>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -12,6 +14,40 @@
 #include "gianduia/core/fileResolver.h"
 
 namespace gnd {
+
+    Bitmap::Bitmap(const std::string& exrAbsolutePath) {
+        try {
+            Imf::InputFile file(exrAbsolutePath.c_str());
+            Imath::Box2i dw = file.header().dataWindow();
+
+            m_width = dw.max.x - dw.min.x + 1;
+            m_height = dw.max.y - dw.min.y + 1;
+
+            m_pixels.resize(m_width * m_height, Color3f(0.0f));
+            m_accumData = std::make_unique<AccumPixel[]>(m_width * m_height);
+
+            Imf::FrameBuffer frameBuffer;
+            char* base = (char*)m_pixels.data();
+
+            int dx = dw.min.x;
+            int dy = dw.min.y;
+            size_t xStride = sizeof(Color3f);
+            size_t yStride = m_width * sizeof(Color3f);
+            base = base - dx * xStride - dy * yStride;
+
+            frameBuffer.insert("R", Imf::Slice(Imf::FLOAT, base, xStride, yStride));
+            frameBuffer.insert("G", Imf::Slice(Imf::FLOAT, base + sizeof(float), xStride, yStride));
+            frameBuffer.insert("B", Imf::Slice(Imf::FLOAT, base + 2 * sizeof(float), xStride, yStride));
+
+            file.setFrameBuffer(frameBuffer);
+            file.readPixels(dw.min.y, dw.max.y);
+
+            m_filter = std::make_shared<GaussianFilter>(PropertyList());
+
+        } catch (const std::exception &e) {
+            throw std::runtime_error("Bitmap: Error while loading EXR path " + exrAbsolutePath + ": " + e.what());
+        }
+    }
 
     void Bitmap::savePNG() const {
         std::vector<uint8_t> data(m_width * m_height * 3);

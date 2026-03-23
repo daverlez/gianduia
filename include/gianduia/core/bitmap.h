@@ -19,6 +19,8 @@ namespace gnd {
             if (!m_filter) m_filter = std::make_shared<GaussianFilter>(PropertyList());
         }
 
+        Bitmap(const std::string& exrAbsolutePath);
+
         /// Adds a sample to the accumulated data
         void addSample(const Point2f& pFilm, const Color3f& L) {
             if (L.hasNaNs()) return;
@@ -81,6 +83,35 @@ namespace gnd {
 
         const Color3f& getPixel(int x, int y) const {
             return m_pixels[y * m_width + x];
+        }
+
+        Color3f getPixelBilinear(float u, float v) const {
+            if (m_width == 0 || m_height == 0) return Color3f(0.0f);
+
+            float x = u * m_width - 0.5f;
+            float y = v * m_height - 0.5f;
+
+            int x0 = std::floor(x);
+            int y0 = std::floor(y);
+
+            float dx = x - x0;
+            float dy = y - y0;
+
+            int px0 = (x0 % m_width + m_width) % m_width;
+            int px1 = (px0 + 1) % m_width;
+
+            int py0 = std::clamp(y0, 0, m_height - 1);
+            int py1 = std::clamp(y0 + 1, 0, m_height - 1);
+
+            Color3f c00 = getPixel(px0, py0);
+            Color3f c10 = getPixel(px1, py0);
+            Color3f c01 = getPixel(px0, py1);
+            Color3f c11 = getPixel(px1, py1);
+
+            Color3f c0 = c00 * (1.0f - dx) + c10 * dx;
+            Color3f c1 = c01 * (1.0f - dx) + c11 * dx;
+
+            return c0 * (1.0f - dy) + c1 * dy;
         }
 
         const std::shared_ptr<Filter> getFilter() const {
