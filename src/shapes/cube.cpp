@@ -30,9 +30,18 @@ namespace gnd {
                 if (t0 > t1) return false;
             }
 
+            float tHit = t0;
+
+            if (tHit < ray.tMin) {
+                tHit = t1;
+
+                if (tHit < ray.tMin)
+                    return false;
+            }
+
             if (predicate) return true;
 
-            isect.t = t0;
+            isect.t = tHit;
             return true;
         }
 

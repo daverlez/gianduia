@@ -13,6 +13,7 @@ find_package(pugixml CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 find_package(OpenVDB CONFIG REQUIRED)
+find_package(blosc CONFIG REQUIRED)
 find_package(tinyobjloader CONFIG REQUIRED)
 find_package(OpenGL REQUIRED)
 
@@ -35,6 +36,7 @@ target_link_libraries(GianduiaEngine PUBLIC
         TBB::tbb
         OpenEXR::OpenEXR
         OpenVDB::openvdb
+        blosc_static
         tinyobjloader::tinyobjloader
         pugixml::pugixml
 )

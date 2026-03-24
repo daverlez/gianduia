@@ -21,6 +21,7 @@
       "name": "openvdb",
       "features": ["tools"]
     },
+    "blosc",
     "tinyobjloader",
     "gtest"
   ],

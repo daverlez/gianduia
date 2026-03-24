@@ -14,6 +14,7 @@ namespace gnd {
         HomogeneousMedium(const PropertyList& props) {
             m_sigma_a = props.getColor("sigma_a", Color3f(0.1f));
             m_sigma_s = props.getColor("sigma_s", Color3f(0.1f));
+            m_g = props.getFloat("g", 0.0f);
 
             m_sigma_t = m_sigma_a + m_sigma_s;
         }
@@ -54,7 +55,7 @@ namespace gnd {
                 mi.wo = -ray.d;
                 mi.medium = this;
                 
-                mi.phase = arena.create<IsotropicPhaseFunction>();
+                mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
 
                 return (Tr_val * m_sigma_s) / pdf;
             }
@@ -68,16 +69,19 @@ namespace gnd {
                         "  absorption = {}\n"
                         "  scattering = {}\n"
                         "  transmittance = {}\n"
+                        "  anisotropy = {}\n"
                         "]",
                         m_sigma_a.toString(),
                         m_sigma_s.toString(),
-                        m_sigma_t.toString());
+                        m_sigma_t.toString(),
+                        m_g);
         }
 
     private:
         Color3f m_sigma_a;
         Color3f m_sigma_s;
         Color3f m_sigma_t;
+        float m_g;
     };
 
     GND_REGISTER_CLASS(HomogeneousMedium, "homogeneous");

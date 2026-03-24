@@ -185,7 +185,6 @@ namespace gnd {
     private:
         int maxDepth;
 
-        // Traccia un raggio d'ombra verso la luce, attraversando i materiali "Subsurface"
         Color3f evaluateTr(Scene& scene, Ray shadowRay, Sampler& sampler, const Point3f& lightP, MemoryArena& arena) const {
             Color3f Tr(1.0f);
             Ray r = shadowRay;
@@ -194,31 +193,20 @@ namespace gnd {
                 SurfaceInteraction isect;
                 bool hit = scene.rayIntersect(r, isect);
 
-                // 1. Accumuliamo l'assorbimento del fluido attraversato in questo segmento
                 if (r.medium) {
                     Tr *= r.medium->Tr(r, sampler);
                 }
 
-                // Ottimizzazione: se l'ombra è diventata completamente nera, usciamo
                 if (Tr.isBlack()) return Tr;
-
-                // 2. Se non abbiamo colpito niente, la luce è visibile!
                 if (!hit) break;
-
-                // 3. Abbiamo colpito una superficie. È un muro opaco o un confine fantasma?
                 isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
 
                 if (isect.bsdf != nullptr) {
-                    // È un materiale con BSDF solido (es. vetro o opaco). La luce è bloccata!
                     return {0.0f};
                 }
 
-                // 4. È un SubsurfaceMaterial! Generiamo il prossimo segmento del raggio d'ombra
-                // mantenendo la direzione originale ma aggiornando il fluido
                 r = Ray(isect.p, r.d);
                 r.medium = isect.getMedium(r.d);
-
-                // Assicuriamoci che il raggio non oltrepassi la luce
                 r.tMin = Epsilon;
                 r.tMax = Distance(isect.p, lightP) - Epsilon;
             }
