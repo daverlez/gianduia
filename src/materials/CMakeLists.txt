@@ -6,6 +6,6 @@ target_sources(GianduiaEngine PRIVATE
         matte.cpp
         plastic.cpp
         reflection.cpp
-        subsurface.cpp
+        index.cpp
         transmission.cpp
 )

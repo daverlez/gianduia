@@ -3,9 +3,9 @@
 
 namespace gnd {
 
-    class SubsurfaceMaterial : public Material {
+    class IndexMaterial : public Material {
     public:
-        SubsurfaceMaterial(const PropertyList& props) {
+        IndexMaterial(const PropertyList& props) {
         }
 
         void computeScatteringFunctions(SurfaceInteraction& isect, MemoryArena& arena) const override {
@@ -17,11 +17,11 @@ namespace gnd {
         }
 
         std::string toString() const override {
-            return "SubsurfaceMaterial[\n"
+            return "IndexMaterial[\n"
                    "  normal = " + (m_normalMap ? m_normalMap->toString() : "null") + "\n"
                    "]";
         }
     };
 
-    GND_REGISTER_CLASS(SubsurfaceMaterial, "subsurface");
+    GND_REGISTER_CLASS(IndexMaterial, "index");
 }
