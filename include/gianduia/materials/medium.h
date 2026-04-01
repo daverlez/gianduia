@@ -29,6 +29,8 @@ namespace gnd {
 
         virtual Color3f sample(const Ray& ray, Sampler& sampler, MemoryArena& arena, MediumInteraction& mi) const = 0;
 
+        virtual float getDensity(const Point3f& p) const = 0;
+
         EClassType getClassType() const override { return EMedium; }
     };
 }

@@ -47,6 +47,11 @@ namespace gnd {
             auto extrema = openvdb::tools::minMax(m_densityGrid->tree());
             float maxVal = extrema.max();
 
+            if (!std::isfinite(maxVal)) {
+                // VDB grid contains non-finite values. This will cause delta tracking to get stuck.
+                throw std::runtime_error("HeterogeneousMedium: VDB grid has non-finite values (inf/nan).");
+            }
+
             float max_color_t = std::max({m_base_sigma_t.r(), m_base_sigma_t.g(), m_base_sigma_t.b()});
             m_majorant = maxVal * m_densityScale * max_color_t;
             m_invMajorant = m_majorant > 0.0f ? 1.0f / m_majorant : 0.0f;
@@ -63,7 +68,7 @@ namespace gnd {
             openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_densityGrid->transform());
 
             while (true) {
-                t -= std::log(1.0f - sampler.next1D()) * m_invMajorant;
+                t += -std::log(1.0f - sampler.next1D()) * m_invMajorant;
 
                 if (t >= tMax) break;
 
@@ -95,7 +100,7 @@ namespace gnd {
             openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_densityGrid->transform());
 
             while (true) {
-                t -= std::log(1.0f - sampler.next1D()) * m_invMajorant;
+                t += -std::log(1.0f - sampler.next1D()) * m_invMajorant;
 
                 if (t >= tMax) return Color3f(1.0f);
 
@@ -118,6 +123,15 @@ namespace gnd {
                     return local_sigma_s / local_sigma_t[channel];
                 }
             }
+        }
+
+        virtual float getDensity(const Point3f& p) const override {
+            auto accessor = m_densityGrid->getConstAccessor();
+            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_densityGrid->transform());
+
+            openvdb::Vec3d pVdb(p.x(), p.y(), p.z());
+
+            return gridSampler.wsSample(pVdb) * m_densityScale;
         }
 
         std::string toString() const override {

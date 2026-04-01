@@ -17,9 +17,13 @@ namespace gnd {
         }
 
         std::string toString() const override {
-            return "IndexMaterial[\n"
-                   "  normal = " + (m_normalMap ? m_normalMap->toString() : "null") + "\n"
-                   "]";
+            return std::format(
+                "IndexMaterial[\n"
+                   "  normal = {}\n"
+                   "  inside medium = \n{}\n"
+                   "]",
+                m_normalMap ? m_normalMap->toString() : "null",
+                m_inside ? indent(m_inside->toString(), 2) : "  null");
         }
     };
 

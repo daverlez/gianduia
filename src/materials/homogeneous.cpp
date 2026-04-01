@@ -63,6 +63,10 @@ namespace gnd {
             return Tr_val / pdf;
         }
 
+        virtual float getDensity(const Point3f& p) const override {
+            return std::max({m_sigma_t.r(), m_sigma_t.g(), m_sigma_t.b()});
+        }
+
         virtual std::string toString() const override {
             return std::format(
                 "HomogeneousMedium[\n"
