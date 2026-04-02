@@ -1,1 +1,0 @@
-[![Build Status](https://github.com/daverlez/gianduia/actions/workflows/ci.yml/badge.svg)](https://github.com/daverlez/gianduia/actions/workflows/ci.yml)

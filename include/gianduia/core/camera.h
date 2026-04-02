@@ -3,9 +3,8 @@
 #include <gianduia/core/object.h>
 #include <gianduia/math/transform.h>
 #include <gianduia/math/geometry.h>
-
-#include "bitmap.h"
-#include "gianduia/math/animated.h"
+#include <gianduia/math/animated.h>
+#include <gianduia/core/bitmap.h>
 
 namespace gnd {
 
