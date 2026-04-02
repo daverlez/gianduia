@@ -28,6 +28,8 @@ namespace gnd {
         Point3f p;                          // Intersection point (world coordinates)
         Point2f uv;                         // UV coordinates
 
+        float time = 0.0f;                  // Time, inherited from ray
+
         Normal3f n;                         // Surface normal (world space)
         Vector3f dpdu;                      // Tangent
 

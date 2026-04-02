@@ -3,9 +3,9 @@
 #include <gianduia/core/object.h>
 #include <gianduia/shapes/shape.h>
 #include <gianduia/materials/material.h>
+#include <gianduia/core/emitter.h>
+#include <gianduia/math/animated.h>
 #include <memory>
-
-#include "gianduia/core/emitter.h"
 
 namespace gnd {
 
@@ -22,7 +22,7 @@ namespace gnd {
 
         Bounds3f getWorldBounds() const;
         std::shared_ptr<Shape> getShape() const;
-        const Transform& getToWorld() const;
+        const Transform& getToWorld(float time) const;
         std::shared_ptr<Material> getMaterial() const;
         std::shared_ptr<Emitter> getEmitter() const;
 
@@ -31,7 +31,7 @@ namespace gnd {
 
     private:
         std::shared_ptr<Shape> m_shape;
-        Transform m_objectToWorld;
+        AnimatedTransform m_objectToWorld;
         std::shared_ptr<Material> m_material;
         std::shared_ptr<Emitter> m_emitter;
     };

@@ -16,6 +16,7 @@ namespace gnd {
         mutable float tMin;
         mutable float tMax;
         const Medium* medium = nullptr;
+        float time = 0.0f;
 
         Ray() : tMax(std::numeric_limits<float>::infinity()), tMin(Epsilon) {}
 

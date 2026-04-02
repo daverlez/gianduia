@@ -75,8 +75,10 @@ namespace gnd {
                     specularBounce = false;
 
                     const Medium* prevMedium = r.medium;
+                    float prevTime = r.time;
                     r = Ray(mi.p, wi);
                     r.medium = prevMedium;
+                    r.time = prevTime;
                     bounces++;
                     continue;
                 }
@@ -121,6 +123,7 @@ namespace gnd {
                 if (!isect.bsdf) {
                     r = Ray(isect.p, r.d);
                     r.medium = isect.getMedium(r.d);
+                    r.time = isect.time;
                     continue;
                 }
 
@@ -164,6 +167,7 @@ namespace gnd {
 
                 r = Ray(isect.p, wi);
                 r.medium = isect.getMedium(wi);
+                r.time = isect.time;
 
                 // --- Russian Roulette ---
                 if (bounces > 2) {
@@ -209,6 +213,7 @@ namespace gnd {
                 r.medium = isect.getMedium(r.d);
                 r.tMin = Epsilon;
                 r.tMax = Distance(isect.p, lightP) - Epsilon;
+                r.time = isect.time;
             }
 
             return Tr;

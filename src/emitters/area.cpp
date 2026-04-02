@@ -54,12 +54,13 @@ namespace gnd {
         virtual Color3f sample(const SurfaceInteraction& ref, const Point2f& sample,
                                SurfaceInteraction& info, float& pdf, Ray& shadowRay) const override {
             SurfaceInteraction local;
-            const Transform& toWorld = m_primitive->getToWorld();
+            const Transform& toWorld = m_primitive->getToWorld(ref.time);
             float areaPdf = m_primitive->getShape()->sampleSurface(ref.p, sample, local);
 
             info.p = toWorld(local.p);
             info.n = Normalize(toWorld(local.n));
             info.uv = local.uv;
+            info.time = ref.time;
 
             Frame frame(Vector3f(local.n.x(), local.n.y(), local.n.z()));
             Vector3f t1World = toWorld(frame.x);
@@ -74,6 +75,7 @@ namespace gnd {
             shadowRay.d = Normalize(info.p - ref.p);
             shadowRay.tMin = Epsilon;
             shadowRay.tMax = (info.p - ref.p).length() - Epsilon;
+            shadowRay.time = ref.time;
 
             float dist = (ref.p - info.p).lengthSquared();
             Vector3f wi = shadowRay.d;
@@ -90,8 +92,8 @@ namespace gnd {
 
         virtual float pdf(const SurfaceInteraction& ref, const SurfaceInteraction& info) const {
             SurfaceInteraction local;
-            const Transform toLocal = m_primitive->getToWorld().inverse();
-            const Transform toWorld = m_primitive->getToWorld();
+            const Transform toWorld = m_primitive->getToWorld(ref.time);
+            const Transform toLocal = toWorld.inverse();
             local.p = toLocal(info.p);
             local.n = toLocal(info.n);
             local.uv = info.uv;

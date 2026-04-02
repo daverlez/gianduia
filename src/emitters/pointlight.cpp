@@ -26,6 +26,7 @@ namespace gnd {
             shadowRay.d = Normalize(info.p - ref.p);
             shadowRay.tMin = Epsilon;
             shadowRay.tMax = (info.p - ref.p).length() - Epsilon;
+            shadowRay.time = info.time;
 
             return I / squaredDist;
         }

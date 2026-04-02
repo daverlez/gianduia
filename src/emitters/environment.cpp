@@ -66,8 +66,10 @@ namespace gnd {
 
             info.p = ref.p + wi * 1e5f;
             info.n = Normal3f(-wi);
+            info.time = ref.time;
 
             shadowRay = Ray(ref.p, wi);
+            shadowRay.time = ref.time;
 
             pdf_val = this->pdf(ref, info);
 

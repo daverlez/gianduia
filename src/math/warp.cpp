@@ -86,11 +86,11 @@ namespace gnd {
     Point2f Warp::squareToUniformPolygon(const Point2f& sample, int blades) {
         if (blades < 3) return squareToUniformDisk(sample);
 
-        float bladeFloat = sample.x * blades;
+        float bladeFloat = sample.x() * blades;
         int bladeIdx = std::min(static_cast<int>(bladeFloat), blades - 1);
 
         float u0 = bladeFloat - bladeIdx;
-        float u1 = sample.y;
+        float u1 = sample.y();
 
         float deltaTheta = 2.0f * Pi / blades;
         float theta1 = bladeIdx * deltaTheta;
@@ -107,8 +107,8 @@ namespace gnd {
         // Sampling triangle (0,0), v1, v2
         float r = std::sqrt(u0);
         return Point2f(
-            r * ((1.0f - u1) * v1.x + u1 * v2.x),
-            r * ((1.0f - u1) * v1.y + u1 * v2.y)
+            r * ((1.0f - u1) * v1.x() + u1 * v2.x()),
+            r * ((1.0f - u1) * v1.y() + u1 * v2.y())
         );
     }
 }

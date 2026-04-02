@@ -124,6 +124,7 @@ namespace gnd {
                 }
 
                 isect = secIsect;
+                secRay.time = r.time;
                 r = secRay;
                 isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
                 if (!isect.bsdf) break;

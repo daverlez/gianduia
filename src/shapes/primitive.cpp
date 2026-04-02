@@ -4,7 +4,10 @@
 namespace gnd {
 
     Primitive::Primitive(const PropertyList& props) {
-        m_objectToWorld = props.getTransform("toWorld", Transform());
+        Transform tStart = props.getTransform("toWorld", Transform());
+        Transform tEnd = props.getTransform("toWorldEnd", tStart);
+
+        m_objectToWorld = AnimatedTransform(tStart, 0.0f, tEnd, 1.0f);
     }
 
     void Primitive::addChild(std::shared_ptr<GndObject> child) {
@@ -43,7 +46,7 @@ namespace gnd {
     }
 
     bool Primitive::rayIntersect(const Ray& rWorld, SurfaceInteraction& isect, bool predicate) const {
-        Transform worldToObject = m_objectToWorld.inverse();
+        Transform worldToObject = m_objectToWorld.interpolate(rWorld.time).inverse();
         Ray rLocal = worldToObject(rWorld);
 
         if (!m_shape->rayIntersect(rLocal, isect, predicate)) {
@@ -56,26 +59,28 @@ namespace gnd {
     }
 
     void Primitive::fillInteraction(const Ray& rWorld, SurfaceInteraction& isect) const {
-        Transform worldToObject = m_objectToWorld.inverse();
+        Transform objectToWorld = m_objectToWorld.interpolate(rWorld.time);
+        Transform worldToObject = objectToWorld.inverse();
         Ray rLocal = worldToObject(rWorld);
 
         m_shape->fillInteraction(rLocal, isect);
 
-        isect.p = m_objectToWorld(isect.p);
-        isect.n = Normalize(m_objectToWorld(isect.n));
-        isect.dpdu = Normalize(m_objectToWorld(isect.dpdu));
+        isect.p = objectToWorld(isect.p);
+        isect.n = Normalize(objectToWorld(isect.n));
+        isect.dpdu = Normalize(objectToWorld(isect.dpdu));
+        isect.time = rWorld.time;
     }
 
     Bounds3f Primitive::getWorldBounds() const {
-        return m_objectToWorld(m_shape->getBounds());
+        return m_objectToWorld.motionBounds(m_shape->getBounds());
     }
 
     std::shared_ptr<Shape> Primitive::getShape() const {
         return m_shape;
     }
 
-    const Transform& Primitive::getToWorld() const {
-        return m_objectToWorld;
+    const Transform& Primitive::getToWorld(float time) const {
+        return m_objectToWorld.interpolate(time);
     }
 
     std::shared_ptr<Material> Primitive::getMaterial() const {
@@ -94,11 +99,13 @@ namespace gnd {
         return std::format(
             "Primitive[\n"
             "  position = {},\n"
+            "  animated = {}, \n"
             "  shape = \n{}\n"
             "  material = \n{}\n"
             "  emitter = \n{}\n"
             "]",
-            m_objectToWorld.getPosition().toString(),
+            m_objectToWorld.interpolate(0.0f).getPosition().toString(),
+            m_objectToWorld.isAnimated() ? "true" : "false",
             indent(m_shape->toString(), 2),
             indent(m_material->toString(), 2),
             indent(m_emitter ? m_emitter->toString() : "null", 2)
