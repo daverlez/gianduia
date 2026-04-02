@@ -21,6 +21,8 @@ namespace gnd {
 
             m_caAxial = props.getFloat("ca_axial", 0.0f);
             m_caLateral = props.getFloat("ca_lateral", 0.0f);
+
+            m_vignetting = props.getBoolean("vignetting", false);
         }
 
         float shootRay(const CameraSample& sample, Ray* ray) const override {
@@ -57,10 +59,18 @@ namespace gnd {
 
             dir = Normalize(dir);
 
+            // Vignetting
+            float weight = 1.0f;
+            if (m_vignetting) {
+                float cosTheta = std::abs(dir.z());
+                float cos2 = cosTheta * cosTheta;
+                weight = cos2 * cos2;
+            }
+
             Ray rayCamera(rayOrigin, dir);
             *ray = m_cameraToWorld(rayCamera);
 
-            return 1.0f;
+            return weight;
         }
 
         bool hasChromaticAberration() const override {
@@ -82,6 +92,7 @@ namespace gnd {
                 "  focal distance = {}\n"
                 "  chromatic aberration (lateral) = {}\n"
                 "  chromatic aberration (axial) = {}\n"
+                "  vignetting = {}\n"
                 "]",
                 m_outputWidth,
                 m_outputHeight,
@@ -94,18 +105,26 @@ namespace gnd {
                 m_lensRadius,
                 m_focalDistance,
                 m_caLateral,
-                m_caAxial
+                m_caAxial,
+                m_vignetting ? "true" : "false"
             );
         }
 
     private:
         float m_fov;
         float m_scale;
+
         float m_lensRadius;
         float m_focalDistance;
+
         float m_k1;
+
         float m_caAxial;
         float m_caLateral;
+
+        bool m_vignetting;
+
+        int m_blades;
     };
 
     GND_REGISTER_CLASS(ThinLensCamera, "thinlens");

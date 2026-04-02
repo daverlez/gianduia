@@ -118,8 +118,9 @@ namespace gnd {
                             }
 
                             Ray ray;
-                            camera->shootRay(camSample, &ray);
+                            float rayWeight = camera->shootRay(camSample, &ray);
                             Color3f rawColor = Li(ray, *scene, threadSampler, threadArena);
+                            rawColor *= rayWeight;
 
                             Color3f newColor(0.0f);
                             if (channel == -1) newColor = rawColor;
