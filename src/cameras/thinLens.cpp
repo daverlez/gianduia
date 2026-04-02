@@ -23,6 +23,8 @@ namespace gnd {
             m_caLateral = props.getFloat("ca_lateral", 0.0f);
 
             m_vignetting = props.getBoolean("vignetting", false);
+
+            m_blades = props.getInteger("blades", 0);
         }
 
         float shootRay(const CameraSample& sample, Ray* ray) const override {
@@ -46,7 +48,12 @@ namespace gnd {
 
             // Depth of Field & Axial CA
             if (m_lensRadius > 0.0f) {
-                Point2f pLens = Warp::squareToUniformDisk(sample.pLens) * m_lensRadius;
+                Point2f pLens;
+                if (m_blades >= 3) {
+                    pLens = Warp::squareToUniformPolygon(sample.pLens, m_blades) * m_lensRadius;
+                } else {
+                    pLens = Warp::squareToUniformDisk(sample.pLens) * m_lensRadius;
+                }
 
                 float focalDistMod = m_focalDistance * (1.0f + m_caAxial * sample.lambdaOffset);
 

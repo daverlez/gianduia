@@ -20,6 +20,8 @@ namespace gnd {
 
         static Vector3f squareToCosineHemisphere(const Point2f& sample);
         static float squareToCosineHemispherePdf(const Vector3f& v);
+
+        static Point2f squareToUniformPolygon(const Point2f& sample, int blades);
     };
 
 }

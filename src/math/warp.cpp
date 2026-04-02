@@ -82,4 +82,33 @@ namespace gnd {
 
         return InvPi * v.z();
     }
+
+    Point2f Warp::squareToUniformPolygon(const Point2f& sample, int blades) {
+        if (blades < 3) return squareToUniformDisk(sample);
+
+        float bladeFloat = sample.x * blades;
+        int bladeIdx = std::min(static_cast<int>(bladeFloat), blades - 1);
+
+        float u0 = bladeFloat - bladeIdx;
+        float u1 = sample.y;
+
+        float deltaTheta = 2.0f * Pi / blades;
+        float theta1 = bladeIdx * deltaTheta;
+        float theta2 = (bladeIdx + 1) * deltaTheta;
+
+        // Note: rotating by Pi/2 so that the polygon has an angle on the top.
+        float offset = Pi / 2.0f;
+        theta1 += offset;
+        theta2 += offset;
+
+        Point2f v1(std::cos(theta1), std::sin(theta1));
+        Point2f v2(std::cos(theta2), std::sin(theta2));
+
+        // Sampling triangle (0,0), v1, v2
+        float r = std::sqrt(u0);
+        return Point2f(
+            r * ((1.0f - u1) * v1.x + u1 * v2.x),
+            r * ((1.0f - u1) * v1.y + u1 * v2.y)
+        );
+    }
 }
