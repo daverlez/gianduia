@@ -25,6 +25,10 @@ namespace gnd {
             m_vignetting = props.getBoolean("vignetting", false);
 
             m_blades = props.getInteger("blades", 0);
+
+            m_rollingShutter = props.getBoolean("rolling_shutter", false);
+            m_scanDuration = props.getFloat("scan_duration", 0.9f);
+            m_exposureDuration = props.getFloat("exposure_duration", 0.1f);
         }
 
         float shootRay(const CameraSample& sample, Ray* ray) const override {
@@ -76,7 +80,15 @@ namespace gnd {
 
             Ray rayCamera(rayOrigin, dir);
             *ray = m_cameraToWorld(rayCamera);
-            ray->time = sample.time;
+
+            // Rolling shutter
+            float finalTime = sample.time; // Fallback to standard motion blur
+            if (m_rollingShutter) {
+                float scanline = 1.0f - sample.pFilm.y();
+
+                finalTime = scanline * m_scanDuration + (sample.time * m_exposureDuration);
+            }
+            ray->time = finalTime;
 
             return weight;
         }
@@ -101,6 +113,7 @@ namespace gnd {
                 "  chromatic aberration (lateral) = {}\n"
                 "  chromatic aberration (axial) = {}\n"
                 "  vignetting = {}\n"
+                "  rolling shutter = {}\n"
                 "]",
                 m_outputWidth,
                 m_outputHeight,
@@ -114,7 +127,8 @@ namespace gnd {
                 m_focalDistance,
                 m_caLateral,
                 m_caAxial,
-                m_vignetting ? "true" : "false"
+                m_vignetting ? "true" : "false",
+                m_rollingShutter ? "true" : "false"
             );
         }
 
@@ -133,6 +147,10 @@ namespace gnd {
         bool m_vignetting;
 
         int m_blades;
+
+        bool m_rollingShutter;
+        float m_scanDuration;
+        float m_exposureDuration;
     };
 
     GND_REGISTER_CLASS(ThinLensCamera, "thinlens");
