@@ -76,6 +76,7 @@ namespace gnd {
                 if (tp.isBlack() || bsdfPdf <= 1e-6f) break;
 
                 Ray secRay(isect.p, wi);
+                secRay.time = r.time;
                 SurfaceInteraction secIsect;
 
                 if (!scene.rayIntersect(secRay, secIsect)) {
@@ -124,7 +125,6 @@ namespace gnd {
                 }
 
                 isect = secIsect;
-                secRay.time = r.time;
                 r = secRay;
                 isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
                 if (!isect.bsdf) break;
