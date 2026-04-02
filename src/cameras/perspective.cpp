@@ -12,12 +12,12 @@ namespace gnd {
             m_scale = std::tan(Radians(m_fov * 0.5f));
         }
 
-        float shootRay(const Point2f& sample, Ray* ray) const override {
+        float shootRay(const CameraSample& sample, Ray* ray) const override {
             // x: [0, 1] -> [-aspect * scale, +aspect * scale]
-            float x = (2.0f * sample.p.x - 1.0f) * getAspectRatio() * m_scale;
+            float x = (2.0f * sample.pFilm.x() - 1.0f) * getAspectRatio() * m_scale;
 
             // y: [0, 1] -> [-scale, +scale]
-            float y = (2.0f * sample.p.y - 1.0f) * m_scale;
+            float y = (2.0f * sample.pFilm.y() - 1.0f) * m_scale;
 
             // Image plane at z = -1.0
             Vector3f dir(x, y, -1.0f);

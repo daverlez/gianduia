@@ -91,17 +91,44 @@ namespace gnd {
                             uint64_t globalIdx = pixelIdx + s * (width * height);
                             threadSampler.seed(globalIdx);
 
+                            CameraSample camSample;
+
                             Point2f pixelSample = threadSampler.next2D();
                             Point2f pFilm(x + pixelSample.x(), y + pixelSample.y());
+                            camSample.pFilm = Point2f(pFilm.x() / width, 1.0f - pFilm.y() / height);
 
-                            Point2f screenSample(pFilm.x() / width, 1.0f - pFilm.y() / height);
+                            camSample.pLens = threadSampler.next2D();
+
+                            float channelRnd = threadSampler.next1D();
+                            int channel; // 0 = R, 1 = G, 2 = B, -1 = no aberration
+
+                            if (!camera->hasChromaticAberration()) {
+                                channel = -1;
+                                camSample.lambdaOffset = 0.0f;
+                            }
+                            else if (channelRnd < 0.333333f) {
+                                channel = 0;
+                                camSample.lambdaOffset = 1.0f;
+                            } else if (channelRnd < 0.666666f) {
+                                channel = 1;
+                                camSample.lambdaOffset = 0.0f;
+                            } else {
+                                channel = 2;
+                                camSample.lambdaOffset = -1.0f;
+                            }
 
                             Ray ray;
-                            camera->shootRay(screenSample, &ray);
+                            camera->shootRay(camSample, &ray);
+                            Color3f rawColor = Li(ray, *scene, threadSampler, threadArena);
 
-                            Color3f newColor = Li(ray, *scene, threadSampler, threadArena);
+                            Color3f newColor(0.0f);
+                            if (channel == -1) newColor = rawColor;
+                            else if (channel == 0) newColor.r() = rawColor.r() * 3.0f;
+                            else if (channel == 1) newColor.g() = rawColor.g() * 3.0f;
+                            else newColor.b() = rawColor.b() * 3.0f;
+
                             if (newColor.hasNaNs()) {
-                                std::cerr << "Warning: NaN value " << newColor << " detected at pixel (" <<
+                                std::cerr << "Warning: NaN value detected at pixel (" <<
                                     x << ", " << y << ")!" << std::endl;
                                 newColor = Color3f(0.0f);
                             }
