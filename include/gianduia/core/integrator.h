@@ -117,6 +117,8 @@ namespace gnd {
                                 camSample.lambdaOffset = -1.0f;
                             }
 
+                            camSample.time = threadSampler.next1D();
+
                             Ray ray;
                             float rayWeight = camera->shootRay(camSample, &ray);
                             Color3f rawColor = Li(ray, *scene, threadSampler, threadArena);

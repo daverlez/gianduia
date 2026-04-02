@@ -25,6 +25,7 @@ namespace gnd {
 
             Ray rayCamera(Point3f(0,0,0), dir);
             *ray = m_cameraToWorld(rayCamera);
+            ray->time = sample.time;
 
             return 1.0f;
         }

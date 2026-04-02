@@ -11,8 +11,8 @@ namespace gnd {
     struct CameraSample {
         Point2f pFilm;
         Point2f pLens;      // Depth of Field sample
-        float lambdaOffset; // [-1, 0, 1] for cromatic aberration
-        // float time
+        float lambdaOffset; // [-1, 0, 1] for chromatic aberration
+        float time;
     };
 
     class Camera : public GndObject {

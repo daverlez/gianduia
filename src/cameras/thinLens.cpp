@@ -76,6 +76,7 @@ namespace gnd {
 
             Ray rayCamera(rayOrigin, dir);
             *ray = m_cameraToWorld(rayCamera);
+            ray->time = sample.time;
 
             return weight;
         }
