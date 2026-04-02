@@ -24,7 +24,8 @@ namespace gnd {
             dir = Normalize(dir);
 
             Ray rayCamera(Point3f(0,0,0), dir);
-            *ray = m_cameraToWorld(rayCamera);
+            Transform toWorld = m_cameraToWorld.interpolate(sample.time);
+            *ray = toWorld(rayCamera);
             ray->time = sample.time;
 
             return 1.0f;
@@ -44,9 +45,9 @@ namespace gnd {
                 m_outputWidth,
                 m_outputHeight,
                 m_fov,
-                m_cameraToWorld.getPosition().toString(),
-                m_cameraToWorld.getForward().toString(),
-                m_cameraToWorld.getUp().toString(),
+                m_cameraToWorld.interpolate(0.0f).getPosition().toString(),
+                m_cameraToWorld.interpolate(0.0f).getForward().toString(),
+                m_cameraToWorld.interpolate(0.0f).getUp().toString(),
                 m_film->getFilter()->toString()
             );
         }

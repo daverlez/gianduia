@@ -78,9 +78,6 @@ namespace gnd {
                 weight = cos2 * cos2;
             }
 
-            Ray rayCamera(rayOrigin, dir);
-            *ray = m_cameraToWorld(rayCamera);
-
             // Rolling shutter
             float finalTime = sample.time; // Fallback to standard motion blur
             if (m_rollingShutter) {
@@ -88,6 +85,10 @@ namespace gnd {
 
                 finalTime = scanline * m_scanDuration + (sample.time * m_exposureDuration);
             }
+
+            Ray rayCamera(rayOrigin, dir);
+            Transform toWorld = m_cameraToWorld.interpolate(finalTime);
+            *ray = toWorld(rayCamera);
             ray->time = finalTime;
 
             return weight;
@@ -118,9 +119,9 @@ namespace gnd {
                 m_outputWidth,
                 m_outputHeight,
                 m_fov,
-                m_cameraToWorld.getPosition().toString(),
-                m_cameraToWorld.getForward().toString(),
-                m_cameraToWorld.getUp().toString(),
+                m_cameraToWorld.interpolate(0.0f).getPosition().toString(),
+                m_cameraToWorld.interpolate(0.0f).getForward().toString(),
+                m_cameraToWorld.interpolate(0.0f).getUp().toString(),
                 m_film->getFilter()->toString(),
                 m_k1,
                 m_lensRadius,

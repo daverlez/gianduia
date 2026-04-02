@@ -5,6 +5,7 @@
 #include <gianduia/math/geometry.h>
 
 #include "bitmap.h"
+#include "gianduia/math/animated.h"
 
 namespace gnd {
 
@@ -19,7 +20,10 @@ namespace gnd {
     public:
         Camera(const PropertyList& props) {
             // Default: camera at 0,0,0 looking at -Z.
-            m_cameraToWorld = props.getTransform("toWorld", Transform());
+            Transform tStart = props.getTransform("toWorld", Transform());
+            Transform tEnd = props.getTransform("toWorldEnd", tStart);
+
+            m_cameraToWorld = AnimatedTransform(tStart, 0.0f, tEnd, 1.0f);
 
             m_outputWidth = props.getInteger("width", 1280);
             m_outputHeight = props.getInteger("height", 720);
@@ -29,7 +33,7 @@ namespace gnd {
         virtual float shootRay(const CameraSample& sample, Ray* ray) const = 0;
         virtual bool hasChromaticAberration() const { return false; }
 
-        const Transform& getCameraToWorld() const { return m_cameraToWorld; }
+        const Transform& getCameraToWorld(float time) const { return m_cameraToWorld.interpolate(time); }
         int getWidth() const { return m_outputWidth; }
         int getHeight() const { return m_outputHeight; }
         float getAspectRatio() const { return m_outputWidth / (float)m_outputHeight; }
@@ -52,7 +56,7 @@ namespace gnd {
         }
 
     protected:
-        Transform m_cameraToWorld;
+        AnimatedTransform m_cameraToWorld;
         int m_outputWidth;
         int m_outputHeight;
         std::unique_ptr<Bitmap> m_film;
