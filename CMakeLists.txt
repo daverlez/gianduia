@@ -19,6 +19,29 @@ find_package(OpenGL REQUIRED)
 
 find_path(STB_INCLUDE_DIR "stb_image.h")
 
+include(FetchContent)
+
+if(APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+        set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.arm64.macos.tar.gz")
+    else()
+        set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x86_64.macos.tar.gz")
+    endif()
+elseif(WIN32)
+    set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x64.windows.zip")
+elseif(UNIX AND NOT APPLE)
+    set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x86_64.linux.tar.gz")
+endif()
+
+FetchContent_Declare(
+        oidn_binaries
+        URL ${OIDN_URL}
+)
+FetchContent_MakeAvailable(oidn_binaries)
+
+set(OpenImageDenoise_DIR "${oidn_binaries_SOURCE_DIR}/lib/cmake/OpenImageDenoise")
+find_package(OpenImageDenoise REQUIRED)
+
 if (MSVC)
     add_compile_definitions(_USE_MATH_DEFINES)
 endif()
@@ -31,6 +54,7 @@ target_include_directories(GianduiaEngine PUBLIC
         ${STB_INCLUDE_DIR}
 )
 
+# Aggiungiamo OpenImageDenoise alle librerie linkate del motore
 target_link_libraries(GianduiaEngine PUBLIC
         glm::glm
         TBB::tbb
@@ -39,6 +63,7 @@ target_link_libraries(GianduiaEngine PUBLIC
         blosc_static
         tinyobjloader::tinyobjloader
         pugixml::pugixml
+        OpenImageDenoise
 )
 
 add_subdirectory(src/core)

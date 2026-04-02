@@ -16,13 +16,16 @@ namespace gnd {
             m_pixels.resize(width * height, Color3f(0.0f));
             m_accumData = std::make_unique<AccumPixel[]>(width * height);
 
+            m_albedo.resize(width * height, Color3f(0.0f));
+            m_normal.resize(width * height, Color3f(0.0f));
+
             if (!m_filter) m_filter = std::make_shared<GaussianFilter>(PropertyList());
         }
 
         Bitmap(const std::string& exrAbsolutePath);
 
         /// Adds a sample to the accumulated data
-        void addSample(const Point2f& pFilm, const Color3f& L) {
+        void addSample(const Point2f& pFilm, const Color3f& L, const Color3f& albedo = Color3f(0.0f), const Color3f& normal = Color3f(0.0f)) {
             if (L.hasNaNs()) return;
 
             Vector2f radius = m_filter->getRadius();
@@ -43,6 +46,13 @@ namespace gnd {
                         atomicAdd(m_accumData[idx].g, L.g() * weight);
                         atomicAdd(m_accumData[idx].b, L.b() * weight);
                         atomicAdd(m_accumData[idx].weight, weight);
+
+                        atomicAdd(m_accumData[idx].alb_r, albedo.r() * weight);
+                        atomicAdd(m_accumData[idx].alb_g, albedo.g() * weight);
+                        atomicAdd(m_accumData[idx].alb_b, albedo.b() * weight);
+                        atomicAdd(m_accumData[idx].nrm_x, normal.r() * weight);
+                        atomicAdd(m_accumData[idx].nrm_y, normal.g() * weight);
+                        atomicAdd(m_accumData[idx].nrm_z, normal.b() * weight);
                     }
                 }
             }
@@ -84,6 +94,14 @@ namespace gnd {
         const Color3f& getPixel(int x, int y) const {
             return m_pixels[y * m_width + x];
         }
+
+        float* getPixels() {
+            if (m_pixels.empty()) return nullptr;
+            return reinterpret_cast<float*>(m_pixels.data());
+        }
+
+        float* getAlbedoData() { return reinterpret_cast<float*>(m_albedo.data()); }
+        float* getNormalData() { return reinterpret_cast<float*>(m_normal.data()); }
 
         Color3f getPixelBilinear(float u, float v) const {
             if (m_width == 0 || m_height == 0) return Color3f(0.0f);
@@ -133,6 +151,8 @@ namespace gnd {
     private:
         struct AccumPixel {
             std::atomic<float> r{0.0f}, g{0.0f}, b{0.0f}, weight{0.0f};
+            std::atomic<float> alb_r{0.0f}, alb_g{0.0f}, alb_b{0.0f};
+            std::atomic<float> nrm_x{0.0f}, nrm_y{0.0f}, nrm_z{0.0f};
         };
 
         inline void atomicAdd(std::atomic<float>& target, float value) {
@@ -146,6 +166,9 @@ namespace gnd {
         std::vector<Color3f> m_pixels;
         std::unique_ptr<AccumPixel[]> m_accumData;
         std::shared_ptr<Filter> m_filter;
+
+        std::vector<Color3f> m_albedo;
+        std::vector<Color3f> m_normal;
     };
 
 }

@@ -1,9 +1,10 @@
 target_sources(GianduiaEngine PRIVATE
-        factory.cpp
         bitmap.cpp
-        parser.cpp
-        fileResolver.cpp
         bvhBuilder.cpp
+        denoiser.cpp
+        factory.cpp
+        fileResolver.cpp
         filter.cpp
+        parser.cpp
         stb_image.cpp
 )

@@ -19,7 +19,7 @@ public:
     ~Application();
 
     void run();
-    void runHeadless(const std::string& scenePath);
+    void runHeadless(const std::string& scenePath, bool applyDenoise = false);
     void cancelRender();
 
 private:

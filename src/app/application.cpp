@@ -14,6 +14,8 @@
 
 #include <csignal>
 
+#include "gianduia/core/denoiser.h"
+
 static Application* s_appInstance = nullptr;
 
 void handleSignal(int signal) {
@@ -138,6 +140,21 @@ void Application::renderSidebar() {
             }
             ImGui::ProgressBar(-1.0f * (float)ImGui::GetTime(), ImVec2(0.0f, 0.0f), "Rendering...");
         }
+        ImGui::Separator();
+        ImGui::Text("Post-Processing");
+
+        bool canDenoise = !m_isRendering && m_currentSample > 0;
+        ImGui::BeginDisabled(!canDenoise);
+        if (ImGui::Button("Apply OIDN Denoise", ImVec2(-1, 0))) {
+            gnd::Denoiser denoiser;
+            denoiser.execute(m_scene->getCamera()->getFilm());
+
+            m_textureDirty = true;
+
+            m_scene->getCamera()->getFilm()->saveEXR();
+            m_scene->getCamera()->getFilm()->savePNG();
+        }
+        ImGui::EndDisabled();
     } else {
         ImGui::TextColored(ImVec4(1,0,0,1), "No scene loaded.");
     }
@@ -211,8 +228,10 @@ void Application::startRender() {
 }
 
 void Application::cancelRender() {
-    if (m_isRendering && m_scene && m_scene->getIntegrator())
+    if (m_isRendering && m_scene && m_scene->getIntegrator()) {
         m_scene->getIntegrator()->cancel();
+        m_isRendering = false;
+    }
 }
 
 void Application::onRenderUpdate(int sample, const gnd::Bitmap& film) {
@@ -229,7 +248,7 @@ void Application::shutdown() {
     glfwTerminate();
 }
 
-void Application::runHeadless(const std::string& scenePath) {
+void Application::runHeadless(const std::string& scenePath, bool applyDenoise) {
     std::signal(SIGINT, handleSignal);
 
     std::cout << "[Gianduia Headless] Loading scene: " << scenePath << std::endl;
@@ -250,4 +269,12 @@ void Application::runHeadless(const std::string& scenePath) {
     std::chrono::duration<double> elapsed = end - start;
     m_isRendering = false;
     std::cout << "[Gianduia Headless] Rendering finished in " << elapsed.count() << " seconds." << std::endl;
+
+    if (applyDenoise) {
+        gnd::Denoiser denoiser;
+        denoiser.execute(m_scene->getCamera()->getFilm());
+
+        m_scene->getCamera()->getFilm()->saveEXR();
+        m_scene->getCamera()->getFilm()->savePNG();
+    }
 }
