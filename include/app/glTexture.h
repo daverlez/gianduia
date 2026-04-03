@@ -11,10 +11,14 @@ public:
         if (id) glDeleteTextures(1, &id);
     }
 
-    void update(const gnd::Bitmap& bitmap) {
-        if (id == 0 || width != bitmap.width() || height != bitmap.height()) {
-            width = bitmap.width();
-            height = bitmap.height();
+    void update(gnd::Bitmap& bitmap) {
+        update(bitmap.width(), bitmap.height(), bitmap.data());
+    }
+
+    void update(int _width, int _height, const float* data) {
+        if (id == 0 || width != _width || height != _height) {
+            width = _width;
+            height = _height;
             if (id) glDeleteTextures(1, &id);
             glGenTextures(1, &id);
             glBindTexture(GL_TEXTURE_2D, id);
@@ -26,6 +30,6 @@ public:
         glBindTexture(GL_TEXTURE_2D, id);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, bitmap.data());
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
     }
 };

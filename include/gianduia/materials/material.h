@@ -18,6 +18,10 @@ namespace gnd {
         virtual void computeScatteringFunctions(SurfaceInteraction& isect,
                                                 MemoryArena& arena) const = 0;
 
+        virtual Color3f getAlbedo(const SurfaceInteraction& isect) const {
+            return Color3f(0.0f);
+        }
+
         virtual void addChild(std::shared_ptr<GndObject> child) override {
             if (child->getClassType() == ETexture && child->getName() == "normal") {
                 if (m_normalMap)

@@ -37,6 +37,14 @@ private:
     void onRenderUpdate(int sample, const gnd::Bitmap& film);
 
 private:
+    enum class ViewMode {
+        Beauty,
+        Albedo,
+        Normal
+    };
+
+    ViewMode m_viewMode = ViewMode::Beauty;
+
     bool m_headless;
 
     GLFWwindow* m_window = nullptr;

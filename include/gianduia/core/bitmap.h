@@ -69,8 +69,20 @@ namespace gnd {
                         m_accumData[i].g.load(std::memory_order_relaxed) * invW,
                         m_accumData[i].b.load(std::memory_order_relaxed) * invW
                     );
+                    m_albedo[i] = Color3f(
+                        m_accumData[i].alb_r.load(std::memory_order_relaxed) * invW,
+                        m_accumData[i].alb_g.load(std::memory_order_relaxed) * invW,
+                        m_accumData[i].alb_b.load(std::memory_order_relaxed) * invW
+                    );
+                    m_normal[i] = Color3f(
+                        m_accumData[i].nrm_x.load(std::memory_order_relaxed) * invW,
+                        m_accumData[i].nrm_y.load(std::memory_order_relaxed) * invW,
+                        m_accumData[i].nrm_z.load(std::memory_order_relaxed) * invW
+                    );
                 } else {
                     m_pixels[i] = Color3f(0.0f);
+                    m_albedo[i] = Color3f(0.0f);
+                    m_normal[i] = Color3f(0.0f);
                 }
             }
         }
@@ -95,13 +107,19 @@ namespace gnd {
             return m_pixels[y * m_width + x];
         }
 
-        float* getPixels() {
+        float* data() {
             if (m_pixels.empty()) return nullptr;
             return reinterpret_cast<float*>(m_pixels.data());
         }
 
-        float* getAlbedoData() { return reinterpret_cast<float*>(m_albedo.data()); }
-        float* getNormalData() { return reinterpret_cast<float*>(m_normal.data()); }
+        float* albedoData() {
+            if (m_albedo.empty()) return nullptr;
+            return reinterpret_cast<float*>(m_albedo.data());
+        }
+        float* normalData() {
+            if (m_normal.empty()) return nullptr;
+            return reinterpret_cast<float*>(m_normal.data());
+        }
 
         Color3f getPixelBilinear(float u, float v) const {
             if (m_width == 0 || m_height == 0) return Color3f(0.0f);
@@ -134,11 +152,6 @@ namespace gnd {
 
         const std::shared_ptr<Filter> getFilter() const {
             return m_filter;
-        }
-
-        const float* data() const {
-            if (m_pixels.empty()) return nullptr;
-            return reinterpret_cast<const float*>(m_pixels.data());
         }
 
         void savePNG() const;

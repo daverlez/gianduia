@@ -52,6 +52,10 @@ namespace gnd {
             isect.bsdf->add(arena.create<LambertianReflection>(r));
         }
 
+        Color3f getAlbedo(const SurfaceInteraction& isect) const override {
+            return m_albedo->evaluate(isect);
+        }
+
         std::string toString() const override {
             return std::format(
                 "Matte[\n"

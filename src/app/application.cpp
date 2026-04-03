@@ -88,7 +88,15 @@ void Application::run() {
         if (m_textureDirty) {
             std::lock_guard<std::mutex> lock(m_textureMutex);
             if (m_scene && m_scene->getCamera()) {
-                m_texture.update(*m_scene->getCamera()->getFilm());
+                auto film = m_scene->getCamera()->getFilm();
+
+                if (m_viewMode == ViewMode::Beauty) {
+                    m_texture.update(film->width(), film->height(), film->data());
+                } else if (m_viewMode == ViewMode::Albedo) {
+                    m_texture.update(film->width(), film->height(), film->albedoData());
+                } else if (m_viewMode == ViewMode::Normal) {
+                    m_texture.update(film->width(), film->height(), film->normalData());
+                }
             }
             m_textureDirty = false;
         }
@@ -154,6 +162,29 @@ void Application::renderSidebar() {
             m_scene->getCamera()->getFilm()->saveEXR();
             m_scene->getCamera()->getFilm()->savePNG();
         }
+        ImGui::EndDisabled();
+
+        ImGui::Separator();
+        ImGui::Text("G-Buffer Visualization");
+
+        bool canViewBuffers = !m_isRendering && m_currentSample > 0;
+        ImGui::BeginDisabled(!canViewBuffers);
+
+        if (ImGui::RadioButton("Beauty", m_viewMode == ViewMode::Beauty)) {
+            m_viewMode = ViewMode::Beauty;
+            m_textureDirty = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Albedo", m_viewMode == ViewMode::Albedo)) {
+            m_viewMode = ViewMode::Albedo;
+            m_textureDirty = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Normal", m_viewMode == ViewMode::Normal)) {
+            m_viewMode = ViewMode::Normal;
+            m_textureDirty = true;
+        }
+
         ImGui::EndDisabled();
     } else {
         ImGui::TextColored(ImVec4(1,0,0,1), "No scene loaded.");

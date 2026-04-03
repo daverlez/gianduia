@@ -11,7 +11,7 @@ namespace gnd {
             densityScale = props.getFloat("densityScale", 1.0f);
         }
 
-        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena) const override {
+        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo, Color3f* outNormal) const override {
             Ray r = primaryRay;
             float accumulatedDensity = 0.0f;
 

@@ -54,7 +54,6 @@ target_include_directories(GianduiaEngine PUBLIC
         ${STB_INCLUDE_DIR}
 )
 
-# Aggiungiamo OpenImageDenoise alle librerie linkate del motore
 target_link_libraries(GianduiaEngine PUBLIC
         glm::glm
         TBB::tbb

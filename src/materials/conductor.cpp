@@ -119,6 +119,10 @@ namespace gnd {
             }
         }
 
+        Color3f getAlbedo(const SurfaceInteraction& isect) const override {
+            return m_R->evaluate(isect);
+        }
+
         std::string toString() const override {
             return std::format(
                 "Conductor[\n"

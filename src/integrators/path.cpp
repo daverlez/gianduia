@@ -9,7 +9,7 @@ namespace gnd {
             maxDepth = props.getInteger("maxDepth", 1000);
         }
 
-        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena) const override {
+        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo, Color3f* outNormal) const override {
             auto powerHeuristic = [](int nf, float fPdf, int ng, float gPdf) -> float {
                 float f = nf * fPdf; float g = ng * gPdf;
                 float denom = (f * f) + (g * g);
@@ -19,9 +19,17 @@ namespace gnd {
             SurfaceInteraction primaryIsect;
             Color3f L(0.0f);
 
+            bool needsGBuffer = (outAlbedo != nullptr || outNormal != nullptr);
+
             if (!scene.rayIntersect(primaryRay, primaryIsect)) {
                 if (scene.getEnvMap()) {
                     L += scene.getEnvMap()->eval(SurfaceInteraction(), primaryRay.d);
+
+                    if (needsGBuffer) {
+                        if (outAlbedo) *outAlbedo = L;
+                        if (outNormal) *outNormal = Color3f(0.0f);
+                        needsGBuffer = false;
+                    }
                 }
                 return L;
             }
@@ -31,6 +39,18 @@ namespace gnd {
             }
 
             primaryIsect.primitive->getMaterial()->computeScatteringFunctions(primaryIsect, arena);
+
+            if (needsGBuffer && primaryIsect.bsdf) {
+                if (primaryIsect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0) {
+                    if (outAlbedo) *outAlbedo = primaryIsect.primitive->getMaterial()->getAlbedo(primaryIsect);
+                    if (outNormal) {
+                        Normal3f n = primaryIsect.n / 2.0f + Normal3f(0.5f);
+                        *outNormal = Color3f(n.x(), n.y(), n.z());
+                    }
+                    needsGBuffer = false;
+                }
+            }
+
             if (!primaryIsect.bsdf) return L;
 
             Color3f tp(1.0f);
@@ -97,6 +117,12 @@ namespace gnd {
 
                             L += tp * matsWeight * Li_env;
                         }
+
+                        if (needsGBuffer) {
+                            if (outAlbedo) *outAlbedo = Li_env;
+                            if (outNormal) *outNormal = Color3f(0.0f);
+                            needsGBuffer = false;
+                        }
                     }
                     break;
                 }
@@ -127,6 +153,25 @@ namespace gnd {
                 isect = secIsect;
                 r = secRay;
                 isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
+
+                if (needsGBuffer && isect.bsdf) {
+                    if (isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0) {
+                        if (outAlbedo) *outAlbedo = isect.primitive->getMaterial()->getAlbedo(isect);
+                        if (outNormal) {
+                            Normal3f n = isect.n / 2.0f + Normal3f(0.5f);
+                            *outNormal = Color3f(n.x(), n.y(), n.z());
+                        }
+                        needsGBuffer = false;
+                    } else if (bounces == maxDepth - 1) {
+                        if (outAlbedo) *outAlbedo = isect.primitive->getMaterial()->getAlbedo(isect);
+                        if (outNormal) {
+                            Normal3f n = isect.n / 2.0f + Normal3f(0.5f);
+                            *outNormal = Color3f(n.x(), n.y(), n.z());
+                        }
+                        needsGBuffer = false;
+                    }
+                }
+
                 if (!isect.bsdf) break;
 
                 bounces++;

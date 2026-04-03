@@ -7,9 +7,5 @@ namespace gnd {
         Denoiser() = default;
 
         void execute(Bitmap* film);
-
-        // TODO
-        // void setAlbedoBuffer(float* albedo);
-        // void setNormalBuffer(float* normal);
     };
 }
