@@ -24,7 +24,9 @@ TEST(PerspectiveCameraTest, CenterRayDirection) {
     ASSERT_NE(camera, nullptr);
 
     gnd::Ray ray;
-    float weight = camera->shootRay(gnd::Point2f(0.5f, 0.5f), &ray);
+    gnd::CameraSample cSample;
+    cSample.pFilm = gnd::Point2f(0.5f, 0.5f);
+    float weight = camera->shootRay(cSample, &ray);
 
     EXPECT_FLOAT_EQ(weight, 1.0f);
 
@@ -49,7 +51,9 @@ TEST(PerspectiveCameraTest, EdgeRayDirection) {
     ASSERT_NE(camera, nullptr);
 
     gnd::Ray ray;
-    camera->shootRay(gnd::Point2f(1.0f, 1.0f), &ray);
+    gnd::CameraSample cSample;
+    cSample.pFilm = gnd::Point2f(1.0f, 1.0f);
+    camera->shootRay(cSample, &ray);
     float invSqrt3 = 1.0f / std::sqrt(3.0f);
 
     EXPECT_NEAR(ray.d.x(), invSqrt3, 1e-5f);
