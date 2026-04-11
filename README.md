@@ -93,7 +93,7 @@ of planned development.
 
 * *Blender plugin* to export scenes to Gianduia's  XML description.
 * *Disney's principled BSDF*.
-* *Conversion tool* between Guianduia's and XML scene descriptors.
+* *Conversion tool* between Gianduia and Mitsuba XML scene descriptors.
 * *Hair BSDF*.
 * *Validation* of heterogeneous participating media. 
 * *CI/CD pipeline* via GitHub Actions, validating different platforms.
