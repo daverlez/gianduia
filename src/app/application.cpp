@@ -1,20 +1,18 @@
 #include <app/application.h>
+#include "gianduia/core/integrator.h"
+#include "gianduia/core/parser.h"
+#include "gianduia/core/denoiser.h"
 
 #include <iostream>
 #include <chrono>
+#include <csignal>
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+#include <imgui_internal.h>
 
 #include <GLFW/glfw3.h>
-
-#include "gianduia/core/integrator.h"
-#include "gianduia/core/parser.h"
-
-#include <csignal>
-
-#include "gianduia/core/denoiser.h"
 
 static Application* s_appInstance = nullptr;
 
@@ -105,8 +103,27 @@ void Application::run() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
+        ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+        static bool first_time = true;
+        if (first_time) {
+            first_time = false;
 
+            if (ImGui::DockBuilderGetNode(dockspace_id) == NULL) {
+                ImGui::DockBuilderRemoveNode(dockspace_id);
+                ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+                ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+
+                ImGuiID dock_main_id = dockspace_id;
+                ImGuiID dock_id_left = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.25f, NULL, &dock_main_id);
+
+                ImGui::DockBuilderDockWindow("Controls", dock_id_left);
+                ImGui::DockBuilderDockWindow("Viewport", dock_main_id);
+
+                ImGui::DockBuilderFinish(dockspace_id);
+            }
+        }
+
+        ImGui::DockSpaceOverViewport(dockspace_id, ImGui::GetMainViewport());
         renderSidebar();
         renderViewport();
 
