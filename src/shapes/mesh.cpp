@@ -1,11 +1,13 @@
-#include <gianduia/shapes/mesh.h>
-#include <gianduia/core/factory.h>
+#include "gianduia/shapes/mesh.h"
+#include "gianduia/core/factory.h"
+#include "gianduia/core/fileResolver.h"
+
 #include <iostream>
 #include <filesystem>
 
 #include <tiny_obj_loader.h>
 
-#include "gianduia/core/fileResolver.h"
+namespace hn = hwy::HWY_NAMESPACE;
 
 namespace gnd {
 
@@ -53,40 +55,60 @@ namespace gnd {
         if (!m_nodes.empty())
             m_bounds = m_nodes[0].bounds;
 
-        std::vector<Point3f> orderedPositions;
-        std::vector<Normal3f> orderedNormals;
-        std::vector<Point2f> orderedUVs;
-        std::vector<uint32_t> orderedIndices;
+        // ---- SoA for SIMD
+        m_trianglePacks.clear();
 
-        orderedPositions.reserve(m_indices.size());
-        if (!m_normals.empty()) orderedNormals.reserve(m_indices.size());
-        if (!m_uvs.empty()) orderedUVs.reserve(m_indices.size());
-        orderedIndices.reserve(m_indices.size());
+        for (auto& node : m_nodes) {
+            if (node.nPrimitives > 0) {
+                int origOffset = node.primitivesOffset;
+                int origCount = node.nPrimitives;
 
-        uint32_t currentVertexIndex = 0;
+                int packOffset = (int)m_trianglePacks.size();
+                int numPacks = (origCount + 3) / 4;
 
-        for (int originalTriIdx : result.orderedIndices) {
-            for (int k = 0; k < 3; ++k) {
-                uint32_t oldIndex = m_indices[originalTriIdx * 3 + k];
-                orderedPositions.push_back(m_positions[oldIndex]);
+                for (int p = 0; p < numPacks; ++p) {
+                    TrianglePack4 pack;
 
-                if (!m_normals.empty())
-                    orderedNormals.push_back(m_normals[oldIndex]);
+                    // Initialize to degenerate triangles with zero area
+                    for (int l = 0; l < 4; ++l) {
+                        pack.v0x[l] = pack.v0y[l] = pack.v0z[l] = 0.0f;
+                        pack.v1x[l] = pack.v1y[l] = pack.v1z[l] = 0.0f;
+                        pack.v2x[l] = pack.v2y[l] = pack.v2z[l] = 0.0f;
+                        pack.primIndex[l] = (uint32_t)-1;
+                    }
 
-                if (!m_uvs.empty())
-                    orderedUVs.push_back(m_uvs[oldIndex]);
+                    // Filling the lanes with the triangle
+                    for (int l = 0; l < 4; ++l) {
+                        int triIdx = p * 4 + l;
+                        if (triIdx < origCount) {
+                            int originalTri = result.orderedIndices[origOffset + triIdx];
+                            pack.primIndex[l] = originalTri;
 
-                orderedIndices.push_back(currentVertexIndex++);
+                            uint32_t i0 = m_indices[originalTri * 3 + 0];
+                            uint32_t i1 = m_indices[originalTri * 3 + 1];
+                            uint32_t i2 = m_indices[originalTri * 3 + 2];
+
+                            const Point3f& p0 = m_positions[i0];
+                            const Point3f& p1 = m_positions[i1];
+                            const Point3f& p2 = m_positions[i2];
+
+                            pack.v0x[l] = p0.x(); pack.v0y[l] = p0.y(); pack.v0z[l] = p0.z();
+                            pack.v1x[l] = p1.x(); pack.v1y[l] = p1.y(); pack.v1z[l] = p1.z();
+                            pack.v2x[l] = p2.x(); pack.v2y[l] = p2.y(); pack.v2z[l] = p2.z();
+                        }
+                    }
+                    m_trianglePacks.push_back(pack);
+                }
+
+                // BVH update: offset is now related to SoA list, and nPrimitives is the number of packets
+                node.primitivesOffset = packOffset;
+                node.nPrimitives = numPacks;
             }
         }
 
-        m_positions = std::move(orderedPositions);
-        m_normals   = std::move(orderedNormals);
-        m_uvs       = std::move(orderedUVs);
-        m_indices   = std::move(orderedIndices);
-
         std::cout << "Mesh: Done! Built a BVH with " << m_nodes.size()
-                    << " nodes occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes." << std::endl;
+                  << " nodes, occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes, "
+                  "packed into " << m_trianglePacks.size() << " SIMD TrianglePacks." << std::endl;
 
         // ---- Computing CDF
         m_cdf.resize(triangleCount + 1, 0.0f);
@@ -238,26 +260,102 @@ namespace gnd {
         int currentNodeIndex = 0;
         int nodesToVisit[64];
 
+        hn::FixedTag<float, 4> d;
+        using V = hn::Vec<decltype(d)>;
+        using M = hn::Mask<decltype(d)>;
+
+        V r_ox = hn::Set(d, ray.o.x());
+        V r_oy = hn::Set(d, ray.o.y());
+        V r_oz = hn::Set(d, ray.o.z());
+
+        V r_dx = hn::Set(d, ray.d.x());
+        V r_dy = hn::Set(d, ray.d.y());
+        V r_dz = hn::Set(d, ray.d.z());
+
+        auto crossX = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(ay, bz), hn::Mul(az, by)); };
+        auto crossY = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(az, bx), hn::Mul(ax, bz)); };
+        auto crossZ = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(ax, by), hn::Mul(ay, bx)); };
+
+        auto dot = [](V ax, V ay, V az, V bx, V by, V bz) {
+            return hn::Add(hn::Add(hn::Mul(ax, bx), hn::Mul(ay, by)), hn::Mul(az, bz));
+        };
+
         while (true) {
             const BVHNode* node = &m_nodes[currentNodeIndex];
 
             if (node->bounds.rayIntersect(ray, invDir)) {
-
                 if (node->nPrimitives > 0) {
-                    // Leaf node
+                    V t_max_simd = hn::Set(d, ray.tMax);
+
                     for (int i = 0; i < node->nPrimitives; ++i) {
-                        int triIdx = node->primitivesOffset + i;
+                        int packIdx = node->primitivesOffset + i;
+                        const TrianglePack4& pack = m_trianglePacks[packIdx];
 
-                        float t, u, v;
-                        if (intersectTriangle(ray, triIdx, t, u, v)) {
-                            if (t > ray.tMin && t < ray.tMax) {
-                                if (predicate) return true;
-                                ray.tMax = t; // Ray Shrinking
+                        V v0x = hn::Load(d, pack.v0x); V v0y = hn::Load(d, pack.v0y); V v0z = hn::Load(d, pack.v0z);
+                        V v1x = hn::Load(d, pack.v1x); V v1y = hn::Load(d, pack.v1y); V v1z = hn::Load(d, pack.v1z);
+                        V v2x = hn::Load(d, pack.v2x); V v2y = hn::Load(d, pack.v2y); V v2z = hn::Load(d, pack.v2z);
 
-                                isect.t = t;
-                                isect.uv = Point2f(u, v);
-                                isect.primIndex = triIdx;
-                                hitAny = true;
+                        V e1x = hn::Sub(v1x, v0x); V e1y = hn::Sub(v1y, v0y); V e1z = hn::Sub(v1z, v0z);
+                        V e2x = hn::Sub(v2x, v0x); V e2y = hn::Sub(v2y, v0y); V e2z = hn::Sub(v2z, v0z);
+
+                        V pvecx = crossX(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+                        V pvecy = crossY(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+                        V pvecz = crossZ(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+
+                        V det = dot(e1x, e1y, e1z, pvecx, pvecy, pvecz);
+
+                        V eps = hn::Set(d, 1e-8f);
+                        M valid = hn::Gt(hn::Abs(det), eps);
+
+                        V invDet = hn::Div(hn::Set(d, 1.0f), det);
+
+                        V tvecx = hn::Sub(r_ox, v0x); V tvecy = hn::Sub(r_oy, v0y); V tvecz = hn::Sub(r_oz, v0z);
+
+                        V u = hn::Mul(dot(tvecx, tvecy, tvecz, pvecx, pvecy, pvecz), invDet);
+
+                        valid = hn::And(valid, hn::Ge(u, hn::Set(d, 0.0f)));
+                        valid = hn::And(valid, hn::Le(u, hn::Set(d, 1.0f)));
+
+                        V qvecx = crossX(tvecx, tvecy, tvecz, e1x, e1y, e1z);
+                        V qvecy = crossY(tvecx, tvecy, tvecz, e1x, e1y, e1z);
+                        V qvecz = crossZ(tvecx, tvecy, tvecz, e1x, e1y, e1z);
+
+                        V v = hn::Mul(dot(r_dx, r_dy, r_dz, qvecx, qvecy, qvecz), invDet);
+
+                        valid = hn::And(valid, hn::Ge(v, hn::Set(d, 0.0f)));
+                        valid = hn::And(valid, hn::Le(hn::Add(u, v), hn::Set(d, 1.0f)));
+
+                        V t = hn::Mul(dot(e2x, e2y, e2z, qvecx, qvecy, qvecz), invDet);
+
+                        valid = hn::And(valid, hn::Gt(t, hn::Set(d, ray.tMin)));
+                        valid = hn::And(valid, hn::Lt(t, t_max_simd));
+
+                        if (!hn::AllFalse(d, valid)) {
+                            alignas(16) float t_arr[4];
+                            alignas(16) float u_arr[4];
+                            alignas(16) float v_arr[4];
+
+                            hn::Store(t, d, t_arr);
+                            hn::Store(u, d, u_arr);
+                            hn::Store(v, d, v_arr);
+
+                            uint8_t mask_bytes[8] = {0};
+                            hn::StoreMaskBits(d, valid, mask_bytes);
+
+                            for (int l = 0; l < 4; ++l) {
+                                if ((mask_bytes[0] & (1 << l)) != 0) {
+                                    if (t_arr[l] < ray.tMax) {
+                                        if (predicate) return true;
+
+                                        ray.tMax = t_arr[l];
+                                        t_max_simd = hn::Set(d, ray.tMax);
+
+                                        isect.t = t_arr[l];
+                                        isect.uv = Point2f(u_arr[l], v_arr[l]);
+                                        isect.primIndex = pack.primIndex[l];
+                                        hitAny = true;
+                                    }
+                                }
                             }
                         }
                     }

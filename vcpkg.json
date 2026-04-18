@@ -23,7 +23,8 @@
     },
     "blosc",
     "tinyobjloader",
-    "gtest"
+    "gtest",
+    "highway"
   ],
   "builtin-baseline": "8b1c07e64192e9269d54f85a4381816aefca52e0"
 }

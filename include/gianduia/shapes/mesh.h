@@ -2,6 +2,7 @@
 
 #include <gianduia/shapes/shape.h>
 #include <gianduia/core/bvhBuilder.h>
+#include <hwy/highway.h>
 #include <vector>
 #include <string>
 
@@ -32,6 +33,17 @@ namespace gnd {
         bool intersectTriangle(const Ray& ray, uint32_t triIndex, float& t, float& u, float& v) const;
 
     private:
+        // SoA (4 triangles) for parallel intersection tests
+        struct TrianglePack4 {
+            float v0x[4], v0y[4], v0z[4];
+            float v1x[4], v1y[4], v1z[4];
+            float v2x[4], v2y[4], v2z[4];
+
+            uint32_t primIndex[4];
+        };
+        std::vector<TrianglePack4> m_trianglePacks;
+
+        // Mesh data
         std::string m_filename;
 
         std::vector<Point3f> m_positions;
