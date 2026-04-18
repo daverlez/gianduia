@@ -1,11 +1,13 @@
-#include <gianduia/shapes/mesh.h>
-#include <gianduia/core/factory.h>
+#include "gianduia/shapes/mesh.h"
+#include "gianduia/core/factory.h"
+#include "gianduia/core/fileResolver.h"
+
 #include <iostream>
 #include <filesystem>
 
 #include <tiny_obj_loader.h>
 
-#include "gianduia/core/fileResolver.h"
+namespace hn = hwy::HWY_NAMESPACE;
 
 namespace gnd {
 
@@ -53,40 +55,148 @@ namespace gnd {
         if (!m_nodes.empty())
             m_bounds = m_nodes[0].bounds;
 
-        std::vector<Point3f> orderedPositions;
-        std::vector<Normal3f> orderedNormals;
-        std::vector<Point2f> orderedUVs;
-        std::vector<uint32_t> orderedIndices;
+        // ---- SoA for SIMD
+        m_trianglePacks.clear();
 
-        orderedPositions.reserve(m_indices.size());
-        if (!m_normals.empty()) orderedNormals.reserve(m_indices.size());
-        if (!m_uvs.empty()) orderedUVs.reserve(m_indices.size());
-        orderedIndices.reserve(m_indices.size());
+        for (auto& node : m_nodes) {
+            if (node.nPrimitives > 0) {
+                int origOffset = node.primitivesOffset;
+                int origCount = node.nPrimitives;
 
-        uint32_t currentVertexIndex = 0;
+                int packOffset = (int)m_trianglePacks.size();
+                int numPacks = (origCount + 3) / 4;
 
-        for (int originalTriIdx : result.orderedIndices) {
-            for (int k = 0; k < 3; ++k) {
-                uint32_t oldIndex = m_indices[originalTriIdx * 3 + k];
-                orderedPositions.push_back(m_positions[oldIndex]);
+                for (int p = 0; p < numPacks; ++p) {
+                    TrianglePack4 pack;
 
-                if (!m_normals.empty())
-                    orderedNormals.push_back(m_normals[oldIndex]);
+                    // Initialize to degenerate triangles with zero area
+                    for (int l = 0; l < 4; ++l) {
+                        pack.v0x[l] = pack.v0y[l] = pack.v0z[l] = 0.0f;
+                        pack.v1x[l] = pack.v1y[l] = pack.v1z[l] = 0.0f;
+                        pack.v2x[l] = pack.v2y[l] = pack.v2z[l] = 0.0f;
+                        pack.primIndex[l] = (uint32_t)-1;
+                    }
 
-                if (!m_uvs.empty())
-                    orderedUVs.push_back(m_uvs[oldIndex]);
+                    // Filling the lanes with the triangle
+                    for (int l = 0; l < 4; ++l) {
+                        int triIdx = p * 4 + l;
+                        if (triIdx < origCount) {
+                            int originalTri = result.orderedIndices[origOffset + triIdx];
+                            pack.primIndex[l] = originalTri;
 
-                orderedIndices.push_back(currentVertexIndex++);
+                            uint32_t i0 = m_indices[originalTri * 3 + 0];
+                            uint32_t i1 = m_indices[originalTri * 3 + 1];
+                            uint32_t i2 = m_indices[originalTri * 3 + 2];
+
+                            const Point3f& p0 = m_positions[i0];
+                            const Point3f& p1 = m_positions[i1];
+                            const Point3f& p2 = m_positions[i2];
+
+                            pack.v0x[l] = p0.x(); pack.v0y[l] = p0.y(); pack.v0z[l] = p0.z();
+                            pack.v1x[l] = p1.x(); pack.v1y[l] = p1.y(); pack.v1z[l] = p1.z();
+                            pack.v2x[l] = p2.x(); pack.v2y[l] = p2.y(); pack.v2z[l] = p2.z();
+                        }
+                    }
+                    m_trianglePacks.push_back(pack);
+                }
+
+                // BVH update: offset is now related to SoA list, and nPrimitives is the number of packets
+                node.primitivesOffset = packOffset;
+                node.nPrimitives = numPacks;
             }
         }
 
-        m_positions = std::move(orderedPositions);
-        m_normals   = std::move(orderedNormals);
-        m_uvs       = std::move(orderedUVs);
-        m_indices   = std::move(orderedIndices);
-
         std::cout << "Mesh: Done! Built a BVH with " << m_nodes.size()
-                    << " nodes occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes." << std::endl;
+                  << " nodes, occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes, "
+                  "packed into " << m_trianglePacks.size() << " SIMD TrianglePacks." << std::endl;
+
+        // ---- Tree Collapsing (binary BVH to BVH4)
+        m_nodes4.clear();
+        m_nodes4.reserve(m_nodes.size());
+
+        std::function<int(int)> buildBVH4 = [&](int binNodeIdx) -> int {
+            int bvh4Idx = (int)m_nodes4.size();
+            m_nodes4.push_back(BVHNode4());
+
+            std::vector<int> candidates = { binNodeIdx };
+
+            // Expanding internal nodes until there are four boxes
+            while(candidates.size() < 4) {
+                int bestIdx = -1;
+                float bestArea = -1.0f;
+
+                // Expanding biggest candidate bbox
+                for(size_t i = 0; i < candidates.size(); ++i) {
+                    const BVHNode& c = m_nodes[candidates[i]];
+                    if (c.nPrimitives == 0) {
+                        float area = c.bounds.surfaceArea();
+                        if (area > bestArea) {
+                            bestArea = area;
+                            bestIdx = (int)i;
+                        }
+                    }
+                }
+
+                if (bestIdx == -1) break;
+
+                // Substitute best candidate with children
+                int expandIdx = candidates[bestIdx];
+                candidates.erase(candidates.begin() + bestIdx);
+                const BVHNode& expandNode = m_nodes[expandIdx];
+
+                candidates.push_back(expandIdx + 1);
+                candidates.push_back(expandNode.rightChildOffset);
+            }
+
+            struct ChildData {
+                uint8_t type;
+                uint32_t offset;
+                uint32_t packCount;
+                Bounds3f bounds;
+            };
+            std::vector<ChildData> childrenData;
+
+            for(int candIdx : candidates) {
+                const BVHNode& c = m_nodes[candIdx];
+                if (c.nPrimitives > 0) {
+                    // Leaf node
+                    childrenData.push_back({2, (uint32_t)c.primitivesOffset, (uint32_t)c.nPrimitives, c.bounds});
+                } else {
+                    // Internal node
+                    int child4Idx = buildBVH4(candIdx);
+                    childrenData.push_back({1, (uint32_t)child4Idx, 0, c.bounds});
+                }
+            }
+
+            BVHNode4& node4 = m_nodes4[bvh4Idx];
+            for(int i = 0; i < 4; ++i) {
+                if (i < childrenData.size()) {
+                    node4.childType[i] = childrenData[i].type;
+                    node4.offset[i]    = childrenData[i].offset;
+                    node4.packCount[i] = childrenData[i].packCount;
+                    node4.minX[i] = childrenData[i].bounds.pMin.x();
+                    node4.minY[i] = childrenData[i].bounds.pMin.y();
+                    node4.minZ[i] = childrenData[i].bounds.pMin.z();
+                    node4.maxX[i] = childrenData[i].bounds.pMax.x();
+                    node4.maxY[i] = childrenData[i].bounds.pMax.y();
+                    node4.maxZ[i] = childrenData[i].bounds.pMax.z();
+                } else {
+                    // Empty node: degenerate bbox
+                    node4.childType[i] = 0;
+                    node4.minX[i] = node4.minY[i] = node4.minZ[i] = std::numeric_limits<float>::infinity();
+                    node4.maxX[i] = node4.maxY[i] = node4.maxZ[i] = -std::numeric_limits<float>::infinity();
+                }
+            }
+            return bvh4Idx;
+        };
+
+        if (!m_nodes.empty()) {
+            buildBVH4(0);
+            m_nodes.clear();
+            m_nodes.shrink_to_fit();
+        }
+
+        std::cout << "Mesh: BVH Collapsed into " << m_nodes4.size() << " Wide-BVH4 nodes." << std::endl;
 
         // ---- Computing CDF
         m_cdf.resize(triangleCount + 1, 0.0f);
@@ -199,89 +309,157 @@ namespace gnd {
         }
     }
 
-    bool Mesh::intersectTriangle(const Ray& ray, uint32_t triIndex, float& t, float& u, float& v) const {
-        uint32_t i0 = m_indices[triIndex * 3 + 0];
-        uint32_t i1 = m_indices[triIndex * 3 + 1];
-        uint32_t i2 = m_indices[triIndex * 3 + 2];
-
-        const Point3f& p0 = m_positions[i0];
-        const Point3f& p1 = m_positions[i1];
-        const Point3f& p2 = m_positions[i2];
-
-        Vector3f edge1 = p1 - p0;
-        Vector3f edge2 = p2 - p0;
-        Vector3f pvec = Cross(ray.d, edge2);
-        float det = Dot(edge1, pvec);
-
-        if (std::abs(det) < 1e-8f) return false;
-
-        float invDet = 1.0f / det;
-        Vector3f tvec = ray.o - p0;
-        u = Dot(tvec, pvec) * invDet;
-        if (u < -Epsilon || u > 1.0f + Epsilon) return false;
-
-        Vector3f qvec = Cross(tvec, edge1);
-        v = Dot(ray.d, qvec) * invDet;
-        if (v < -Epsilon || u + v > 1.0f + Epsilon) return false;
-
-        t = Dot(edge2, qvec) * invDet;
-        return true;
-    }
-
     bool Mesh::rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const {
-        if (m_nodes.empty()) return false;
-
-        Vector3f invDir = {1.0f / ray.d.x(), 1.0f / ray.d.y(), 1.0f / ray.d.z()};
+        if (m_nodes4.empty()) return false;
 
         bool hitAny = false;
-        int toVisitOffset = 0;
-        int currentNodeIndex = 0;
-        int nodesToVisit[64];
+        int stack[64];
+        int stackPtr = 0;
 
-        while (true) {
-            const BVHNode* node = &m_nodes[currentNodeIndex];
+        stack[stackPtr++] = 0;
 
-            if (node->bounds.rayIntersect(ray, invDir)) {
+        hn::FixedTag<float, 4> d;
+        using V = hn::Vec<decltype(d)>;
+        using M = hn::Mask<decltype(d)>;
 
-                if (node->nPrimitives > 0) {
-                    // Leaf node
-                    for (int i = 0; i < node->nPrimitives; ++i) {
-                        int triIdx = node->primitivesOffset + i;
+        // Ray data broadcasting
+        V r_ox = hn::Set(d, ray.o.x());
+        V r_oy = hn::Set(d, ray.o.y());
+        V r_oz = hn::Set(d, ray.o.z());
 
-                        float t, u, v;
-                        if (intersectTriangle(ray, triIdx, t, u, v)) {
-                            if (t > ray.tMin && t < ray.tMax) {
-                                if (predicate) return true;
-                                ray.tMax = t; // Ray Shrinking
+        V r_dx = hn::Set(d, ray.d.x());
+        V r_dy = hn::Set(d, ray.d.y());
+        V r_dz = hn::Set(d, ray.d.z());
 
-                                isect.t = t;
-                                isect.uv = Point2f(u, v);
-                                isect.primIndex = triIdx;
-                                hitAny = true;
+        Vector3f invDir = {1.0f / ray.d.x(), 1.0f / ray.d.y(), 1.0f / ray.d.z()};
+        V r_invdx = hn::Set(d, invDir.x());
+        V r_invdy = hn::Set(d, invDir.y());
+        V r_invdz = hn::Set(d, invDir.z());
+
+        V rayTMin = hn::Set(d, ray.tMin);
+        V t_max_simd = hn::Set(d, ray.tMax);
+
+        // Möller–Trumbore: SIMD helpers
+        auto crossX = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(ay, bz), hn::Mul(az, by)); };
+        auto crossY = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(az, bx), hn::Mul(ax, bz)); };
+        auto crossZ = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(ax, by), hn::Mul(ay, bx)); };
+        auto dot = [](V ax, V ay, V az, V bx, V by, V bz) {
+            return hn::Add(hn::Add(hn::Mul(ax, bx), hn::Mul(ay, by)), hn::Mul(az, bz));
+        };
+
+        while (stackPtr > 0) {
+            int nodeIdx = stack[--stackPtr];
+            const BVHNode4& node = m_nodes4[nodeIdx];
+
+            // BBox load
+            V minX = hn::Load(d, node.minX); V minY = hn::Load(d, node.minY); V minZ = hn::Load(d, node.minZ);
+            V maxX = hn::Load(d, node.maxX); V maxY = hn::Load(d, node.maxY); V maxZ = hn::Load(d, node.maxZ);
+
+            // AABB test
+            V t1x = hn::Mul(hn::Sub(minX, r_ox), r_invdx);
+            V t2x = hn::Mul(hn::Sub(maxX, r_ox), r_invdx);
+            V tminx = hn::Min(t1x, t2x); V tmaxx = hn::Max(t1x, t2x);
+
+            V t1y = hn::Mul(hn::Sub(minY, r_oy), r_invdy);
+            V t2y = hn::Mul(hn::Sub(maxY, r_oy), r_invdy);
+            V tminy = hn::Min(t1y, t2y); V tmaxy = hn::Max(t1y, t2y);
+
+            V t1z = hn::Mul(hn::Sub(minZ, r_oz), r_invdz);
+            V t2z = hn::Mul(hn::Sub(maxZ, r_oz), r_invdz);
+            V tminz = hn::Min(t1z, t2z); V tmaxz = hn::Max(t1z, t2z);
+
+            V tmin = hn::Max(hn::Max(tminx, tminy), hn::Max(tminz, rayTMin));
+            V tmax = hn::Min(hn::Min(tmaxx, tmaxy), hn::Min(tmaxz, t_max_simd));
+
+            M validBox = hn::Le(tmin, tmax);
+
+            if (!hn::AllFalse(d, validBox)) {
+                uint8_t mask_bytes[8] = {0};
+                hn::StoreMaskBits(d, validBox, mask_bytes);
+
+                for (int i = 0; i < 4; ++i) {
+                    if ((mask_bytes[0] & (1 << i)) == 0) continue;
+
+                    // Internal node: enqueue
+                    if (node.childType[i] == 1) {
+                        stack[stackPtr++] = node.offset[i];
+                        continue;
+                    }
+
+                    // Empty node: skip
+                    if (node.childType[i] == 0) continue;
+
+                    // Leaf node: triangle intersection test
+                    int packStart = node.offset[i];
+                    int pCount = node.packCount[i];
+
+                    for (int p = 0; p < pCount; ++p) {
+                        const TrianglePack4& pack = m_trianglePacks[packStart + p];
+
+                        V v0x = hn::Load(d, pack.v0x); V v0y = hn::Load(d, pack.v0y); V v0z = hn::Load(d, pack.v0z);
+                        V v1x = hn::Load(d, pack.v1x); V v1y = hn::Load(d, pack.v1y); V v1z = hn::Load(d, pack.v1z);
+                        V v2x = hn::Load(d, pack.v2x); V v2y = hn::Load(d, pack.v2y); V v2z = hn::Load(d, pack.v2z);
+
+                        V e1x = hn::Sub(v1x, v0x); V e1y = hn::Sub(v1y, v0y); V e1z = hn::Sub(v1z, v0z);
+                        V e2x = hn::Sub(v2x, v0x); V e2y = hn::Sub(v2y, v0y); V e2z = hn::Sub(v2z, v0z);
+
+                        V pvecx = crossX(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+                        V pvecy = crossY(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+                        V pvecz = crossZ(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+
+                        V det = dot(e1x, e1y, e1z, pvecx, pvecy, pvecz);
+                        V eps = hn::Set(d, 1e-8f);
+                        M validTri = hn::Gt(hn::Abs(det), eps);
+
+                        V invDet = hn::Div(hn::Set(d, 1.0f), det);
+                        V tvecx = hn::Sub(r_ox, v0x); V tvecy = hn::Sub(r_oy, v0y); V tvecz = hn::Sub(r_oz, v0z);
+
+                        V u = hn::Mul(dot(tvecx, tvecy, tvecz, pvecx, pvecy, pvecz), invDet);
+                        validTri = hn::And(validTri, hn::Ge(u, hn::Set(d, 0.0f)));
+                        validTri = hn::And(validTri, hn::Le(u, hn::Set(d, 1.0f)));
+
+                        V qvecx = crossX(tvecx, tvecy, tvecz, e1x, e1y, e1z);
+                        V qvecy = crossY(tvecx, tvecy, tvecz, e1x, e1y, e1z);
+                        V qvecz = crossZ(tvecx, tvecy, tvecz, e1x, e1y, e1z);
+
+                        V v = hn::Mul(dot(r_dx, r_dy, r_dz, qvecx, qvecy, qvecz), invDet);
+                        validTri = hn::And(validTri, hn::Ge(v, hn::Set(d, 0.0f)));
+                        validTri = hn::And(validTri, hn::Le(hn::Add(u, v), hn::Set(d, 1.0f)));
+
+                        V t = hn::Mul(dot(e2x, e2y, e2z, qvecx, qvecy, qvecz), invDet);
+                        validTri = hn::And(validTri, hn::Gt(t, hn::Set(d, ray.tMin)));
+                        validTri = hn::And(validTri, hn::Lt(t, t_max_simd));
+
+                        if (!hn::AllFalse(d, validTri)) {
+                            alignas(16) float t_arr[4];
+                            alignas(16) float u_arr[4];
+                            alignas(16) float v_arr[4];
+
+                            hn::Store(t, d, t_arr);
+                            hn::Store(u, d, u_arr);
+                            hn::Store(v, d, v_arr);
+
+                            uint8_t mask_tri[8] = {0};
+                            hn::StoreMaskBits(d, validTri, mask_tri);
+
+                            for (int l = 0; l < 4; ++l) {
+                                if ((mask_tri[0] & (1 << l)) != 0) {
+                                    if (t_arr[l] < ray.tMax) {
+                                        if (predicate) return true;
+
+                                        ray.tMax = t_arr[l];
+                                        t_max_simd = hn::Set(d, ray.tMax);
+
+                                        isect.t = t_arr[l];
+                                        isect.uv = Point2f(u_arr[l], v_arr[l]);
+                                        isect.primIndex = pack.primIndex[l];
+                                        hitAny = true;
+                                    }
+                                }
                             }
                         }
                     }
-                    if (toVisitOffset == 0) break;
-                    currentNodeIndex = nodesToVisit[--toVisitOffset];
-                } else {
-                    // Internal node
-                    int firstChild, secondChild;
-                    bool dirIsNeg = ray.d[node->axis] < 0; // splitAxis 0=X, 1=Y, 2=Z
-
-                    if (dirIsNeg) {
-                        firstChild = node->rightChildOffset;
-                        secondChild = currentNodeIndex + 1; // Left child
-                    } else {
-                        firstChild = currentNodeIndex + 1;  // Left child
-                        secondChild = node->rightChildOffset;
-                    }
-
-                    nodesToVisit[toVisitOffset++] = secondChild;
-                    currentNodeIndex = firstChild;
                 }
-            } else {
-                if (toVisitOffset == 0) break;
-                currentNodeIndex = nodesToVisit[--toVisitOffset];
             }
         }
         return hitAny;

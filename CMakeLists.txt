@@ -16,6 +16,7 @@ find_package(OpenVDB CONFIG REQUIRED)
 find_package(blosc CONFIG REQUIRED)
 find_package(tinyobjloader CONFIG REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(hwy CONFIG REQUIRED)
 
 find_path(STB_INCLUDE_DIR "stb_image.h")
 
@@ -63,6 +64,7 @@ target_link_libraries(GianduiaEngine PUBLIC
         tinyobjloader::tinyobjloader
         pugixml::pugixml
         OpenImageDenoise
+        hwy::hwy
 )
 
 add_subdirectory(src/core)
