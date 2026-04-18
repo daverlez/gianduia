@@ -1,9 +1,9 @@
 #pragma once
-#include "bvh.h"
-#include <gianduia/core/camera.h>
-#include <gianduia/core/object.h>
-#include <gianduia/shapes/primitive.h>
-#include <gianduia/core/sampler.h>
+#include "gianduia/scene/bvh.h"
+#include "gianduia/core/camera.h"
+#include "gianduia/core/object.h"
+#include "gianduia/shapes/primitive.h"
+#include "gianduia/core/sampler.h"
 
 namespace gnd {
 
