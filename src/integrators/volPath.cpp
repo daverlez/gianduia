@@ -80,6 +80,14 @@ namespace gnd {
                     r = Ray(mi.p, wi);
                     r.medium = prevMedium;
                     r.time = prevTime;
+
+                    // --- Russian Roulette ---
+                    if (bounces > 2) {
+                        float q = std::max(0.05f, std::min(tp.luminance(), 0.99f));
+                        if (sampler.next1D() > q) break;
+                        tp /= q;
+                    }
+
                     bounces++;
                     continue;
                 }

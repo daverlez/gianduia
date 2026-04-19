@@ -21,6 +21,7 @@ namespace gnd {
             m_base_sigma_t = m_base_sigma_a + m_base_sigma_s;
             m_densityScale = props.getFloat("densityScale", 1.0f);
             m_g = props.getFloat("g", 0.0f);
+            m_worldToLocal = props.getTransform("toLocal", Transform());
 
             std::string filename = props.getString("filename", "");
             std::string gridName = props.getString("gridName", "density");
@@ -61,30 +62,41 @@ namespace gnd {
             if (m_majorant <= 0.0f || std::isinf(ray.tMax)) return Color3f(1.0f);
 
             float tMax = ray.tMax;
-            float t = 0.0f;
+            float t = ray.tMin;
             Color3f tr(1.0f);
 
             auto accessor = m_densityGrid->getConstAccessor();
-            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_densityGrid->transform());
+            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::PointSampler> gridSampler(accessor, m_densityGrid->transform());
+
+            // 1. Calcolo del raggio nell'Index Space di OpenVDB FUORI dal ciclo
+            Point3f localO = m_worldToLocal(ray.o);
+            Point3f localTarget = m_worldToLocal(ray.o + ray.d);
+
+            openvdb::Vec3d vdbO(localO.x(), localO.y(), localO.z());
+            openvdb::Vec3d vdbTarget(localTarget.x(), localTarget.y(), localTarget.z());
+
+            const openvdb::math::Transform& gridTrans = m_densityGrid->transform();
+            openvdb::Vec3d indexO = gridTrans.worldToIndex(vdbO);
+            openvdb::Vec3d indexD = gridTrans.worldToIndex(vdbTarget) - indexO;
 
             while (true) {
                 t += -std::log(1.0f - sampler.next1D()) * m_invMajorant;
-
                 if (t >= tMax) break;
 
-                Point3f p = ray.o + ray.d * t;
-                openvdb::Vec3d pVdb(p.x(), p.y(), p.z());
+                openvdb::Vec3d pIndex = indexO + indexD * (double)t;
+                float localDensity = gridSampler.isSample(pIndex) * m_densityScale;
 
-                float localDensity = gridSampler.wsSample(pVdb) * m_densityScale;
-                Color3f local_sigma_t = m_base_sigma_t * localDensity;
+                if (localDensity > 0.0f) {
+                    Color3f local_sigma_t = m_base_sigma_t * localDensity;
+                    tr *= (Color3f(1.0f) - local_sigma_t * m_invMajorant);
 
-                tr *= (Color3f(1.0f) - local_sigma_t * m_invMajorant);
+                    float maxTr = std::max(tr.r(), std::max(tr.g(), tr.b()));
 
-                float maxTr = std::max({tr.r(), tr.g(), tr.b()});
-                if (maxTr < 0.1f) {
-                    float q = std::max(0.05f, 1.0f - maxTr);
-                    if (sampler.next1D() < q) return Color3f(0.0f);
-                    tr /= (1.0f - q);
+                    if (maxTr < 0.1f) {
+                        float q = std::max(0.05f, 1.0f - maxTr);
+                        if (sampler.next1D() < q) return Color3f(0.0f);
+                        tr /= (1.0f - q);
+                    }
                 }
             }
             return tr;
@@ -94,42 +106,53 @@ namespace gnd {
             if (m_majorant <= 0.0f) return Color3f(1.0f);
 
             float tMax = ray.tMax;
-            float t = 0.0f;
+            float t = ray.tMin;
 
             auto accessor = m_densityGrid->getConstAccessor();
-            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_densityGrid->transform());
+            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::PointSampler> gridSampler(accessor, m_densityGrid->transform());
+
+            Point3f localO = m_worldToLocal(ray.o);
+            Point3f localTarget = m_worldToLocal(ray.o + ray.d);
+
+            openvdb::Vec3d vdbO(localO.x(), localO.y(), localO.z());
+            openvdb::Vec3d vdbTarget(localTarget.x(), localTarget.y(), localTarget.z());
+
+            const openvdb::math::Transform& gridTrans = m_densityGrid->transform();
+            openvdb::Vec3d indexO = gridTrans.worldToIndex(vdbO);
+            openvdb::Vec3d indexD = gridTrans.worldToIndex(vdbTarget) - indexO;
 
             while (true) {
                 t += -std::log(1.0f - sampler.next1D()) * m_invMajorant;
-
                 if (t >= tMax) return Color3f(1.0f);
 
-                Point3f p = ray.o + ray.d * t;
-                openvdb::Vec3d pVdb(p.x(), p.y(), p.z());
-                float localDensity = gridSampler.wsSample(pVdb) * m_densityScale;
-                
-                Color3f local_sigma_t = m_base_sigma_t * localDensity;
-                Color3f local_sigma_s = m_base_sigma_s * localDensity;
+                openvdb::Vec3d pIndex = indexO + indexD * (double)t;
+                float localDensity = gridSampler.isSample(pIndex) * m_densityScale;
 
-                int channel = std::min(static_cast<int>(sampler.next1D() * 3.0f), 2);
-                float prob_real_collision = local_sigma_t[channel] * m_invMajorant;
+                if (localDensity > 0.0f) {
+                    int channel = std::min(static_cast<int>(sampler.next1D() * 3.0f), 2);
 
-                if (sampler.next1D() < prob_real_collision) {
-                    mi.p = p;
-                    mi.wo = -ray.d;
-                    mi.medium = this;
-                    mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
+                    float prob_real_collision = localDensity * m_base_sigma_t[channel] * m_invMajorant;
 
-                    return local_sigma_s / local_sigma_t[channel];
+                    if (sampler.next1D() < prob_real_collision) {
+                        mi.p = ray.o + ray.d * t;
+                        mi.wo = -ray.d;
+                        mi.medium = this;
+                        mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
+
+                        Color3f local_sigma_t = m_base_sigma_t * localDensity;
+                        Color3f local_sigma_s = m_base_sigma_s * localDensity;
+                        return local_sigma_s / local_sigma_t[channel];
+                    }
                 }
             }
         }
 
         virtual float getDensity(const Point3f& p) const override {
             auto accessor = m_densityGrid->getConstAccessor();
-            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_densityGrid->transform());
+            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::PointSampler> gridSampler(accessor, m_densityGrid->transform());
 
-            openvdb::Vec3d pVdb(p.x(), p.y(), p.z());
+            Point3f pLocal = m_worldToLocal(p);
+            openvdb::Vec3d pVdb(pLocal.x(), pLocal.y(), pLocal.z());
 
             return gridSampler.wsSample(pVdb) * m_densityScale;
         }
@@ -156,6 +179,7 @@ namespace gnd {
         Color3f m_base_sigma_t;
         float m_densityScale;
         float m_g;
+        Transform m_worldToLocal;
         
         float m_majorant;
         float m_invMajorant;
