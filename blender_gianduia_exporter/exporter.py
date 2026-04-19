@@ -1,4 +1,6 @@
 import os
+import mathutils
+import bpy
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from . import data_extractors
@@ -84,6 +86,73 @@ def export_scene(context, filepath, export_meshes):
 
                 emitter_node = ET.SubElement(prim_node, "emitter", type="area")
                 ET.SubElement(emitter_node, "color", name="radiance", value=f"{power.r:.4f} {power.g:.4f} {power.b:.4f}")
+
+        elif obj_eval.type == 'VOLUME':
+            volume_data = obj_eval.original.data
+
+            if not volume_data.filepath:
+                continue
+
+            prim_node = ET.SubElement(root, "primitive")
+
+            bbox = [mathutils.Vector(b) for b in obj_eval.bound_box]
+            min_pt = mathutils.Vector((min([v.x for v in bbox]), min([v.y for v in bbox]), min([v.z for v in bbox])))
+            max_pt = mathutils.Vector((max([v.x for v in bbox]), max([v.y for v in bbox]), max([v.z for v in bbox])))
+
+            extents = (max_pt - min_pt) / 2.0
+            extents *= 1.02
+            local_center = (max_pt + min_pt) / 2.0
+
+            translation_mat = mathutils.Matrix.Translation(local_center)
+            world_matrix = inst.matrix_world @ translation_mat
+            data_extractors.export_transform(prim_node, world_matrix, name="toWorld")
+
+            shape_node = ET.SubElement(prim_node, "shape", type="cube")
+            ET.SubElement(shape_node, "vector", name="extents", value=f"{extents.x:.6f} {extents.y:.6f} {extents.z:.6f}")
+
+            mat_node = ET.SubElement(prim_node, "material", type="index")
+
+            volumes_dir_name = "volumes"
+            volumes_dir_path = os.path.join(base_dir, volumes_dir_name)
+            if not os.path.exists(volumes_dir_path):
+                os.makedirs(volumes_dir_path)
+
+            vdb_abs_path = bpy.path.abspath(volume_data.filepath)
+            filename = os.path.basename(vdb_abs_path)
+            dest_path = os.path.join(volumes_dir_path, filename)
+
+            import shutil
+            if os.path.exists(vdb_abs_path):
+                if not os.path.exists(dest_path) or not os.path.samefile(vdb_abs_path, dest_path):
+                    shutil.copy2(vdb_abs_path, dest_path)
+
+            med_node = ET.SubElement(mat_node, "medium", type="heterogeneous", name="inside")
+            ET.SubElement(med_node, "string", name="filename", value=f"{volumes_dir_name}/{filename}")
+
+            grid_name = "density"
+            if volume_data.grids:
+                grid_name = volume_data.grids[0].name
+            ET.SubElement(med_node, "string", name="gridName", value=grid_name)
+
+            world_to_local_matrix = inst.matrix_world.inverted()
+            data_extractors.export_transform(med_node, world_to_local_matrix, name="toLocal")
+
+            material = obj_eval.active_material
+            if material and material.use_nodes:
+                nodes = material.node_tree.nodes
+                output_node = next((n for n in nodes if n.type == 'OUTPUT_MATERIAL'), None)
+                if output_node and output_node.inputs['Volume'].is_linked:
+                    vol_node = output_node.inputs['Volume'].links[0].from_node
+                    if vol_node.type == 'BSDF_PRINCIPLED_VOLUME':
+                        density = vol_node.inputs['Density'].default_value
+                        color = vol_node.inputs['Color'].default_value[:3]
+
+                        ET.SubElement(med_node, "float", name="densityScale", value=f"{density:.4f}")
+
+                        sig_s = [c * density for c in color]
+                        sig_a = [(1.0 - c) * density for c in color]
+                        ET.SubElement(med_node, "color", name="sigma_s", value=f"{sig_s[0]:.4f} {sig_s[1]:.4f} {sig_s[2]:.4f}")
+                        ET.SubElement(med_node, "color", name="sigma_a", value=f"{sig_a[0]:.4f} {sig_a[1]:.4f} {sig_a[2]:.4f}")
 
     xml_string = ET.tostring(root, encoding="utf-8")
     parsed_xml = minidom.parseString(xml_string)

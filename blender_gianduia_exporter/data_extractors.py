@@ -279,46 +279,118 @@ def export_texture_or_value(parent_node, input_socket, prop_name, export_dir, te
     elif len(val) >= 3:
         ET.SubElement(parent_node, "color", name=prop_name, value=f"{val[0]:.4f} {val[1]:.4f} {val[2]:.4f}")
 
+def export_volume_medium(parent_node, volume_node, name="inside"):
+    med_node = ET.SubElement(parent_node, "medium", type="homogeneous", name=name)
+
+    if volume_node.type == 'BSDF_PRINCIPLED_VOLUME':
+        color = volume_node.inputs['Color'].default_value[:3]
+        density = volume_node.inputs['Density'].default_value
+        g = volume_node.inputs['Anisotropy'].default_value
+
+        sig_s = [c * density for c in color]
+        sig_a = [(1.0 - c) * density for c in color]
+
+        ET.SubElement(med_node, "color", name="sigma_s", value=f"{sig_s[0]:.4f} {sig_s[1]:.4f} {sig_s[2]:.4f}")
+        ET.SubElement(med_node, "color", name="sigma_a", value=f"{sig_a[0]:.4f} {sig_a[1]:.4f} {sig_a[2]:.4f}")
+        if abs(g) > 1e-4:
+            ET.SubElement(med_node, "float", name="g", value=f"{g:.4f}")
+
+    elif volume_node.type == 'VOLUME_SCATTER':
+        color = volume_node.inputs['Color'].default_value[:3]
+        density = volume_node.inputs['Density'].default_value
+        g = volume_node.inputs['Anisotropy'].default_value
+
+        sig_s = [c * density for c in color]
+
+        ET.SubElement(med_node, "color", name="sigma_s", value=f"{sig_s[0]:.4f} {sig_s[1]:.4f} {sig_s[2]:.4f}")
+        ET.SubElement(med_node, "color", name="sigma_a", value="0.0000 0.0000 0.0000")
+        if abs(g) > 1e-4:
+            ET.SubElement(med_node, "float", name="g", value=f"{g:.4f}")
 
 def export_material(prim_node, material, export_dir):
+    fallback_mat = lambda: ET.SubElement(prim_node, "material", type="matte")
+
     if not material or not material.use_nodes:
-        mat_node = ET.SubElement(prim_node, "material", type="matte")
+        mat_node = fallback_mat()
         ET.SubElement(mat_node, "color", name="albedo", value="0.72 0.72 0.72")
         return
 
     nodes = material.node_tree.nodes
     output_node = next((n for n in nodes if n.type == 'OUTPUT_MATERIAL'), None)
+    if not output_node:
+        return
 
-    if not output_node or not output_node.inputs['Surface'].is_linked:
-        mat_node = ET.SubElement(prim_node, "material", type="matte")
+    surface_socket = output_node.inputs.get('Surface')
+    volume_socket = output_node.inputs.get('Volume')
+
+    surface_linked = surface_socket and surface_socket.is_linked
+    volume_linked = volume_socket and volume_socket.is_linked
+
+    if not surface_linked and not volume_linked:
+        mat_node = fallback_mat()
         ET.SubElement(mat_node, "color", name="albedo", value="0.72 0.72 0.72")
         return
 
-    surface_node = output_node.inputs['Surface'].links[0].from_node
+    mat_node = None
 
-    if surface_node.type == 'BSDF_PRINCIPLED':
-        mat_node = ET.SubElement(prim_node, "material", type="matte")
-        export_texture_or_value(mat_node, surface_node.inputs['Base Color'], "albedo", export_dir)
-        export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+    if surface_linked:
+        surface_node = surface_socket.links[0].from_node
 
-    elif surface_node.type == 'BSDF_DIFFUSE':
-        mat_node = ET.SubElement(prim_node, "material", type="matte")
-        export_texture_or_value(mat_node, surface_node.inputs['Color'], "albedo", export_dir)
-        export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+        if surface_node.type == 'BSDF_PRINCIPLED':
+            sss_weight = 0.0
+            if 'Subsurface Weight' in surface_node.inputs:
+                sss_weight = surface_node.inputs['Subsurface Weight'].default_value
+            elif 'Subsurface' in surface_node.inputs:
+                sss_weight = surface_node.inputs['Subsurface'].default_value
 
-    elif surface_node.type == 'BSDF_GLASS':
-        mat_node = ET.SubElement(prim_node, "material", type="glass")
-        export_texture_or_value(mat_node, surface_node.inputs['Color'], "T", export_dir)
-        export_texture_or_value(mat_node, surface_node.inputs['Roughness'], "roughness", export_dir)
-        export_texture_or_value(mat_node, surface_node.inputs['IOR'], "eta", export_dir)
-        export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+            if sss_weight > 0.01:
+                mat_node = ET.SubElement(prim_node, "material", type="glass")
+                ET.SubElement(mat_node, "float", name="roughness", value="0.3")
+                ET.SubElement(mat_node, "float", name="eta", value="1.4")
 
-    elif surface_node.type == 'BSDF_GLOSSY':
-        mat_node = ET.SubElement(prim_node, "material", type="conductor")
-        export_texture_or_value(mat_node, surface_node.inputs['Color'], "R", export_dir)
-        export_texture_or_value(mat_node, surface_node.inputs['Roughness'], "roughness", export_dir)
-        export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+                base_color = surface_node.inputs['Base Color'].default_value[:3]
+                sss_scale = surface_node.inputs['Subsurface Scale'].default_value
+                sss_radius = surface_node.inputs['Subsurface Radius'].default_value[:3]
 
-    else:
-        mat_node = ET.SubElement(prim_node, "material", type="matte")
-        ET.SubElement(mat_node, "color", name="albedo", value="0.72 0.72 0.72")
+                med_node = ET.SubElement(mat_node, "medium", type="homogeneous", name="inside")
+
+                sig_s, sig_a = [0,0,0], [0,0,0]
+                for i in range(3):
+                    mfp = sss_radius[i] * sss_scale
+                    sigma_t = 1.0 / max(mfp, 0.0001)
+                    sig_s[i] = base_color[i] * sigma_t
+                    sig_a[i] = max(sigma_t - sig_s[i], 0.0)
+
+                ET.SubElement(med_node, "color", name="sigma_s", value=f"{sig_s[0]:.4f} {sig_s[1]:.4f} {sig_s[2]:.4f}")
+                ET.SubElement(med_node, "color", name="sigma_a", value=f"{sig_a[0]:.4f} {sig_a[1]:.4f} {sig_a[2]:.4f}")
+            else:
+                mat_node = ET.SubElement(prim_node, "material", type="matte")
+                export_texture_or_value(mat_node, surface_node.inputs['Base Color'], "albedo", export_dir)
+                export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+        elif surface_node.type == 'BSDF_DIFFUSE':
+            mat_node = ET.SubElement(prim_node, "material", type="matte")
+            export_texture_or_value(mat_node, surface_node.inputs['Color'], "albedo", export_dir)
+            export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+        elif surface_node.type == 'BSDF_GLASS':
+            mat_node = ET.SubElement(prim_node, "material", type="glass")
+            export_texture_or_value(mat_node, surface_node.inputs['Color'], "T", export_dir)
+            export_texture_or_value(mat_node, surface_node.inputs['Roughness'], "roughness", export_dir)
+            export_texture_or_value(mat_node, surface_node.inputs['IOR'], "eta", export_dir)
+            export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+        elif surface_node.type == 'BSDF_GLOSSY':
+            mat_node = ET.SubElement(prim_node, "material", type="conductor")
+            export_texture_or_value(mat_node, surface_node.inputs['Color'], "R", export_dir)
+            export_texture_or_value(mat_node, surface_node.inputs['Roughness'], "roughness", export_dir)
+            export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+    if volume_linked:
+        volume_node = volume_socket.links[0].from_node
+
+        if mat_node is None:
+            mat_node = ET.SubElement(prim_node, "material", type="index")
+
+        export_volume_medium(mat_node, volume_node, "inside")
+
