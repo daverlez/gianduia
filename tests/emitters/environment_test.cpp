@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <filesystem>
 
-// Includiamo OpenEXR per generare il file
 #include <OpenEXR/ImfOutputFile.h>
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfHeader.h>

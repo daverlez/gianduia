@@ -100,9 +100,9 @@ def export_scene(context, filepath, export_meshes):
             max_pt = mathutils.Vector((max([v.x for v in bbox]), max([v.y for v in bbox]), max([v.z for v in bbox])))
 
             extents = (max_pt - min_pt) / 2.0
-            extents *= 1.02
-            local_center = (max_pt + min_pt) / 2.0
+            extents *= 1.05
 
+            local_center = (max_pt + min_pt) / 2.0
             translation_mat = mathutils.Matrix.Translation(local_center)
             world_matrix = inst.matrix_world @ translation_mat
             data_extractors.export_transform(prim_node, world_matrix, name="toWorld")
@@ -143,16 +143,35 @@ def export_scene(context, filepath, export_meshes):
                 output_node = next((n for n in nodes if n.type == 'OUTPUT_MATERIAL'), None)
                 if output_node and output_node.inputs['Volume'].is_linked:
                     vol_node = output_node.inputs['Volume'].links[0].from_node
-                    if vol_node.type == 'BSDF_PRINCIPLED_VOLUME':
-                        density = vol_node.inputs['Density'].default_value
+
+                    if vol_node.type == 'PRINCIPLED_VOLUME':
+                        density = vol_node.inputs['Density'].default_value * 10.0
                         color = vol_node.inputs['Color'].default_value[:3]
+                        anisotropy = vol_node.inputs['Anisotropy'].default_value
+
+                        bb_intensity = 0.0
+                        if 'Blackbody Intensity' in vol_node.inputs:
+                            bb_intensity = vol_node.inputs['Blackbody Intensity'].default_value
+                            temperature = vol_node.inputs['Temperature'].default_value
 
                         ET.SubElement(med_node, "float", name="densityScale", value=f"{density:.4f}")
 
-                        sig_s = [c * density for c in color]
-                        sig_a = [(1.0 - c) * density for c in color]
-                        ET.SubElement(med_node, "color", name="sigma_s", value=f"{sig_s[0]:.4f} {sig_s[1]:.4f} {sig_s[2]:.4f}")
-                        ET.SubElement(med_node, "color", name="sigma_a", value=f"{sig_a[0]:.4f} {sig_a[1]:.4f} {sig_a[2]:.4f}")
+                        if abs(anisotropy) > 1e-4:
+                            ET.SubElement(med_node, "float", name="g", value=f"{anisotropy:.4f}")
+
+                        if bb_intensity > 0.0:
+                            ET.SubElement(med_node, "color", name="sigma_s", value="0.1000 0.1000 0.1000")
+                            ET.SubElement(med_node, "color", name="sigma_a", value="0.9000 0.9000 0.9000")
+
+                            ET.SubElement(med_node, "string", name="temperatureGrid", value="temperature") # o 'flame' se necessario
+                            ET.SubElement(med_node, "float", name="temperatureScale", value=f"{temperature/2.0:.1f}")
+                            ET.SubElement(med_node, "float", name="temperatureOffset", value="800.0")
+                            ET.SubElement(med_node, "float", name="emissionScale", value=f"{bb_intensity * 2.0:.4f}")
+                        else:
+                            sig_s = [c for c in color]
+                            sig_a = [max(1.0 - c, 0.0) for c in color]
+                            ET.SubElement(med_node, "color", name="sigma_s", value=f"{sig_s[0]:.4f} {sig_s[1]:.4f} {sig_s[2]:.4f}")
+                            ET.SubElement(med_node, "color", name="sigma_a", value=f"{sig_a[0]:.4f} {sig_a[1]:.4f} {sig_a[2]:.4f}")
 
     xml_string = ET.tostring(root, encoding="utf-8")
     parsed_xml = minidom.parseString(xml_string)
