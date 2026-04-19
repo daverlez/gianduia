@@ -40,6 +40,12 @@ namespace gnd {
 
                 // --- Volumetric scattering ---
                 if (mi.isValid()) {
+                    // --- Volumetric emission ---
+                    Color3f emission = mi.medium->Le(mi.p);
+                    if (!emission.isBlack()) {
+                        L += tp * emission;
+                    }
+
                     // --- Volume NEE ---
                     float lightSelectPdf = 1.0f / scene.getEmitters().size();
                     std::shared_ptr<Emitter> emitter = scene.getRandomEmitter(sampler.next1D());
