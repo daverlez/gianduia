@@ -225,3 +225,100 @@ def get_light_data(light):
             strength = emission_node.inputs['Strength'].default_value
 
     return color, strength
+
+def export_texture_or_value(parent_node, input_socket, prop_name, export_dir, textures_dir_name="textures"):
+    if input_socket.is_linked:
+        from_node = input_socket.links[0].from_node
+
+        if from_node.type == 'NORMAL_MAP':
+            if from_node.inputs['Color'].is_linked:
+                from_node = from_node.inputs['Color'].links[0].from_node
+            else:
+                return
+
+        if from_node.type == 'TEX_IMAGE' and from_node.image:
+            img = from_node.image
+            img_path = bpy.path.abspath(img.filepath)
+
+            textures_dir_path = os.path.join(export_dir, textures_dir_name)
+            if not os.path.exists(textures_dir_path):
+                os.makedirs(textures_dir_path)
+
+            filename = os.path.basename(img_path)
+            dest_path = os.path.join(textures_dir_path, filename)
+
+            if os.path.exists(img_path):
+                if not os.path.exists(dest_path) or not os.path.samefile(img_path, dest_path):
+                    shutil.copy2(img_path, dest_path)
+
+            rel_path = f"{textures_dir_name}/{filename}"
+
+            tex_node = ET.SubElement(parent_node, "texture", type="image", name=prop_name)
+            ET.SubElement(tex_node, "string", name="filename", value=rel_path)
+
+            if img.colorspace_settings.name == 'sRGB':
+                ET.SubElement(tex_node, "string", name="color_space", value="sRGB")
+            else:
+                ET.SubElement(tex_node, "string", name="color_space", value="linear")
+
+            if from_node.interpolation == 'Closest':
+                ET.SubElement(tex_node, "string", name="interpolation_mode", value="closest")
+            else:
+                ET.SubElement(tex_node, "string", name="interpolation_mode", value="linear")
+
+            if from_node.extension == 'EXTEND':
+                ET.SubElement(tex_node, "string", name="repeat_mode", value="clamp")
+            else:
+                ET.SubElement(tex_node, "string", name="repeat_mode", value="repeat")
+
+            return
+
+    val = input_socket.default_value
+    if isinstance(val, float):
+        ET.SubElement(parent_node, "float", name=prop_name, value=f"{val:.4f}")
+    elif len(val) >= 3:
+        ET.SubElement(parent_node, "color", name=prop_name, value=f"{val[0]:.4f} {val[1]:.4f} {val[2]:.4f}")
+
+
+def export_material(prim_node, material, export_dir):
+    if not material or not material.use_nodes:
+        mat_node = ET.SubElement(prim_node, "material", type="matte")
+        ET.SubElement(mat_node, "color", name="albedo", value="0.72 0.72 0.72")
+        return
+
+    nodes = material.node_tree.nodes
+    output_node = next((n for n in nodes if n.type == 'OUTPUT_MATERIAL'), None)
+
+    if not output_node or not output_node.inputs['Surface'].is_linked:
+        mat_node = ET.SubElement(prim_node, "material", type="matte")
+        ET.SubElement(mat_node, "color", name="albedo", value="0.72 0.72 0.72")
+        return
+
+    surface_node = output_node.inputs['Surface'].links[0].from_node
+
+    if surface_node.type == 'BSDF_PRINCIPLED':
+        mat_node = ET.SubElement(prim_node, "material", type="matte")
+        export_texture_or_value(mat_node, surface_node.inputs['Base Color'], "albedo", export_dir)
+        export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+    elif surface_node.type == 'BSDF_DIFFUSE':
+        mat_node = ET.SubElement(prim_node, "material", type="matte")
+        export_texture_or_value(mat_node, surface_node.inputs['Color'], "albedo", export_dir)
+        export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+    elif surface_node.type == 'BSDF_GLASS':
+        mat_node = ET.SubElement(prim_node, "material", type="glass")
+        export_texture_or_value(mat_node, surface_node.inputs['Color'], "T", export_dir)
+        export_texture_or_value(mat_node, surface_node.inputs['Roughness'], "roughness", export_dir)
+        export_texture_or_value(mat_node, surface_node.inputs['IOR'], "eta", export_dir)
+        export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+    elif surface_node.type == 'BSDF_GLOSSY':
+        mat_node = ET.SubElement(prim_node, "material", type="conductor")
+        export_texture_or_value(mat_node, surface_node.inputs['Color'], "R", export_dir)
+        export_texture_or_value(mat_node, surface_node.inputs['Roughness'], "roughness", export_dir)
+        export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+    else:
+        mat_node = ET.SubElement(prim_node, "material", type="matte")
+        ET.SubElement(mat_node, "color", name="albedo", value="0.72 0.72 0.72")

@@ -43,9 +43,7 @@ def export_scene(context, filepath, export_meshes):
             else:
                 ET.SubElement(prim_node, "ref", id=mesh_name)
 
-            mat_node = ET.SubElement(prim_node, "material", type="matte")
-            ET.SubElement(mat_node, "color", name="albedo", value="0.72 0.72 0.72")
-
+            data_extractors.export_material(prim_node, obj_eval.active_material, base_dir)
             radiance = data_extractors.get_emission_data(obj_eval.active_material)
             if radiance:
                 emitter_node = ET.SubElement(prim_node, "emitter", type="area")
