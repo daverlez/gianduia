@@ -1,6 +1,7 @@
 import os
 import math
 import shutil
+import struct
 import bmesh
 import bpy
 import mathutils
@@ -394,13 +395,12 @@ def export_material(prim_node, material, export_dir):
 
         export_volume_medium(mat_node, volume_node, "inside")
 
-def export_hair_and_curves(root_node, inst, obj_eval, export_dir):
+def write_local_hair_binary(obj_eval, filepath):
     segments = []
 
     if obj_eval.type == 'CURVES':
         curves_data = obj_eval.data
         points = curves_data.points
-
         radius_attr = curves_data.attributes.get('radius')
         default_radius = 0.005
 
@@ -411,8 +411,7 @@ def export_hair_and_curves(root_node, inst, obj_eval, export_dir):
                 continue
 
             for i in range(length - 1):
-                idx0 = start + i
-                idx1 = start + i + 1
+                idx0, idx1 = start + i, start + i + 1
 
                 p0 = points[idx0].position
                 p3 = points[idx1].position
@@ -432,10 +431,8 @@ def export_hair_and_curves(root_node, inst, obj_eval, export_dir):
             if spline.type == 'BEZIER':
                 bps = spline.bezier_points
                 for i in range(len(bps) - 1):
-                    p0 = bps[i].co
-                    p1 = bps[i].handle_right
-                    p2 = bps[i+1].handle_left
-                    p3 = bps[i+1].co
+                    p0, p1 = bps[i].co, bps[i].handle_right
+                    p2, p3 = bps[i+1].handle_left, bps[i+1].co
 
                     w0 = bps[i].radius * default_radius * 2.0
                     w1 = bps[i+1].radius * default_radius * 2.0
@@ -445,28 +442,28 @@ def export_hair_and_curves(root_node, inst, obj_eval, export_dir):
             elif spline.type == 'POLY':
                 pts = spline.points
                 for i in range(len(pts) - 1):
-                    p0 = pts[i].co.xyz
-                    p3 = pts[i+1].co.xyz
-
-                    p1 = p0.lerp(p3, 1.0 / 3.0)
-                    p2 = p0.lerp(p3, 2.0 / 3.0)
+                    p0, p3 = pts[i].co.xyz, pts[i+1].co.xyz
+                    p1, p2 = p0.lerp(p3, 1.0 / 3.0), p0.lerp(p3, 2.0 / 3.0)
 
                     w0 = pts[i].radius * default_radius * 2.0
                     w1 = pts[i+1].radius * default_radius * 2.0
 
                     segments.append((p0, p1, p2, p3, w0, w1))
 
-    for p0, p1, p2, p3, w0, w1 in segments:
-        prim_node = ET.SubElement(root_node, "primitive")
+    if not segments:
+        return False
 
-        export_transform(prim_node, inst.matrix_world)
+    with open(filepath, 'wb') as f:
+        f.write(b'HAIR')
+        f.write(struct.pack('<I', len(segments)))
 
-        shape_node = ET.SubElement(prim_node, "shape", type="curve")
-        ET.SubElement(shape_node, "point", name="p0", x=f"{p0.x:.6f}", y=f"{p0.y:.6f}", z=f"{p0.z:.6f}")
-        ET.SubElement(shape_node, "point", name="p1", x=f"{p1.x:.6f}", y=f"{p1.y:.6f}", z=f"{p1.z:.6f}")
-        ET.SubElement(shape_node, "point", name="p2", x=f"{p2.x:.6f}", y=f"{p2.y:.6f}", z=f"{p2.z:.6f}")
-        ET.SubElement(shape_node, "point", name="p3", x=f"{p3.x:.6f}", y=f"{p3.y:.6f}", z=f"{p3.z:.6f}")
-        ET.SubElement(shape_node, "float", name="w0", value=f"{w0:.6f}")
-        ET.SubElement(shape_node, "float", name="w1", value=f"{w1:.6f}")
+        for seg in segments:
+            f.write(struct.pack('<14f',
+                                seg[0].x, seg[0].y, seg[0].z,
+                                seg[1].x, seg[1].y, seg[1].z,
+                                seg[2].x, seg[2].y, seg[2].z,
+                                seg[3].x, seg[3].y, seg[3].z,
+                                seg[4], seg[5]
+                                ))
 
-        export_material(prim_node, obj_eval.active_material, export_dir)
+    return True

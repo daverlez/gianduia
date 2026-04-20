@@ -52,7 +52,28 @@ def export_scene(context, filepath, export_meshes):
                 ET.SubElement(emitter_node, "color", name="radiance", value=f"{radiance[0]:.4f} {radiance[1]:.4f} {radiance[2]:.4f}")
 
         elif obj_eval.type in {'CURVES', 'CURVE'}:
-            data_extractors.export_hair_and_curves(root, inst, obj_eval, base_dir)
+            prim_node = ET.SubElement(root, "primitive")
+            data_extractors.export_transform(prim_node, inst.matrix_world)
+
+            curve_name = obj_eval.original.data.name
+
+            if curve_name not in exported_meshes:
+                shape_node = ET.SubElement(prim_node, "shape", type="curve_array", id=curve_name)
+                rel_obj_path = f"{meshes_dir_name}/{curve_name}.hair"
+                ET.SubElement(shape_node, "string", name="filename", value=rel_obj_path)
+
+                if export_meshes:
+                    abs_obj_path = os.path.join(base_dir, rel_obj_path)
+                    success = data_extractors.write_local_hair_binary(obj_eval, abs_obj_path)
+                    if not success:
+                        root.remove(prim_node)
+                        continue
+
+                exported_meshes.add(curve_name)
+            else:
+                ET.SubElement(prim_node, "ref", id=curve_name)
+
+            data_extractors.export_material(prim_node, obj_eval.active_material, base_dir)
 
         elif obj_eval.type == 'LIGHT':
             light = obj_eval.data
