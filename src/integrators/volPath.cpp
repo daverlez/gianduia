@@ -100,6 +100,8 @@ namespace gnd {
                 }
 
                 // --- Surface scattering ---
+                const Medium* currentRayMedium = r.medium;
+
                 if (!hitSurface) {
                     Color3f Li_env(0.0f);
                     if (scene.getEnvMap()) {
@@ -172,7 +174,7 @@ namespace gnd {
                 Li_nee /= lightSelectPdf;
 
                 if (lightPdf > 1e-6f && !Li_nee.isBlack()) {
-                    shadowRay.medium = isect.getMedium(shadowRay.d);
+                    shadowRay.medium = Dot(shadowRay.d, isect.n) > 0.0f ? currentRayMedium : isect.mediumInterface.inside;
                     Color3f Tr = evaluateTr(scene, shadowRay, sampler, lightIsect.p, arena);
 
                     if (!Tr.isBlack()) {
@@ -201,7 +203,7 @@ namespace gnd {
                 tp *= f_cos;
 
                 r = Ray(isect.p, wi);
-                r.medium = isect.getMedium(wi);
+                r.medium = Dot(wi, isect.n) > 0.0f ? currentRayMedium : isect.mediumInterface.inside;
                 r.time = isect.time;
 
                 // --- Russian Roulette ---
@@ -233,6 +235,8 @@ namespace gnd {
                 bool hit = scene.rayIntersect(r, isect);
 
                 if (r.medium) {
+                    Ray trRay = r;
+                    trRay.tMax = hit ? isect.t : r.tMax;
                     Tr *= r.medium->Tr(r, sampler);
                 }
 
