@@ -81,7 +81,6 @@ namespace gnd {
             auto accessor = m_densityGrid->getConstAccessor();
             openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::PointSampler> gridSampler(accessor, m_densityGrid->transform());
 
-            // 1. Calcolo del raggio nell'Index Space di OpenVDB FUORI dal ciclo
             Point3f localO = m_worldToLocal(ray.o);
             Point3f localTarget = m_worldToLocal(ray.o + ray.d);
 

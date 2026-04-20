@@ -60,6 +60,7 @@ namespace gnd {
                     Li_nee /= lightSelectPdf;
 
                     if (lightPdf > 1e-6f && !Li_nee.isBlack()) {
+                        shadowRay.medium = mi.medium;
                         Color3f Tr = evaluateTr(scene, shadowRay, sampler, lightIsect.p, arena);
 
                         if (!Tr.isBlack()) {
@@ -171,6 +172,7 @@ namespace gnd {
                 Li_nee /= lightSelectPdf;
 
                 if (lightPdf > 1e-6f && !Li_nee.isBlack()) {
+                    shadowRay.medium = isect.getMedium(shadowRay.d);
                     Color3f Tr = evaluateTr(scene, shadowRay, sampler, lightIsect.p, arena);
 
                     if (!Tr.isBlack()) {

@@ -51,6 +51,9 @@ def export_scene(context, filepath, export_meshes):
                 emitter_node = ET.SubElement(prim_node, "emitter", type="area")
                 ET.SubElement(emitter_node, "color", name="radiance", value=f"{radiance[0]:.4f} {radiance[1]:.4f} {radiance[2]:.4f}")
 
+        elif obj_eval.type in {'CURVES', 'CURVE'}:
+            data_extractors.export_hair_and_curves(root, inst, obj_eval, base_dir)
+
         elif obj_eval.type == 'LIGHT':
             light = obj_eval.data
 
