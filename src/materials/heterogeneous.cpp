@@ -2,6 +2,7 @@
 #include <gianduia/core/factory.h>
 #include <gianduia/core/sampler.h>
 #include <gianduia/math/color.h>
+#include <gianduia/math/bounds.h>
 #include <gianduia/core/fileResolver.h>
 
 #include <openvdb/openvdb.h>
@@ -10,6 +11,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <vector>
 
 namespace gnd {
 
@@ -37,7 +39,7 @@ namespace gnd {
             openvdb::initialize();
             openvdb::io::File file(absPath);
             file.open();
-            
+
             openvdb::GridBase::Ptr baseGrid;
             openvdb::GridBase::Ptr tempGrid;
             for (auto nameIter = file.beginName(); nameIter != file.endName(); ++nameIter) {
@@ -58,22 +60,45 @@ namespace gnd {
                 m_temperatureGrid = openvdb::gridPtrCast<openvdb::FloatGrid>(tempGrid);
             }
 
-            auto extrema = openvdb::tools::minMax(m_densityGrid->tree());
-            float maxVal = extrema.max();
+            // Macro grid setup
+            openvdb::CoordBBox bbox = m_densityGrid->evalActiveVoxelBoundingBox();
 
-            if (!std::isfinite(maxVal)) {
-                // VDB grid contains non-finite values. This will cause delta tracking to get stuck.
-                throw std::runtime_error("HeterogeneousMedium: VDB grid has non-finite values (inf/nan).");
-            }
+            m_gridMin = Point3f(bbox.min().x(), bbox.min().y(), bbox.min().z());
+            m_gridMax = Point3f(bbox.max().x() + 1.0f, bbox.max().y() + 1.0f, bbox.max().z() + 1.0f);
+
+            m_resX = 16; m_resY = 16; m_resZ = 16;
+
+            float extentX = m_gridMax.x() - m_gridMin.x();
+            float extentY = m_gridMax.y() - m_gridMin.y();
+            float extentZ = m_gridMax.z() - m_gridMin.z();
+
+            m_cellSizeX = extentX / m_resX;
+            m_cellSizeY = extentY / m_resY;
+            m_cellSizeZ = extentZ / m_resZ;
+
+            m_macroMajorants.assign(m_resX * m_resY * m_resZ, 0.0f);
 
             float max_color_t = std::max({m_base_sigma_t.r(), m_base_sigma_t.g(), m_base_sigma_t.b()});
-            m_majorant = maxVal * m_densityScale * max_color_t;
-            m_invMajorant = m_majorant > 0.0f ? 1.0f / m_majorant : 0.0f;
+
+            for (auto iter = m_densityGrid->tree().cbeginValueOn(); iter; ++iter) {
+                openvdb::Coord coord = iter.getCoord();
+                float density = *iter * m_densityScale;
+
+                if (density <= 0.0f || !std::isfinite(density)) continue;
+
+                int cx = std::clamp(static_cast<int>((coord.x() - m_gridMin.x()) / m_cellSizeX), 0, m_resX - 1);
+                int cy = std::clamp(static_cast<int>((coord.y() - m_gridMin.y()) / m_cellSizeY), 0, m_resY - 1);
+                int cz = std::clamp(static_cast<int>((coord.z() - m_gridMin.z()) / m_cellSizeZ), 0, m_resZ - 1);
+
+                int flatIdx = cz * (m_resX * m_resY) + cy * m_resX + cx;
+                float local_maj = density * max_color_t;
+
+                if (local_maj > m_macroMajorants[flatIdx])
+                    m_macroMajorants[flatIdx] = local_maj;
+            }
         }
 
         Color3f Tr(const Ray& ray, Sampler& sampler) const override {
-            if (m_majorant <= 0.0f || std::isinf(ray.tMax)) return Color3f(1.0f);
-
             float tMax = ray.tMax;
             float t = ray.tMin;
             Color3f tr(1.0f);
@@ -91,23 +116,95 @@ namespace gnd {
             openvdb::Vec3d indexO = gridTrans.worldToIndex(vdbO);
             openvdb::Vec3d indexD = gridTrans.worldToIndex(vdbTarget) - indexO;
 
-            while (true) {
-                t += -std::log(1.0f - sampler.next1D()) * m_invMajorant;
-                if (t >= tMax) break;
+            Ray indexRay(Point3f(indexO.x(), indexO.y(), indexO.z()),
+                         Vector3f(indexD.x(), indexD.y(), indexD.z()));
+            indexRay.tMin = t;
+            indexRay.tMax = tMax;
 
-                openvdb::Vec3d pIndex = indexO + indexD * (double)t;
-                float localDensity = gridSampler.isSample(pIndex) * m_densityScale;
+            Bounds3f gridBounds(m_gridMin, m_gridMax);
+            float hit_t0, hit_t1;
+            if (!gridBounds.rayIntersect(indexRay, &hit_t0, &hit_t1)) {
+                return tr;
+            }
 
-                if (localDensity > 0.0f) {
-                    Color3f local_sigma_t = m_base_sigma_t * localDensity;
-                    tr *= (Color3f(1.0f) - local_sigma_t * m_invMajorant);
+            t = std::max(t, hit_t0);
+            tMax = std::min(tMax, hit_t1);
 
-                    float maxTr = std::max(tr.r(), std::max(tr.g(), tr.b()));
+            while (t < tMax) {
+                Point3f pIndex = indexRay.o + indexRay.d * t;
 
-                    if (maxTr < 0.1f) {
-                        float q = std::max(0.05f, 1.0f - maxTr);
-                        if (sampler.next1D() < q) return Color3f(0.0f);
-                        tr /= (1.0f - q);
+                int cx = static_cast<int>(std::floor((pIndex.x() - m_gridMin.x()) / m_cellSizeX));
+                int cy = static_cast<int>(std::floor((pIndex.y() - m_gridMin.y()) / m_cellSizeY));
+                int cz = static_cast<int>(std::floor((pIndex.z() - m_gridMin.z()) / m_cellSizeZ));
+
+                cx = std::clamp(cx, 0, m_resX - 1);
+                cy = std::clamp(cy, 0, m_resY - 1);
+                cz = std::clamp(cz, 0, m_resZ - 1);
+
+                int flatIdx = cz * (m_resX * m_resY) + cy * m_resX + cx;
+                float local_maj = m_macroMajorants[flatIdx];
+
+                Point3f cMin(m_gridMin.x() + cx * m_cellSizeX,
+                             m_gridMin.y() + cy * m_cellSizeY,
+                             m_gridMin.z() + cz * m_cellSizeZ);
+                Point3f cMax(cMin.x() + m_cellSizeX,
+                             cMin.y() + m_cellSizeY,
+                             cMin.z() + m_cellSizeZ);
+                Bounds3f cellBounds(cMin, cMax);
+
+                float tExit0 = 0.0f, tExit1 = tMax;
+                if (!cellBounds.rayIntersect(indexRay, &tExit0, &tExit1)) {
+                    t += 1e-3f;
+                    continue;
+                }
+
+                float tCellExit = std::min(tExit1, tMax);
+
+                if (tCellExit <= t + 1e-6f) {
+                    t += 1e-3f;
+                    continue;
+                }
+
+                // Empty Space Skipping
+                if (local_maj <= 0.0f) {
+                    t = tCellExit + 1e-4f;
+                    continue;
+                }
+
+                float invMaj = 1.0f / local_maj;
+
+                while (t < tCellExit) {
+                    float step = -std::log(1.0f - sampler.next1D()) * invMaj;
+
+                    if (step <= 0.0f) step = 1e-5f;
+
+                    if (t + step >= tCellExit) {
+                        t = tCellExit + 1e-4f;
+                        break;
+                    }
+
+                    t += step;
+
+                    openvdb::Vec3d pVdb(indexRay.o.x() + indexRay.d.x() * t,
+                                        indexRay.o.y() + indexRay.d.y() * t,
+                                        indexRay.o.z() + indexRay.d.z() * t);
+
+                    float localDensity = gridSampler.isSample(pVdb) * m_densityScale;
+                    if (localDensity < 1e-5f) localDensity = 0.0f;
+
+                    if (localDensity > 0.0f) {
+                        Color3f local_sigma_t = m_base_sigma_t * localDensity;
+                        tr *= (Color3f(1.0f) - local_sigma_t * invMaj);
+
+                        float maxTr = std::max({tr.r(), tr.g(), tr.b()});
+
+                        if (maxTr < 1e-4f) return Color3f(0.0f);
+
+                        if (maxTr < 0.1f) {
+                            float q = std::max(0.05f, 1.0f - maxTr);
+                            if (sampler.next1D() < q) return Color3f(0.0f);
+                            tr /= (1.0f - q);
+                        }
                     }
                 }
             }
@@ -126,18 +223,15 @@ namespace gnd {
             openvdb::Vec3d indexP = m_temperatureGrid->transform().worldToIndex(vdbP);
             float tempRaw = gridSampler.isSample(indexP);
 
-            if (tempRaw <= 0.0f) return Color3f(0.0f);
+            if (tempRaw < 1e-5f) return Color3f(0.0f);
 
             float kelvin = (tempRaw * m_temperatureScale) + m_temperatureOffset;
-
             Color3f emitColor = blackbody(kelvin);
 
             return emitColor * (tempRaw * m_emissionScale);
         }
 
         Color3f sample(const Ray& ray, Sampler& sampler, MemoryArena& arena, MediumInteraction& mi) const override {
-            if (m_majorant <= 0.0f) return Color3f(1.0f);
-
             float tMax = ray.tMax;
             float t = ray.tMin;
 
@@ -154,30 +248,99 @@ namespace gnd {
             openvdb::Vec3d indexO = gridTrans.worldToIndex(vdbO);
             openvdb::Vec3d indexD = gridTrans.worldToIndex(vdbTarget) - indexO;
 
-            while (true) {
-                t += -std::log(1.0f - sampler.next1D()) * m_invMajorant;
-                if (t >= tMax) return Color3f(1.0f);
+            Ray indexRay(Point3f(indexO.x(), indexO.y(), indexO.z()),
+                         Vector3f(indexD.x(), indexD.y(), indexD.z()));
+            indexRay.tMin = t;
+            indexRay.tMax = tMax;
 
-                openvdb::Vec3d pIndex = indexO + indexD * (double)t;
-                float localDensity = gridSampler.isSample(pIndex) * m_densityScale;
+            Bounds3f gridBounds(m_gridMin, m_gridMax);
+            float hit_t0, hit_t1;
+            if (!gridBounds.rayIntersect(indexRay, &hit_t0, &hit_t1)) {
+                return Color3f(1.0f);
+            }
 
-                if (localDensity > 0.0f) {
-                    int channel = std::min(static_cast<int>(sampler.next1D() * 3.0f), 2);
+            t = std::max(t, hit_t0);
+            tMax = std::min(tMax, hit_t1);
 
-                    float prob_real_collision = localDensity * m_base_sigma_t[channel] * m_invMajorant;
+            while (t < tMax) {
+                Point3f pIndex = indexRay.o + indexRay.d * t;
 
-                    if (sampler.next1D() < prob_real_collision) {
-                        mi.p = ray.o + ray.d * t;
-                        mi.wo = -ray.d;
-                        mi.medium = this;
-                        mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
+                int cx = static_cast<int>(std::floor((pIndex.x() - m_gridMin.x()) / m_cellSizeX));
+                int cy = static_cast<int>(std::floor((pIndex.y() - m_gridMin.y()) / m_cellSizeY));
+                int cz = static_cast<int>(std::floor((pIndex.z() - m_gridMin.z()) / m_cellSizeZ));
 
-                        Color3f local_sigma_t = m_base_sigma_t * localDensity;
-                        Color3f local_sigma_s = m_base_sigma_s * localDensity;
-                        return local_sigma_s / local_sigma_t[channel];
+                cx = std::clamp(cx, 0, m_resX - 1);
+                cy = std::clamp(cy, 0, m_resY - 1);
+                cz = std::clamp(cz, 0, m_resZ - 1);
+
+                int flatIdx = cz * (m_resX * m_resY) + cy * m_resX + cx;
+                float local_maj = m_macroMajorants[flatIdx];
+
+                Point3f cMin(m_gridMin.x() + cx * m_cellSizeX,
+                             m_gridMin.y() + cy * m_cellSizeY,
+                             m_gridMin.z() + cz * m_cellSizeZ);
+                Point3f cMax(cMin.x() + m_cellSizeX,
+                             cMin.y() + m_cellSizeY,
+                             cMin.z() + m_cellSizeZ);
+                Bounds3f cellBounds(cMin, cMax);
+
+                float tExit0 = 0.0f, tExit1 = tMax;
+                if (!cellBounds.rayIntersect(indexRay, &tExit0, &tExit1)) {
+                    t += 1e-3f;
+                    continue;
+                }
+
+                float tCellExit = std::min(tExit1, tMax);
+
+                if (tCellExit <= t + 1e-6f) {
+                    t += 1e-3f;
+                    continue;
+                }
+
+                if (local_maj <= 0.0f) {
+                    t = tCellExit + 1e-4f;
+                    continue;
+                }
+
+                float invMaj = 1.0f / local_maj;
+
+                // Inner loop: same as previous version with global majorant, but on a single bbox of the macro grid
+                while (t < tCellExit) {
+                    float step = -std::log(1.0f - sampler.next1D()) * invMaj;
+                    if (step <= 0.0f) step = 1e-5f;
+
+                    if (t + step >= tCellExit) {
+                        t = tCellExit + 1e-4f;
+                        break;
+                    }
+
+                    t += step;
+
+                    openvdb::Vec3d pVdb(indexRay.o.x() + indexRay.d.x() * t,
+                                        indexRay.o.y() + indexRay.d.y() * t,
+                                        indexRay.o.z() + indexRay.d.z() * t);
+
+                    float localDensity = gridSampler.isSample(pVdb) * m_densityScale;
+                    if (localDensity < 1e-5f) localDensity = 0.0f;
+
+                    if (localDensity > 0.0f) {
+                        int channel = std::min(static_cast<int>(sampler.next1D() * 3.0f), 2);
+                        float prob_real_collision = localDensity * m_base_sigma_t[channel] * invMaj;
+
+                        if (sampler.next1D() < prob_real_collision) {
+                            mi.p = ray.o + ray.d * t;
+                            mi.wo = -ray.d;
+                            mi.medium = this;
+                            mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
+
+                            Color3f local_sigma_t = m_base_sigma_t * localDensity;
+                            Color3f local_sigma_s = m_base_sigma_s * localDensity;
+                            return local_sigma_s / local_sigma_t[channel];
+                        }
                     }
                 }
             }
+            return Color3f(1.0f);
         }
 
         virtual float getDensity(const Point3f& p) const override {
@@ -187,7 +350,8 @@ namespace gnd {
             Point3f pLocal = m_worldToLocal(p);
             openvdb::Vec3d pVdb(pLocal.x(), pLocal.y(), pLocal.z());
 
-            return gridSampler.wsSample(pVdb) * m_densityScale;
+            float density = gridSampler.wsSample(pVdb) * m_densityScale;
+            return density < 1e-5f ? 0.0f : density;
         }
 
         std::string toString() const override {
@@ -201,23 +365,20 @@ namespace gnd {
                     "    offset = {},\n"
                     "    intensity = {}\n"
                     "  ]",
-                    m_temperatureGridName,
-                    m_temperatureScale,
-                    m_temperatureOffset,
-                    m_emissionScale
+                    m_temperatureGridName, m_temperatureScale, m_temperatureOffset, m_emissionScale
                 );
             }
 
             return std::format(
                 "HeterogeneousMedium[\n"
-                "  majorant = {}\n"
+                "  macro-grid = {}x{}x{}\n"
                 "  base absorption = {}\n"
                 "  base scattering = {}\n"
                 "  base transmittance = {}\n"
                 "  anisotropy (g) = {}\n"
                 "  emission = {}\n"
                 "]",
-                m_majorant,
+                m_resX, m_resY, m_resZ,
                 m_base_sigma_a.toString(),
                 m_base_sigma_s.toString(),
                 m_base_sigma_t.toString(),
@@ -227,15 +388,20 @@ namespace gnd {
         }
 
     private:
+        // Medium data
         Color3f m_base_sigma_a;
         Color3f m_base_sigma_s;
         Color3f m_base_sigma_t;
         float m_g;
 
         Transform m_worldToLocal;
-        
-        float m_majorant;
-        float m_invMajorant;
+
+        // Macro grid (local majorants)
+        Point3f m_gridMin;
+        Point3f m_gridMax;
+        int m_resX, m_resY, m_resZ;
+        float m_cellSizeX, m_cellSizeY, m_cellSizeZ;
+        std::vector<float> m_macroMajorants;
 
         // Density grid
         openvdb::FloatGrid::Ptr m_densityGrid;
@@ -248,22 +414,18 @@ namespace gnd {
         float m_temperatureOffset;
         float m_emissionScale;
 
-        // Helper to convert Kelvin to RGB
         Color3f blackbody(float temp) const {
             if (temp <= 1000.0f) return Color3f(0.0f);
 
             temp /= 100.0f;
             float r, g, b;
 
-            // Red
             if (temp <= 66.0f) r = 255.0f;
             else r = 329.698727446f * std::pow(temp - 60.0f, -0.1332047592f);
 
-            // Green
             if (temp <= 66.0f) g = 99.4708025861f * std::log(temp) - 161.1195681661f;
             else g = 288.1221695283f * std::pow(temp - 60.0f, -0.0755148492f);
 
-            // Blue
             if (temp >= 66.0f) b = 255.0f;
             else if (temp <= 19.0f) b = 0.0f;
             else b = 138.5177312231f * std::log(temp - 10.0f) - 305.0447927307f;
