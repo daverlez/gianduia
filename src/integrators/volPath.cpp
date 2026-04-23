@@ -23,6 +23,8 @@ namespace gnd {
             Color3f tp(1.0f);
             Ray r = primaryRay;
             int bounces = 0;
+            int surfaceBounces = 0;
+            int volumeBounces = 0;
 
             float pdfPrev = 1.0f;
             bool specularBounce = true;
@@ -88,14 +90,15 @@ namespace gnd {
                     r.medium = prevMedium;
                     r.time = prevTime;
 
-                    // --- Russian Roulette ---
-                    if (bounces > 2) {
+                    // --- Russian Roulette (relaxed on volumes) ---
+                    if (volumeBounces > 6) {
                         float q = std::max(0.05f, std::min(tp.luminance(), 0.99f));
                         if (sampler.next1D() > q) break;
                         tp /= q;
                     }
 
                     bounces++;
+                    volumeBounces++;
                     continue;
                 }
 
@@ -207,13 +210,14 @@ namespace gnd {
                 r.time = isect.time;
 
                 // --- Russian Roulette ---
-                if (bounces > 2) {
+                if (surfaceBounces > 2) {
                     float q = std::max(0.05f, std::min(tp.luminance(), 0.99f));
                     if (sampler.next1D() > q) break;
                     tp /= q;
                 }
 
                 bounces++;
+                surfaceBounces++;
             }
 
             return L;

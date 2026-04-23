@@ -66,11 +66,16 @@ namespace gnd {
             m_gridMin = Point3f(bbox.min().x(), bbox.min().y(), bbox.min().z());
             m_gridMax = Point3f(bbox.max().x() + 1.0f, bbox.max().y() + 1.0f, bbox.max().z() + 1.0f);
 
-            m_resX = 16; m_resY = 16; m_resZ = 16;
-
             float extentX = m_gridMax.x() - m_gridMin.x();
             float extentY = m_gridMax.y() - m_gridMin.y();
             float extentZ = m_gridMax.z() - m_gridMin.z();
+
+            int targetRes = props.getInteger("macroRes", 32);
+            float maxExtent = std::max({extentX, extentY, extentZ});
+
+            m_resX = std::max(1, static_cast<int>(std::round(targetRes * (extentX / maxExtent))));
+            m_resY = std::max(1, static_cast<int>(std::round(targetRes * (extentY / maxExtent))));
+            m_resZ = std::max(1, static_cast<int>(std::round(targetRes * (extentZ / maxExtent))));
 
             m_cellSizeX = extentX / m_resX;
             m_cellSizeY = extentY / m_resY;
@@ -104,7 +109,7 @@ namespace gnd {
             Color3f tr(1.0f);
 
             auto accessor = m_densityGrid->getConstAccessor();
-            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::PointSampler> gridSampler(accessor, m_densityGrid->transform());
+            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_densityGrid->transform());
 
             Point3f localO = m_worldToLocal(ray.o);
             Point3f localTarget = m_worldToLocal(ray.o + ray.d);
@@ -130,81 +135,93 @@ namespace gnd {
             t = std::max(t, hit_t0);
             tMax = std::min(tMax, hit_t1);
 
+            Point3f pEntry = indexRay.o + indexRay.d * t;
+            int cx = std::clamp(static_cast<int>(std::floor((pEntry.x() - m_gridMin.x()) / m_cellSizeX)), 0, m_resX - 1);
+            int cy = std::clamp(static_cast<int>(std::floor((pEntry.y() - m_gridMin.y()) / m_cellSizeY)), 0, m_resY - 1);
+            int cz = std::clamp(static_cast<int>(std::floor((pEntry.z() - m_gridMin.z()) / m_cellSizeZ)), 0, m_resZ - 1);
+
+            int stepX = (indexRay.d.x() > 0.0f) ? 1 : -1;
+            int stepY = (indexRay.d.y() > 0.0f) ? 1 : -1;
+            int stepZ = (indexRay.d.z() > 0.0f) ? 1 : -1;
+
+            float tDeltaX = (indexRay.d.x() != 0.0f) ? std::abs(m_cellSizeX / indexRay.d.x()) : std::numeric_limits<float>::max();
+            float tDeltaY = (indexRay.d.y() != 0.0f) ? std::abs(m_cellSizeY / indexRay.d.y()) : std::numeric_limits<float>::max();
+            float tDeltaZ = (indexRay.d.z() != 0.0f) ? std::abs(m_cellSizeZ / indexRay.d.z()) : std::numeric_limits<float>::max();
+
+            float nextBoundX = m_gridMin.x() + (cx + (stepX > 0 ? 1 : 0)) * m_cellSizeX;
+            float nextBoundY = m_gridMin.y() + (cy + (stepY > 0 ? 1 : 0)) * m_cellSizeY;
+            float nextBoundZ = m_gridMin.z() + (cz + (stepZ > 0 ? 1 : 0)) * m_cellSizeZ;
+
+            float tMaxX = (indexRay.d.x() != 0.0f) ? (nextBoundX - indexRay.o.x()) / indexRay.d.x() : std::numeric_limits<float>::max();
+            float tMaxY = (indexRay.d.y() != 0.0f) ? (nextBoundY - indexRay.o.y()) / indexRay.d.y() : std::numeric_limits<float>::max();
+            float tMaxZ = (indexRay.d.z() != 0.0f) ? (nextBoundZ - indexRay.o.z()) / indexRay.d.z() : std::numeric_limits<float>::max();
+
+            if (tMaxX <= t) tMaxX += tDeltaX;
+            if (tMaxY <= t) tMaxY += tDeltaY;
+            if (tMaxZ <= t) tMaxZ += tDeltaZ;
+
             while (t < tMax) {
-                Point3f pIndex = indexRay.o + indexRay.d * t;
-
-                int cx = static_cast<int>(std::floor((pIndex.x() - m_gridMin.x()) / m_cellSizeX));
-                int cy = static_cast<int>(std::floor((pIndex.y() - m_gridMin.y()) / m_cellSizeY));
-                int cz = static_cast<int>(std::floor((pIndex.z() - m_gridMin.z()) / m_cellSizeZ));
-
-                cx = std::clamp(cx, 0, m_resX - 1);
-                cy = std::clamp(cy, 0, m_resY - 1);
-                cz = std::clamp(cz, 0, m_resZ - 1);
+                if (cx < 0 || cx >= m_resX || cy < 0 || cy >= m_resY || cz < 0 || cz >= m_resZ) break;
 
                 int flatIdx = cz * (m_resX * m_resY) + cy * m_resX + cx;
                 float local_maj = m_macroMajorants[flatIdx];
 
-                Point3f cMin(m_gridMin.x() + cx * m_cellSizeX,
-                             m_gridMin.y() + cy * m_cellSizeY,
-                             m_gridMin.z() + cz * m_cellSizeZ);
-                Point3f cMax(cMin.x() + m_cellSizeX,
-                             cMin.y() + m_cellSizeY,
-                             cMin.z() + m_cellSizeZ);
-                Bounds3f cellBounds(cMin, cMax);
+                float tCellExit = std::min({tMaxX, tMaxY, tMaxZ, tMax});
 
-                float tExit0 = 0.0f, tExit1 = tMax;
-                if (!cellBounds.rayIntersect(indexRay, &tExit0, &tExit1)) {
-                    t += 1e-3f;
-                    continue;
-                }
+                if (local_maj > 0.0f) {
+                    float invMaj = 1.0f / local_maj;
 
-                float tCellExit = std::min(tExit1, tMax);
+                    while (t < tCellExit) {
+                        float step = -std::log(1.0f - sampler.next1D()) * invMaj;
+                        if (step <= 0.0f) step = 1e-5f;
 
-                if (tCellExit <= t + 1e-6f) {
-                    t += 1e-3f;
-                    continue;
-                }
-
-                // Empty Space Skipping
-                if (local_maj <= 0.0f) {
-                    t = tCellExit + 1e-4f;
-                    continue;
-                }
-
-                float invMaj = 1.0f / local_maj;
-
-                while (t < tCellExit) {
-                    float step = -std::log(1.0f - sampler.next1D()) * invMaj;
-
-                    if (step <= 0.0f) step = 1e-5f;
-
-                    if (t + step >= tCellExit) {
-                        t = tCellExit + 1e-4f;
-                        break;
-                    }
-
-                    t += step;
-
-                    openvdb::Vec3d pVdb(indexRay.o.x() + indexRay.d.x() * t,
-                                        indexRay.o.y() + indexRay.d.y() * t,
-                                        indexRay.o.z() + indexRay.d.z() * t);
-
-                    float localDensity = gridSampler.isSample(pVdb) * m_densityScale;
-                    if (localDensity < 1e-5f) localDensity = 0.0f;
-
-                    if (localDensity > 0.0f) {
-                        Color3f local_sigma_t = m_base_sigma_t * localDensity;
-                        tr *= (Color3f(1.0f) - local_sigma_t * invMaj);
-
-                        float maxTr = std::max({tr.r(), tr.g(), tr.b()});
-
-                        if (maxTr < 1e-4f) return Color3f(0.0f);
-
-                        if (maxTr < 0.1f) {
-                            float q = std::max(0.05f, 1.0f - maxTr);
-                            if (sampler.next1D() < q) return Color3f(0.0f);
-                            tr /= (1.0f - q);
+                        if (t + step >= tCellExit) {
+                            break;
                         }
+
+                        t += step;
+
+                        openvdb::Vec3d pVdb(indexRay.o.x() + indexRay.d.x() * t,
+                                            indexRay.o.y() + indexRay.d.y() * t,
+                                            indexRay.o.z() + indexRay.d.z() * t);
+
+                        float localDensity = gridSampler.isSample(pVdb) * m_densityScale;
+                        if (localDensity < 1e-5f) localDensity = 0.0f;
+
+                        if (localDensity > 0.0f) {
+                            Color3f local_sigma_t = m_base_sigma_t * localDensity;
+                            tr *= (Color3f(1.0f) - local_sigma_t * invMaj);
+
+                            float maxTr = std::max({tr.r(), tr.g(), tr.b()});
+                            if (maxTr < 1e-4f) return Color3f(0.0f);
+
+                            if (maxTr < 0.1f) {
+                                float q = std::max(0.05f, 1.0f - maxTr);
+                                if (sampler.next1D() < q) return Color3f(0.0f);
+                                tr /= (1.0f - q);
+                            }
+                        }
+                    }
+                }
+
+                t = tCellExit;
+                if (t >= tMax) break;
+
+                if (tMaxX < tMaxY) {
+                    if (tMaxX < tMaxZ) {
+                        tMaxX += tDeltaX;
+                        cx += stepX;
+                    } else {
+                        tMaxZ += tDeltaZ;
+                        cz += stepZ;
+                    }
+                } else {
+                    if (tMaxY < tMaxZ) {
+                        tMaxY += tDeltaY;
+                        cy += stepY;
+                    } else {
+                        tMaxZ += tDeltaZ;
+                        cz += stepZ;
                     }
                 }
             }
@@ -215,7 +232,7 @@ namespace gnd {
             if (!m_temperatureGrid || m_emissionScale <= 0.0f) return Color3f(0.0f);
 
             auto accessor = m_temperatureGrid->getConstAccessor();
-            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::PointSampler> gridSampler(accessor, m_temperatureGrid->transform());
+            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_temperatureGrid->transform());
 
             Point3f localP = m_worldToLocal(pWorld);
             openvdb::Vec3d vdbP(localP.x(), localP.y(), localP.z());
@@ -236,7 +253,7 @@ namespace gnd {
             float t = ray.tMin;
 
             auto accessor = m_densityGrid->getConstAccessor();
-            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::PointSampler> gridSampler(accessor, m_densityGrid->transform());
+            openvdb::tools::GridSampler<openvdb::FloatGrid::ConstAccessor, openvdb::tools::BoxSampler> gridSampler(accessor, m_densityGrid->transform());
 
             Point3f localO = m_worldToLocal(ray.o);
             Point3f localTarget = m_worldToLocal(ray.o + ray.d);
@@ -262,81 +279,95 @@ namespace gnd {
             t = std::max(t, hit_t0);
             tMax = std::min(tMax, hit_t1);
 
+            Point3f pEntry = indexRay.o + indexRay.d * t;
+            int cx = std::clamp(static_cast<int>(std::floor((pEntry.x() - m_gridMin.x()) / m_cellSizeX)), 0, m_resX - 1);
+            int cy = std::clamp(static_cast<int>(std::floor((pEntry.y() - m_gridMin.y()) / m_cellSizeY)), 0, m_resY - 1);
+            int cz = std::clamp(static_cast<int>(std::floor((pEntry.z() - m_gridMin.z()) / m_cellSizeZ)), 0, m_resZ - 1);
+
+            int stepX = (indexRay.d.x() > 0.0f) ? 1 : -1;
+            int stepY = (indexRay.d.y() > 0.0f) ? 1 : -1;
+            int stepZ = (indexRay.d.z() > 0.0f) ? 1 : -1;
+
+            float tDeltaX = (indexRay.d.x() != 0.0f) ? std::abs(m_cellSizeX / indexRay.d.x()) : std::numeric_limits<float>::max();
+            float tDeltaY = (indexRay.d.y() != 0.0f) ? std::abs(m_cellSizeY / indexRay.d.y()) : std::numeric_limits<float>::max();
+            float tDeltaZ = (indexRay.d.z() != 0.0f) ? std::abs(m_cellSizeZ / indexRay.d.z()) : std::numeric_limits<float>::max();
+
+            float nextBoundX = m_gridMin.x() + (cx + (stepX > 0 ? 1 : 0)) * m_cellSizeX;
+            float nextBoundY = m_gridMin.y() + (cy + (stepY > 0 ? 1 : 0)) * m_cellSizeY;
+            float nextBoundZ = m_gridMin.z() + (cz + (stepZ > 0 ? 1 : 0)) * m_cellSizeZ;
+
+            float tMaxX = (indexRay.d.x() != 0.0f) ? (nextBoundX - indexRay.o.x()) / indexRay.d.x() : std::numeric_limits<float>::max();
+            float tMaxY = (indexRay.d.y() != 0.0f) ? (nextBoundY - indexRay.o.y()) / indexRay.d.y() : std::numeric_limits<float>::max();
+            float tMaxZ = (indexRay.d.z() != 0.0f) ? (nextBoundZ - indexRay.o.z()) / indexRay.d.z() : std::numeric_limits<float>::max();
+
+            if (tMaxX <= t) tMaxX += tDeltaX;
+            if (tMaxY <= t) tMaxY += tDeltaY;
+            if (tMaxZ <= t) tMaxZ += tDeltaZ;
+
             while (t < tMax) {
-                Point3f pIndex = indexRay.o + indexRay.d * t;
-
-                int cx = static_cast<int>(std::floor((pIndex.x() - m_gridMin.x()) / m_cellSizeX));
-                int cy = static_cast<int>(std::floor((pIndex.y() - m_gridMin.y()) / m_cellSizeY));
-                int cz = static_cast<int>(std::floor((pIndex.z() - m_gridMin.z()) / m_cellSizeZ));
-
-                cx = std::clamp(cx, 0, m_resX - 1);
-                cy = std::clamp(cy, 0, m_resY - 1);
-                cz = std::clamp(cz, 0, m_resZ - 1);
+                if (cx < 0 || cx >= m_resX || cy < 0 || cy >= m_resY || cz < 0 || cz >= m_resZ) break;
 
                 int flatIdx = cz * (m_resX * m_resY) + cy * m_resX + cx;
                 float local_maj = m_macroMajorants[flatIdx];
 
-                Point3f cMin(m_gridMin.x() + cx * m_cellSizeX,
-                             m_gridMin.y() + cy * m_cellSizeY,
-                             m_gridMin.z() + cz * m_cellSizeZ);
-                Point3f cMax(cMin.x() + m_cellSizeX,
-                             cMin.y() + m_cellSizeY,
-                             cMin.z() + m_cellSizeZ);
-                Bounds3f cellBounds(cMin, cMax);
+                float tCellExit = std::min({tMaxX, tMaxY, tMaxZ, tMax});
 
-                float tExit0 = 0.0f, tExit1 = tMax;
-                if (!cellBounds.rayIntersect(indexRay, &tExit0, &tExit1)) {
-                    t += 1e-3f;
-                    continue;
-                }
+                if (local_maj > 0.0f) {
+                    float invMaj = 1.0f / local_maj;
 
-                float tCellExit = std::min(tExit1, tMax);
+                    while (t < tCellExit) {
+                        float step = -std::log(1.0f - sampler.next1D()) * invMaj;
+                        if (step <= 0.0f) step = 1e-5f;
 
-                if (tCellExit <= t + 1e-6f) {
-                    t += 1e-3f;
-                    continue;
-                }
-
-                if (local_maj <= 0.0f) {
-                    t = tCellExit + 1e-4f;
-                    continue;
-                }
-
-                float invMaj = 1.0f / local_maj;
-
-                // Inner loop: same as previous version with global majorant, but on a single bbox of the macro grid
-                while (t < tCellExit) {
-                    float step = -std::log(1.0f - sampler.next1D()) * invMaj;
-                    if (step <= 0.0f) step = 1e-5f;
-
-                    if (t + step >= tCellExit) {
-                        t = tCellExit + 1e-4f;
-                        break;
-                    }
-
-                    t += step;
-
-                    openvdb::Vec3d pVdb(indexRay.o.x() + indexRay.d.x() * t,
-                                        indexRay.o.y() + indexRay.d.y() * t,
-                                        indexRay.o.z() + indexRay.d.z() * t);
-
-                    float localDensity = gridSampler.isSample(pVdb) * m_densityScale;
-                    if (localDensity < 1e-5f) localDensity = 0.0f;
-
-                    if (localDensity > 0.0f) {
-                        int channel = std::min(static_cast<int>(sampler.next1D() * 3.0f), 2);
-                        float prob_real_collision = localDensity * m_base_sigma_t[channel] * invMaj;
-
-                        if (sampler.next1D() < prob_real_collision) {
-                            mi.p = ray.o + ray.d * t;
-                            mi.wo = -ray.d;
-                            mi.medium = this;
-                            mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
-
-                            Color3f local_sigma_t = m_base_sigma_t * localDensity;
-                            Color3f local_sigma_s = m_base_sigma_s * localDensity;
-                            return local_sigma_s / local_sigma_t[channel];
+                        if (t + step >= tCellExit) {
+                            break;
                         }
+
+                        t += step;
+
+                        openvdb::Vec3d pVdb(indexRay.o.x() + indexRay.d.x() * t,
+                                            indexRay.o.y() + indexRay.d.y() * t,
+                                            indexRay.o.z() + indexRay.d.z() * t);
+
+                        float localDensity = gridSampler.isSample(pVdb) * m_densityScale;
+                        if (localDensity < 1e-5f) localDensity = 0.0f;
+
+                        if (localDensity > 0.0f) {
+                            int channel = std::min(static_cast<int>(sampler.next1D() * 3.0f), 2);
+                            float prob_real_collision = localDensity * m_base_sigma_t[channel] * invMaj;
+
+                            if (sampler.next1D() < prob_real_collision) {
+                                mi.p = ray.o + ray.d * t;
+                                mi.wo = -ray.d;
+                                mi.medium = this;
+                                mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
+
+                                Color3f local_sigma_t = m_base_sigma_t * localDensity;
+                                Color3f local_sigma_s = m_base_sigma_s * localDensity;
+                                return local_sigma_s / local_sigma_t[channel];
+                            }
+                        }
+                    }
+                }
+
+                t = tCellExit;
+                if (t >= tMax) break;
+
+                if (tMaxX < tMaxY) {
+                    if (tMaxX < tMaxZ) {
+                        tMaxX += tDeltaX;
+                        cx += stepX;
+                    } else {
+                        tMaxZ += tDeltaZ;
+                        cz += stepZ;
+                    }
+                } else {
+                    if (tMaxY < tMaxZ) {
+                        tMaxY += tDeltaY;
+                        cy += stepY;
+                    } else {
+                        tMaxZ += tDeltaZ;
+                        cz += stepZ;
                     }
                 }
             }
