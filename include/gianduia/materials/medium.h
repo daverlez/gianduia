@@ -27,6 +27,10 @@ namespace gnd {
 
         virtual Color3f Tr(const Ray& ray, Sampler& sampler) const = 0;
 
+        virtual Color3f Le(const Point3f& p) const {
+            return Color3f(0.0f);
+        }
+
         virtual Color3f sample(const Ray& ray, Sampler& sampler, MemoryArena& arena, MediumInteraction& mi) const = 0;
 
         virtual float getDensity(const Point3f& p) const = 0;

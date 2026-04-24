@@ -23,6 +23,8 @@ namespace gnd {
             Color3f tp(1.0f);
             Ray r = primaryRay;
             int bounces = 0;
+            int surfaceBounces = 0;
+            int volumeBounces = 0;
 
             float pdfPrev = 1.0f;
             bool specularBounce = true;
@@ -40,6 +42,12 @@ namespace gnd {
 
                 // --- Volumetric scattering ---
                 if (mi.isValid()) {
+                    // --- Volumetric emission ---
+                    Color3f emission = mi.medium->Le(mi.p);
+                    if (!emission.isBlack()) {
+                        L += tp * emission;
+                    }
+
                     // --- Volume NEE ---
                     float lightSelectPdf = 1.0f / scene.getEmitters().size();
                     std::shared_ptr<Emitter> emitter = scene.getRandomEmitter(sampler.next1D());
@@ -54,6 +62,7 @@ namespace gnd {
                     Li_nee /= lightSelectPdf;
 
                     if (lightPdf > 1e-6f && !Li_nee.isBlack()) {
+                        shadowRay.medium = mi.medium;
                         Color3f Tr = evaluateTr(scene, shadowRay, sampler, lightIsect.p, arena);
 
                         if (!Tr.isBlack()) {
@@ -80,11 +89,22 @@ namespace gnd {
                     r = Ray(mi.p, wi);
                     r.medium = prevMedium;
                     r.time = prevTime;
+
+                    // --- Russian Roulette (relaxed on volumes) ---
+                    if (volumeBounces > 6) {
+                        float q = std::max(0.05f, std::min(tp.luminance(), 0.99f));
+                        if (sampler.next1D() > q) break;
+                        tp /= q;
+                    }
+
                     bounces++;
+                    volumeBounces++;
                     continue;
                 }
 
                 // --- Surface scattering ---
+                const Medium* currentRayMedium = r.medium;
+
                 if (!hitSurface) {
                     Color3f Li_env(0.0f);
                     if (scene.getEnvMap()) {
@@ -157,6 +177,7 @@ namespace gnd {
                 Li_nee /= lightSelectPdf;
 
                 if (lightPdf > 1e-6f && !Li_nee.isBlack()) {
+                    shadowRay.medium = Dot(shadowRay.d, isect.n) > 0.0f ? currentRayMedium : isect.mediumInterface.inside;
                     Color3f Tr = evaluateTr(scene, shadowRay, sampler, lightIsect.p, arena);
 
                     if (!Tr.isBlack()) {
@@ -185,17 +206,18 @@ namespace gnd {
                 tp *= f_cos;
 
                 r = Ray(isect.p, wi);
-                r.medium = isect.getMedium(wi);
+                r.medium = Dot(wi, isect.n) > 0.0f ? currentRayMedium : isect.mediumInterface.inside;
                 r.time = isect.time;
 
                 // --- Russian Roulette ---
-                if (bounces > 2) {
+                if (surfaceBounces > 2) {
                     float q = std::max(0.05f, std::min(tp.luminance(), 0.99f));
                     if (sampler.next1D() > q) break;
                     tp /= q;
                 }
 
                 bounces++;
+                surfaceBounces++;
             }
 
             return L;
@@ -217,6 +239,8 @@ namespace gnd {
                 bool hit = scene.rayIntersect(r, isect);
 
                 if (r.medium) {
+                    Ray trRay = r;
+                    trRay.tMax = hit ? isect.t : r.tMax;
                     Tr *= r.medium->Tr(r, sampler);
                 }
 

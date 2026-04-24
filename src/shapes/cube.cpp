@@ -14,7 +14,7 @@ namespace gnd {
         }
 
         bool rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const override {
-            float t0 = ray.tMin;
+            float t0 = 0.0f;
             float t1 = ray.tMax;
 
             for (int i = 0; i < 3; ++i) {

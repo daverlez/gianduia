@@ -11,7 +11,7 @@ bl_info = {
 
 import bpy
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty
+from bpy.props import StringProperty, BoolProperty
 from . import exporter
 
 class ExportGianduia(bpy.types.Operator, ExportHelper):
