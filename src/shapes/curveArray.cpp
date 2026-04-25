@@ -4,6 +4,12 @@
 #include <fstream>
 #include <cstring>
 #include <algorithm>
+#include <functional>
+#include <iostream>
+#include <limits>
+
+#include <hwy/highway.h>
+namespace hn = hwy::HWY_NAMESPACE;
 
 namespace gnd {
 
@@ -46,7 +52,7 @@ namespace gnd {
         char magic[4];
         is.read(magic, 4);
         if (std::strncmp(magic, "HAIR", 4) != 0) {
-            throw std::runtime_error("CurveArraY: invalid file format for " + filename);
+            throw std::runtime_error("CurveArray: invalid file format for " + filename);
         }
 
         uint32_t count = 0;
@@ -71,6 +77,88 @@ namespace gnd {
         if (!m_nodes.empty()) {
             m_bounds = m_nodes[0].bounds;
         }
+
+        // Tree Collapsing (binary to BVH4)
+        m_nodes4.clear();
+        m_nodes4.reserve(m_nodes.size());
+
+        std::function<int(int)> buildBVH4 = [&](int binNodeIdx) -> int {
+            int bvh4Idx = (int)m_nodes4.size();
+            m_nodes4.push_back(BVHNode4());
+
+            std::vector<int> candidates = { binNodeIdx };
+
+            while(candidates.size() < 4) {
+                int bestIdx = -1;
+                float bestArea = -1.0f;
+
+                for(size_t i = 0; i < candidates.size(); ++i) {
+                    const BVHNode& c = m_nodes[candidates[i]];
+                    if (c.nPrimitives == 0) {
+                        float area = c.bounds.surfaceArea();
+                        if (area > bestArea) {
+                            bestArea = area;
+                            bestIdx = (int)i;
+                        }
+                    }
+                }
+
+                if (bestIdx == -1) break;
+
+                int expandIdx = candidates[bestIdx];
+                candidates.erase(candidates.begin() + bestIdx);
+                const BVHNode& expandNode = m_nodes[expandIdx];
+
+                candidates.push_back(expandIdx + 1);
+                candidates.push_back(expandNode.rightChildOffset);
+            }
+
+            struct ChildData {
+                uint8_t type;
+                uint32_t offset;
+                uint32_t count;
+                Bounds3f bounds;
+            };
+            std::vector<ChildData> childrenData;
+
+            for(int candIdx : candidates) {
+                const BVHNode& c = m_nodes[candIdx];
+                if (c.nPrimitives > 0) {
+                    childrenData.push_back({2, (uint32_t)c.primitivesOffset, (uint32_t)c.nPrimitives, c.bounds});
+                } else {
+                    int child4Idx = buildBVH4(candIdx);
+                    childrenData.push_back({1, (uint32_t)child4Idx, 0, c.bounds});
+                }
+            }
+
+            BVHNode4& node4 = m_nodes4[bvh4Idx];
+            for(int i = 0; i < 4; ++i) {
+                if (i < childrenData.size()) {
+                    node4.childType[i] = childrenData[i].type;
+                    node4.offset[i]    = childrenData[i].offset;
+                    node4.packCount[i] = childrenData[i].count;
+                    node4.minX[i] = childrenData[i].bounds.pMin.x();
+                    node4.minY[i] = childrenData[i].bounds.pMin.y();
+                    node4.minZ[i] = childrenData[i].bounds.pMin.z();
+                    node4.maxX[i] = childrenData[i].bounds.pMax.x();
+                    node4.maxY[i] = childrenData[i].bounds.pMax.y();
+                    node4.maxZ[i] = childrenData[i].bounds.pMax.z();
+                } else {
+                    node4.childType[i] = 0;
+                    node4.minX[i] = node4.minY[i] = node4.minZ[i] = std::numeric_limits<float>::infinity();
+                    node4.maxX[i] = node4.maxY[i] = node4.maxZ[i] = -std::numeric_limits<float>::infinity();
+                }
+            }
+            return bvh4Idx;
+        };
+
+        if (!m_nodes.empty()) {
+            buildBVH4(0);
+            m_nodes.clear();
+            m_nodes.shrink_to_fit();
+        }
+
+        std::cout << "CurveArray: BVH Collapsed into " << m_nodes4.size() << " Wide-BVH4 nodes." << std::endl;
     }
 
     Bounds3f CurveArray::getBounds() const {
@@ -78,52 +166,88 @@ namespace gnd {
     }
 
     bool CurveArray::rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const {
-        if (m_nodes.empty()) return false;
+        if (m_nodes4.empty()) return false;
 
         bool hit = false;
-        Vector3f invDir(1.0f / ray.d.x(), 1.0f / ray.d.y(), 1.0f / ray.d.z());
-        int dirIsNeg[3] = { invDir.x() < 0.0f, invDir.y() < 0.0f, invDir.z() < 0.0f };
+        int stack[64];
+        int stackPtr = 0;
+        stack[stackPtr++] = 0;
 
-        int nodesToVisit[64];
-        int toVisitOffset = 0;
-        int currentNodeIndex = 0;
+        hn::FixedTag<float, 4> d;
+        using V = hn::Vec<decltype(d)>;
+        using M = hn::Mask<decltype(d)>;
+
+        V r_ox = hn::Set(d, ray.o.x());
+        V r_oy = hn::Set(d, ray.o.y());
+        V r_oz = hn::Set(d, ray.o.z());
+
+        Vector3f invDir(1.0f / ray.d.x(), 1.0f / ray.d.y(), 1.0f / ray.d.z());
+        V r_invdx = hn::Set(d, invDir.x());
+        V r_invdy = hn::Set(d, invDir.y());
+        V r_invdz = hn::Set(d, invDir.z());
+
+        V rayTMin = hn::Set(d, ray.tMin);
+
         float tHitMax = ray.tMax;
+        V t_max_simd = hn::Set(d, tHitMax);
 
         int bestSegmentIndex = -1;
 
-        while (true) {
-            const BVHNode& node = m_nodes[currentNodeIndex];
+        while (stackPtr > 0) {
+            int nodeIdx = stack[--stackPtr];
+            const BVHNode4& node = m_nodes4[nodeIdx];
 
-            if (node.bounds.rayIntersect(ray, invDir)) {
-                if (node.nPrimitives > 0) {
-                    for (int i = 0; i < node.nPrimitives; ++i) {
-                        int segIdx = m_orderedIndices[node.primitivesOffset + i];
-                        if (intersectSegment(ray, segIdx, tHitMax, isect)) {
-                            hit = true;
-                            bestSegmentIndex = segIdx;
-                            if (predicate) return true;
+            V minX = hn::Load(d, node.minX); V minY = hn::Load(d, node.minY); V minZ = hn::Load(d, node.minZ);
+            V maxX = hn::Load(d, node.maxX); V maxY = hn::Load(d, node.maxY); V maxZ = hn::Load(d, node.maxZ);
+
+            V t1x = hn::Mul(hn::Sub(minX, r_ox), r_invdx);
+            V t2x = hn::Mul(hn::Sub(maxX, r_ox), r_invdx);
+            V tminx = hn::Min(t1x, t2x); V tmaxx = hn::Max(t1x, t2x);
+
+            V t1y = hn::Mul(hn::Sub(minY, r_oy), r_invdy);
+            V t2y = hn::Mul(hn::Sub(maxY, r_oy), r_invdy);
+            V tminy = hn::Min(t1y, t2y); V tmaxy = hn::Max(t1y, t2y);
+
+            V t1z = hn::Mul(hn::Sub(minZ, r_oz), r_invdz);
+            V t2z = hn::Mul(hn::Sub(maxZ, r_oz), r_invdz);
+            V tminz = hn::Min(t1z, t2z); V tmaxz = hn::Max(t1z, t2z);
+
+            V tmin = hn::Max(hn::Max(tminx, tminy), hn::Max(tminz, rayTMin));
+            V tmax = hn::Min(hn::Min(tmaxx, tmaxy), hn::Min(tmaxz, t_max_simd));
+
+            M validBox = hn::Le(tmin, tmax);
+
+            if (!hn::AllFalse(d, validBox)) {
+                uint8_t mask_bytes[8] = {0};
+                hn::StoreMaskBits(d, validBox, mask_bytes);
+
+                for (int i = 0; i < 4; ++i) {
+                    if ((mask_bytes[0] & (1 << i)) == 0) continue;
+
+                    if (node.childType[i] == 1) stack[stackPtr++] = node.offset[i];
+
+                    else if (node.childType[i] == 2) {
+                        int offset = node.offset[i];
+                        int count = node.packCount[i];
+
+                        for (int p = 0; p < count; ++p) {
+                            int segIdx = m_orderedIndices[offset + p];
+
+                            if (intersectSegment(ray, segIdx, tHitMax, isect)) {
+                                hit = true;
+                                bestSegmentIndex = segIdx;
+
+                                t_max_simd = hn::Set(d, tHitMax);
+
+                                if (predicate) return true;
+                            }
                         }
                     }
-                    if (toVisitOffset == 0) break;
-                    currentNodeIndex = nodesToVisit[--toVisitOffset];
-                } else {
-                    if (dirIsNeg[node.axis]) {
-                        nodesToVisit[toVisitOffset++] = currentNodeIndex + 1;
-                        currentNodeIndex = node.rightChildOffset;
-                    } else {
-                        nodesToVisit[toVisitOffset++] = node.rightChildOffset;
-                        currentNodeIndex = currentNodeIndex + 1;
-                    }
                 }
-            } else {
-                if (toVisitOffset == 0) break;
-                currentNodeIndex = nodesToVisit[--toVisitOffset];
             }
         }
 
-        if (hit && !predicate) {
-            isect.primIndex = bestSegmentIndex;
-        }
+        if (hit) isect.primIndex = bestSegmentIndex;
 
         return hit;
     }
