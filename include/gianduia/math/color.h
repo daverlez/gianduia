@@ -27,6 +27,7 @@ namespace gnd {
         float operator[](int i) const { return v[i]; }
         float& operator[](int i) { return v[i]; }
 
+        Color3f operator-() const { return Color3f(-v); }
 
         Color3f operator+(const Color3f& other) const { return Color3f(v + other.v); }
         Color3f& operator+=(const Color3f& other) { v += other.v; return *this; }

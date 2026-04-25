@@ -139,18 +139,18 @@ namespace gnd {
         isect.dpdu = seg.evaluateDerivative(uHit);
 
         Point3f curvePointObj = seg.evaluateBezier(uHit);
-        Vector3f dpdv = isect.p - curvePointObj;
+        Vector3f normalRad = isect.p - curvePointObj;
 
         float dpduLength2 = isect.dpdu.lengthSquared();
         if (dpduLength2 > 0.0f) {
-            dpdv = dpdv - isect.dpdu * (Dot(dpdv, isect.dpdu) / dpduLength2);
+            normalRad = normalRad - isect.dpdu * (Dot(normalRad, isect.dpdu) / dpduLength2);
         }
 
-        if (dpdv.lengthSquared() < 1e-6f) {
-            dpdv = Vector3f(0.0f, 1.0f, 0.0f);
+        if (normalRad.lengthSquared() < 1e-6f) {
+            normalRad = Vector3f(0.0f, 1.0f, 0.0f);
         }
 
-        isect.n = Normal3f(Normalize(dpdv));
+        isect.n = Normal3f(Normalize(normalRad));
         isect.dpdu = Normalize(isect.dpdu);
     }
 
@@ -260,7 +260,10 @@ namespace gnd {
                 if (zHit > ray.tMin && zHit < tMax) {
                     tMax = zHit;
                     isect.t = zHit;
-                    isect.uv = Point2f(uHit, 0.0f);
+                    float hHit = std::sqrt(d2) / radius;
+                    if (pProj.x() < 0.0f) hHit = -hHit;
+
+                    isect.uv = Point2f(uHit, (hHit + 1.0f) * 0.5f);
                     return true;
                 }
             }
