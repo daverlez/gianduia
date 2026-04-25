@@ -43,16 +43,6 @@ namespace gnd {
         std::vector<CurveSegment> m_segments;
 
         std::vector<BVHNode> m_nodes;
-
-        struct BVHNode4 {
-            float minX[4], minY[4], minZ[4];
-            float maxX[4], maxY[4], maxZ[4];
-
-            // 0 = Empty node, 1 = Internal node, 2 = Leaf node
-            uint8_t childType[4];
-            uint32_t offset[4];
-            uint32_t packCount[4];
-        };
         std::vector<BVHNode4> m_nodes4;
 
         std::vector<int> m_orderedIndices;

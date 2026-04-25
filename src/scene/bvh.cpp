@@ -28,83 +28,8 @@ namespace gnd {
         }
         m_primitives = std::move(orderedPrims);
 
-        // ---- Tree Collapsing (da binario a BVH4) ----
-        m_nodes4.clear();
-        m_nodes4.reserve(nodes.size());
-
-        std::function<int(int)> buildBVH4 = [&](int binNodeIdx) -> int {
-            int bvh4Idx = (int)m_nodes4.size();
-            m_nodes4.push_back(BVHNode4());
-
-            std::vector<int> candidates = { binNodeIdx };
-
-            while(candidates.size() < 4) {
-                int bestIdx = -1;
-                float bestArea = -1.0f;
-
-                for(size_t i = 0; i < candidates.size(); ++i) {
-                    const BVHNode& c = nodes[candidates[i]];
-                    if (c.nPrimitives == 0) {
-                        float area = c.bounds.surfaceArea();
-                        if (area > bestArea) {
-                            bestArea = area;
-                            bestIdx = (int)i;
-                        }
-                    }
-                }
-
-                if (bestIdx == -1) break;
-
-                int expandIdx = candidates[bestIdx];
-                candidates.erase(candidates.begin() + bestIdx);
-                const BVHNode& expandNode = nodes[expandIdx];
-
-                candidates.push_back(expandIdx + 1);
-                candidates.push_back(expandNode.rightChildOffset);
-            }
-
-            struct ChildData {
-                uint8_t type;
-                uint32_t offset;
-                uint32_t primCount;
-                Bounds3f bounds;
-            };
-            std::vector<ChildData> childrenData;
-
-            for(int candIdx : candidates) {
-                const BVHNode& c = nodes[candIdx];
-                if (c.nPrimitives > 0) {
-                    childrenData.push_back({2, (uint32_t)c.primitivesOffset, (uint32_t)c.nPrimitives, c.bounds});
-                } else {
-                    int child4Idx = buildBVH4(candIdx);
-                    childrenData.push_back({1, (uint32_t)child4Idx, 0, c.bounds});
-                }
-            }
-
-            BVHNode4& node4 = m_nodes4[bvh4Idx];
-            for(int i = 0; i < 4; ++i) {
-                if (i < childrenData.size()) {
-                    node4.childType[i] = childrenData[i].type;
-                    node4.offset[i]    = childrenData[i].offset;
-                    node4.primCount[i] = childrenData[i].primCount;
-                    node4.minX[i] = childrenData[i].bounds.pMin.x();
-                    node4.minY[i] = childrenData[i].bounds.pMin.y();
-                    node4.minZ[i] = childrenData[i].bounds.pMin.z();
-                    node4.maxX[i] = childrenData[i].bounds.pMax.x();
-                    node4.maxY[i] = childrenData[i].bounds.pMax.y();
-                    node4.maxZ[i] = childrenData[i].bounds.pMax.z();
-                } else {
-                    node4.childType[i] = 0;
-                    node4.minX[i] = node4.minY[i] = node4.minZ[i] = std::numeric_limits<float>::infinity();
-                    node4.maxX[i] = node4.maxY[i] = node4.maxZ[i] = -std::numeric_limits<float>::infinity();
-                }
-            }
-            return bvh4Idx;
-        };
-
-        if (!nodes.empty()) {
-            buildBVH4(0);
-        }
+        if (!nodes.empty())
+            m_nodes4 = BVHBuilder::buildWide(nodes);
     }
 
     bool BVH::rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool shadowRay) const {
@@ -168,7 +93,7 @@ namespace gnd {
                         stack[stackPtr++] = node.offset[i];
                     } else if (node.childType[i] == 2) {
                         int primOffset = node.offset[i];
-                        int pCount = node.primCount[i];
+                        int pCount = node.packCount[i];
 
                         for (int p = 0; p < pCount; ++p) {
                             SurfaceInteraction its;

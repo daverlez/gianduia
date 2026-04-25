@@ -106,97 +106,17 @@ namespace gnd {
             }
         }
 
-        std::cout << "Mesh: Done! Built a BVH with " << m_nodes.size()
-                  << " nodes, occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes, "
-                  "packed into " << m_trianglePacks.size() << " SIMD TrianglePacks." << std::endl;
 
         // ---- Tree Collapsing (binary BVH to BVH4)
-        m_nodes4.clear();
-        m_nodes4.reserve(m_nodes.size());
-
-        std::function<int(int)> buildBVH4 = [&](int binNodeIdx) -> int {
-            int bvh4Idx = (int)m_nodes4.size();
-            m_nodes4.push_back(BVHNode4());
-
-            std::vector<int> candidates = { binNodeIdx };
-
-            // Expanding internal nodes until there are four boxes
-            while(candidates.size() < 4) {
-                int bestIdx = -1;
-                float bestArea = -1.0f;
-
-                // Expanding biggest candidate bbox
-                for(size_t i = 0; i < candidates.size(); ++i) {
-                    const BVHNode& c = m_nodes[candidates[i]];
-                    if (c.nPrimitives == 0) {
-                        float area = c.bounds.surfaceArea();
-                        if (area > bestArea) {
-                            bestArea = area;
-                            bestIdx = (int)i;
-                        }
-                    }
-                }
-
-                if (bestIdx == -1) break;
-
-                // Substitute best candidate with children
-                int expandIdx = candidates[bestIdx];
-                candidates.erase(candidates.begin() + bestIdx);
-                const BVHNode& expandNode = m_nodes[expandIdx];
-
-                candidates.push_back(expandIdx + 1);
-                candidates.push_back(expandNode.rightChildOffset);
-            }
-
-            struct ChildData {
-                uint8_t type;
-                uint32_t offset;
-                uint32_t packCount;
-                Bounds3f bounds;
-            };
-            std::vector<ChildData> childrenData;
-
-            for(int candIdx : candidates) {
-                const BVHNode& c = m_nodes[candIdx];
-                if (c.nPrimitives > 0) {
-                    // Leaf node
-                    childrenData.push_back({2, (uint32_t)c.primitivesOffset, (uint32_t)c.nPrimitives, c.bounds});
-                } else {
-                    // Internal node
-                    int child4Idx = buildBVH4(candIdx);
-                    childrenData.push_back({1, (uint32_t)child4Idx, 0, c.bounds});
-                }
-            }
-
-            BVHNode4& node4 = m_nodes4[bvh4Idx];
-            for(int i = 0; i < 4; ++i) {
-                if (i < childrenData.size()) {
-                    node4.childType[i] = childrenData[i].type;
-                    node4.offset[i]    = childrenData[i].offset;
-                    node4.packCount[i] = childrenData[i].packCount;
-                    node4.minX[i] = childrenData[i].bounds.pMin.x();
-                    node4.minY[i] = childrenData[i].bounds.pMin.y();
-                    node4.minZ[i] = childrenData[i].bounds.pMin.z();
-                    node4.maxX[i] = childrenData[i].bounds.pMax.x();
-                    node4.maxY[i] = childrenData[i].bounds.pMax.y();
-                    node4.maxZ[i] = childrenData[i].bounds.pMax.z();
-                } else {
-                    // Empty node: degenerate bbox
-                    node4.childType[i] = 0;
-                    node4.minX[i] = node4.minY[i] = node4.minZ[i] = std::numeric_limits<float>::infinity();
-                    node4.maxX[i] = node4.maxY[i] = node4.maxZ[i] = -std::numeric_limits<float>::infinity();
-                }
-            }
-            return bvh4Idx;
-        };
-
         if (!m_nodes.empty()) {
-            buildBVH4(0);
+            m_nodes4 = BVHBuilder::buildWide(m_nodes);
             m_nodes.clear();
             m_nodes.shrink_to_fit();
         }
 
-        std::cout << "Mesh: BVH Collapsed into " << m_nodes4.size() << " Wide-BVH4 nodes." << std::endl;
+        std::cout << "Mesh: Done! Built a BVH with " << m_nodes4.size()
+                  << " wide nodes, occupying " << m_nodes4.size() * sizeof(BVHNode4) << " bytes, "
+                  "packed into " << m_trianglePacks.size() << " SIMD TrianglePacks." << std::endl;
 
         // ---- Computing CDF
         m_cdf.resize(triangleCount + 1, 0.0f);
