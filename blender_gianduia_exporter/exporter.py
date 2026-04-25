@@ -47,7 +47,15 @@ def handle_curves(root, inst, obj_eval, base_dir, meshes_dir_name, export_meshes
     else:
         ET.SubElement(prim_node, "ref", id=curve_name)
 
-    data_extractors.export_material(prim_node, obj_eval.active_material, base_dir)
+    material = None
+
+    if getattr(obj_eval, 'material_slots', None):
+        material = next((slot.material for slot in obj_eval.material_slots if slot.material), None)
+
+    if not material and getattr(obj_eval.original.data, 'materials', None):
+        material = next((m for m in obj_eval.original.data.materials if m), None)
+
+    data_extractors.export_material(prim_node, material, base_dir)
 
 def handle_light(root, inst, obj_eval, base_dir, meshes_dir_name, export_meshes):
     light = obj_eval.data

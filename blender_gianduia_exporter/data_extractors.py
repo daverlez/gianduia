@@ -257,24 +257,49 @@ def export_volume_medium(parent_node, volume_node, name="inside"):
 
 
 def export_material(prim_node, material, export_dir):
-    def fallback():
+    def log_debug(msg):
+        log_path = os.path.join(export_dir, "debug_materials.txt")
+        with open(log_path, "a") as f:
+            f.write(msg + "\n")
+
+    def fallback(reason="Unknown"):
+        shape_node = prim_node.find("shape")
+        obj_id = shape_node.get("id") if shape_node is not None else "Unknown object"
+        log_debug(f"FALLBACK for '{obj_id}': {reason}")
+
         mat_node = ET.SubElement(prim_node, "material", type="matte")
         add_color(mat_node, "albedo", 0.72, 0.72, 0.72)
 
-    if not material or not material.use_nodes:
-        return fallback()
+    if not material:
+        return fallback("Material is None (no valid slot found)")
 
-    output_node = next((n for n in material.node_tree.nodes if n.type == 'OUTPUT_MATERIAL'), None)
-    if not output_node: return fallback()
+    log_debug(f"Analyzing material: '{material.name}'")
+
+    if not material.use_nodes:
+        return fallback(f"Material '{material.name}' does not use nodes")
+
+    output_node = None
+    for n in material.node_tree.nodes:
+        if n.type == 'OUTPUT_MATERIAL':
+            surf = n.inputs.get('Surface')
+            vol = n.inputs.get('Volume')
+            if (surf and surf.is_linked) or (vol and vol.is_linked):
+                output_node = n
+                break
+
+    if not output_node:
+        return fallback(f"No node 'Material Output' found in '{material.name}'")
 
     surface_linked = output_node.inputs.get('Surface') and output_node.inputs['Surface'].is_linked
     volume_linked = output_node.inputs.get('Volume') and output_node.inputs['Volume'].is_linked
 
-    if not surface_linked and not volume_linked: return fallback()
+    if not surface_linked and not volume_linked:
+        return fallback(f"No node linked to Surface or Volume in '{material.name}'")
 
     mat_node = None
     if surface_linked:
         surface_node = output_node.inputs['Surface'].links[0].from_node
+        log_debug(f"  -> Found surface node of type: {surface_node.type}")
 
         if surface_node.type == 'BSDF_PRINCIPLED':
             sss_weight = surface_node.inputs.get('Subsurface Weight', surface_node.inputs.get('Subsurface'))
@@ -321,6 +346,46 @@ def export_material(prim_node, material, export_dir):
             export_texture_or_value(mat_node, surface_node.inputs['Color'], "R", export_dir)
             export_texture_or_value(mat_node, surface_node.inputs['Roughness'], "roughness", export_dir)
             export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+
+        elif surface_node.type == 'BSDF_HAIR_PRINCIPLED':
+            mat_node = ET.SubElement(prim_node, "material", type="hair")
+
+            if 'Roughness' in surface_node.inputs:
+                export_texture_or_value(mat_node, surface_node.inputs['Roughness'], "beta_m", export_dir)
+            if 'Radial Roughness' in surface_node.inputs:
+                export_texture_or_value(mat_node, surface_node.inputs['Radial Roughness'], "beta_n", export_dir)
+            if 'Offset' in surface_node.inputs:
+                export_texture_or_value(mat_node, surface_node.inputs['Offset'], "alpha", export_dir)
+            if 'IOR' in surface_node.inputs:
+                export_texture_or_value(mat_node, surface_node.inputs['IOR'], "eta", export_dir)
+
+            melanin_input = surface_node.inputs.get('Melanin')
+            melanin_val = melanin_input.default_value if melanin_input else 0.0
+
+            if melanin_val > 0.0001:
+                redness_input = surface_node.inputs.get('Melanin Redness')
+                redness_val = redness_input.default_value if redness_input else 0.0
+
+                eu = melanin_val * (1.0 - redness_val) * 2.0
+                ph = melanin_val * redness_val * 1.5
+
+                add_float(mat_node, "eumelanin", eu)
+                add_float(mat_node, "pheomelanin", ph)
+            else:
+                color_input = surface_node.inputs.get('Color')
+                if color_input:
+                    export_texture_or_value(mat_node, color_input, "color", export_dir)
+
+        elif surface_node.type == 'BSDF_HAIR':
+            mat_node = ET.SubElement(prim_node, "material", type="hair")
+            if 'Color' in surface_node.inputs:
+                export_texture_or_value(mat_node, surface_node.inputs['Color'], "color", export_dir)
+            if 'RoughnessU' in surface_node.inputs:
+                export_texture_or_value(mat_node, surface_node.inputs['RoughnessU'], "beta_m", export_dir)
+            if 'RoughnessV' in surface_node.inputs:
+                export_texture_or_value(mat_node, surface_node.inputs['RoughnessV'], "beta_n", export_dir)
+            if 'Offset' in surface_node.inputs:
+                export_texture_or_value(mat_node, surface_node.inputs['Offset'], "alpha", export_dir)
 
     if volume_linked:
         volume_node = output_node.inputs['Volume'].links[0].from_node
