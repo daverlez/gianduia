@@ -449,18 +449,28 @@ namespace gnd {
             m_alpha = props.getFloat("alpha", 2.0f);
             m_eta = props.getFloat("eta", 1.55f);
 
-            //   1. Direct absorption coefficient  ("sigma_a")
-            //   2. Perceptual hair colour         ("color", inverted via d'Eon fit)
-            //   3. Melanin concentrations         ("eumelanin" + "pheomelanin")
-            //   4. Default: dark brown
+            // Gradient curve parameter
+            m_tip_bias = props.getFloat("tip_bias", 2.0f);
+
             if (props.hasColor("sigma_a")) {
-                m_sigma_a = props.getColor("sigma_a");
+                // Direct absorption coefficient
+                m_sigma_a_root = props.getColor("sigma_a");
+                m_sigma_a_tip = m_sigma_a_root;
             } else if (props.hasColor("color")) {
-                m_sigma_a = SigmaAFromReflectance(props.getColor("color"), m_beta_n);
+                // Perceptual hair colour (inverted via d'Eon fit)
+                m_sigma_a_root = SigmaAFromReflectance(props.getColor("color"), m_beta_n);
+                m_sigma_a_tip = m_sigma_a_root;
+            } else if (props.hasColor("color_root")) {
+                Color3f rootColor = props.getColor("color_root", Color3f(0.1f));
+                Color3f tipColor  = props.getColor("color_tip", rootColor);
+                m_sigma_a_root = SigmaAFromReflectance(rootColor, m_beta_n);
+                m_sigma_a_tip  = SigmaAFromReflectance(tipColor, m_beta_n);
             } else {
+                // Melanin concentrations (default: dark brown)
                 float eu = props.getFloat("eumelanin", 1.3f);
                 float ph = props.getFloat("pheomelanin", 0.2f);
-                m_sigma_a = SigmaAFromConcentration(eu, ph);
+                m_sigma_a_root = SigmaAFromConcentration(eu, ph);
+                m_sigma_a_tip = m_sigma_a_root;
             }
         }
 
@@ -473,6 +483,10 @@ namespace gnd {
                           ? std::clamp(-1.f + 2.f * isect.uv.y(), -1.f, 1.f)
                           : 0.f;
 
+            float u = std::clamp(isect.uv.x(), 0.0f, 1.0f);
+            float tipWeight = std::pow(u, m_tip_bias);
+            Color3f current_sigma_a = m_sigma_a_root * (1.0f - tipWeight) + m_sigma_a_tip * tipWeight;
+
             Normal3f shadingNormal = isect.n;
             Vector3f shadingTangent = isect.dpdu;
             isect.n = Normal3f(shadingTangent);
@@ -480,30 +494,32 @@ namespace gnd {
 
             isect.bsdf = arena.create<BSDF>(isect, m_eta);
             isect.bsdf->add(arena.create<HairBxDF>(
-                h, m_eta, m_sigma_a, m_beta_m, m_beta_n, m_alpha));
+                h, m_eta, current_sigma_a, m_beta_m, m_beta_n, m_alpha));
         }
 
-        Color3f getAlbedo(const SurfaceInteraction & /*isect*/) const override {
-            return ColorExp(-m_sigma_a);
+        Color3f getAlbedo(const SurfaceInteraction &) const override {
+            return ColorExp(-m_sigma_a_root);
         }
 
         std::string toString() const override {
             return std::format(
                 "HairMaterial[\n"
                 "  eta     = {}\n"
-                "  sigma_a = ({}, {}, {})\n"
+                "  sigma_a = {}\n"
                 "  beta_m  = {}\n"
                 "  beta_n  = {}\n"
                 "  alpha   = {} degrees\n"
                 "]",
                 m_eta,
-                m_sigma_a.r(), m_sigma_a.g(), m_sigma_a.b(),
+                m_sigma_a_root.toString(),
                 m_beta_m, m_beta_n, m_alpha);
         }
 
     private:
         float m_eta;
-        Color3f m_sigma_a;
+        Color3f m_sigma_a_root;
+        Color3f m_sigma_a_tip;
+        float m_tip_bias;
         float m_beta_m;
         float m_beta_n;
         float m_alpha;
