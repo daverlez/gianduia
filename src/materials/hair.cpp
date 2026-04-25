@@ -24,23 +24,26 @@ namespace gnd {
             return Color3f(std::exp(c.r()), std::exp(c.g()), std::exp(c.b()));
         }
 
+        // Fast polynomial approximation for Bessel function
         float I0(float x) {
-            float val = 0.f;
-            float x2i = 1.f;
-            int64_t ifact = 1;
-            int i4 = 1;
-            for (int i = 0; i < 10; ++i) {
-                if (i > 1) ifact *= i;
-                val += x2i / static_cast<float>(i4 * ifact * ifact);
-                x2i *= x * x;
-                i4 *= 4;
+            float ax = std::abs(x);
+            if (ax < 3.75f) {
+                float y = x / 3.75f;
+                y *= y;
+                return 1.0f + y * (3.5156229f + y * (3.0899424f + y * (1.2067492f
+                            + y * (0.2659732f + y * (0.0360768f + y * 0.0045813f)))));
             }
-            return val;
+            float y = 3.75f / ax;
+            return (std::exp(ax) / std::sqrt(ax)) * (0.39894228f + y * (0.01328592f
+                 + y * (0.00225319f + y * (-0.00157565f + y * (0.00916281f
+                 + y * (-0.02057706f + y * (0.02635537f + y * (-0.01647633f
+                 + y * 0.00392377f))))))));
         }
 
         float LogI0(float x) {
             if (x > 12.f)
                 return x + 0.5f * (-std::log(TwoPi) + std::log(1.f / x) + 1.f / (8.f * x));
+
             return std::log(I0(x));
         }
 
@@ -133,8 +136,8 @@ namespace gnd {
           m_gammaO(std::asin(std::clamp(h, -1.f, 1.f))),
           m_eta(eta),
           m_sigma_a(sigma_a),
-          m_beta_m(beta_m),
-          m_beta_n(beta_n),
+          m_beta_m(std::max(1e-3f, beta_m)),
+          m_beta_n(std::max(1e-3f, beta_n)),
           m_alpha(alpha) {
 
         // Longitudinal variances (empirical fit from d'Eon 2011)
@@ -168,7 +171,8 @@ namespace gnd {
         float cosTheta = cosThetaO * cosGammaO;
         float f = FrDielectric(cosTheta, 1.f, m_eta);
 
-        Color3f T = ColorExp(m_sigma_a * (-2.f * cosGammaT / cosThetaT));
+        float safeCosThetaT = std::max(cosThetaT, 1e-5f);
+        Color3f T = ColorExp(m_sigma_a * (-2.f * cosGammaT / safeCosThetaT));
 
         ap[0] = Color3f(f);
         ap[1] = Sqr(1.f - f) * T;
@@ -177,11 +181,9 @@ namespace gnd {
             ap[p] = ap[p - 1] * f * T;
 
         for (int ch = 0; ch < 3; ++ch) {
-            float ft = f * T[ch];
+            float ft = std::min(f * T[ch], 0.999f);
             float denom = 1.f - ft;
-            ap[pMax][ch] = (std::abs(denom) > 1e-5f)
-                               ? ap[pMax - 1][ch] * ft / denom
-                               : 0.f;
+            ap[pMax][ch] = ap[pMax - 1][ch] * ft / denom;
         }
 
         return ap;
@@ -263,7 +265,12 @@ namespace gnd {
         float phi = phiI - phiO;
         Color3f fsum(0.f);
 
+        constexpr float pruningThreshold = 1e-5f;
+
         for (int p = 0; p < pMax; ++p) {
+            // Lobe pruning
+            if (ap[p].luminance() < pruningThreshold) continue;
+
             float sinThetaOp, cosThetaOp;
             tiltedAngles(p, sinThetaO, cosThetaO, sinThetaOp, cosThetaOp);
 
@@ -273,11 +280,18 @@ namespace gnd {
         }
 
         // Residual lobe: uniform azimuthal distribution
-        fsum += ap[pMax]
-                * Mp(cosThetaI, cosThetaO, sinThetaI, sinThetaO, m_v[pMax])
-                * (0.5f * InvPi);
+        if (ap[pMax].luminance() >= pruningThreshold)
+            fsum += ap[pMax]
+                    * Mp(cosThetaI, cosThetaO, sinThetaI, sinThetaO, m_v[pMax])
+                    * (0.5f * InvPi);
 
-        return fsum / std::abs(sinThetaI);
+        Color3f res = fsum / std::abs(sinThetaI);
+
+        if (res.hasNaNs() || std::isinf(res.luminance())) {
+            return Color3f(0.f);
+        }
+
+        return res;
     }
 
     float HairBxDF::pdf(const Vector3f &wo, const Vector3f &wi) const {
@@ -309,7 +323,11 @@ namespace gnd {
         float phi = phiI - phiO;
         float pdfSum = 0.f;
 
+        const float pruningThreshold = 1e-5f;
+
         for (int p = 0; p < pMax; ++p) {
+            if (ap[p].luminance() < pruningThreshold) continue;
+
             float sinThetaOp, cosThetaOp;
             tiltedAngles(p, sinThetaO, cosThetaO, sinThetaOp, cosThetaOp);
 
@@ -319,9 +337,14 @@ namespace gnd {
         }
 
         // Residual lobe: uniform on the sphere
-        pdfSum += apPdf[pMax]
-                * Mp(cosThetaI, cosThetaO, sinThetaI, sinThetaO, m_v[pMax])
-                * (0.5f * InvPi);
+        if (ap[pMax].luminance() >= pruningThreshold)
+            pdfSum += apPdf[pMax]
+                    * Mp(cosThetaI, cosThetaO, sinThetaI, sinThetaO, m_v[pMax])
+                    * (0.5f * InvPi);
+
+        if (std::isnan(pdfSum) || std::isinf(pdfSum)) {
+            return 0.f;
+        }
 
         return pdfSum;
     }
@@ -359,7 +382,9 @@ namespace gnd {
             }
             remapUc -= apPdf[i];
         }
-        float uFilament = std::clamp(remapUc / apPdf[p], 0.f, 1.f - 1e-5f);
+        float uFilament = (apPdf[p] > 0.f)
+                          ? std::clamp(remapUc / apPdf[p], 0.f, 1.f - 1e-5f)
+                          : 0.f;
 
         // Sample the longitudinal angle thetaI
         float sinThetaOp, cosThetaOp;
@@ -367,13 +392,15 @@ namespace gnd {
 
         float u1 = sample.x();
         float expTerm = (m_v[p] <= 0.1f) ? std::exp(-2.f / m_v[p]) : 0.f;
-        float cosTheta = 1.f + m_v[p] * std::log(u1 + (1.f - u1) * expTerm);
+        float logArg = std::max(u1 + (1.f - u1) * expTerm, 1e-7f);
+        float cosTheta = 1.f + m_v[p] * std::log(logArg);
         cosTheta = std::clamp(cosTheta, -1.f, 1.f);
         float sinTheta = SafeSqrt(1.f - Sqr(cosTheta));
 
         // uFilament drives the azimuthal rotation within the longitudinal cone
         float cosPhi_mp = std::cos(TwoPi * uFilament);
         float sinThetaI = -cosTheta * sinThetaOp + sinTheta * cosPhi_mp * cosThetaOp;
+        sinThetaI = std::clamp(sinThetaI, -1.f, 1.f);
         float cosThetaI = SafeSqrt(1.f - Sqr(sinThetaI));
 
         // Sample the azimuthal angle theta
@@ -389,6 +416,7 @@ namespace gnd {
         wi = Vector3f(cosThetaI * std::cos(phiI),
                       cosThetaI * std::sin(phiI),
                       sinThetaI);
+        wi = Normalize(wi);
 
         pdfOut = pdf(wo, wi);
 
