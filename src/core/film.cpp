@@ -27,39 +27,18 @@ namespace gnd {
     }
 
     Film::Film(const std::string& exrAbsolutePath) {
-        try {
-            Imf::InputFile file(exrAbsolutePath.c_str());
-            Imath::Box2i dw = file.header().dataWindow();
-
-            m_width = dw.max.x - dw.min.x + 1;
-            m_height = dw.max.y - dw.min.y + 1;
-
-            m_accumData = std::make_unique<AccumPixel[]>(m_width * m_height);
-            m_radiance.resize(m_width, m_height, Color3f(0.0f));
-            m_albedo.resize(m_width, m_height, Color3f(0.0f));
-            m_normal.resize(m_width, m_height, Normal3f(0.0f));
-
-            Imf::FrameBuffer frameBuffer;
-            char* base = (char*)m_radiance.data();
-
-            int dx = dw.min.x;
-            int dy = dw.min.y;
-            size_t xStride = sizeof(Color3f);
-            size_t yStride = m_width * sizeof(Color3f);
-            base = base - dx * xStride - dy * yStride;
-
-            frameBuffer.insert("R", Imf::Slice(Imf::FLOAT, base, xStride, yStride));
-            frameBuffer.insert("G", Imf::Slice(Imf::FLOAT, base + sizeof(float), xStride, yStride));
-            frameBuffer.insert("B", Imf::Slice(Imf::FLOAT, base + 2 * sizeof(float), xStride, yStride));
-
-            file.setFrameBuffer(frameBuffer);
-            file.readPixels(dw.min.y, dw.max.y);
-
-            m_filter = std::make_shared<GaussianFilter>(PropertyList());
-
-        } catch (const std::exception &e) {
-            throw std::runtime_error("Film: Error while loading EXR path " + exrAbsolutePath + ": " + e.what());
+        if (!m_radiance.loadEXR(exrAbsolutePath)) {
+            throw std::runtime_error("Film: Failed to load EXR from " + exrAbsolutePath);
         }
+
+        m_width = m_radiance.width();
+        m_height = m_radiance.height();
+
+        m_accumData = std::make_unique<AccumPixel[]>(m_width * m_height);
+        m_albedo.resize(m_width, m_height, Color3f(0.0f));
+        m_normal.resize(m_width, m_height, Normal3f(0.0f));
+
+        m_filter = std::make_shared<GaussianFilter>(PropertyList());
     }
 
     void Film::resolve() {

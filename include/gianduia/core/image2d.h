@@ -10,6 +10,7 @@
 #include "gianduia/math/geometry.h"
 
 #include <OpenEXR/ImfOutputFile.h>
+#include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfHeader.h>
 #include <OpenEXR/ImfFrameBuffer.h>
@@ -90,6 +91,44 @@ namespace gnd {
                 std::cout << "Saved AOV: " << filename << std::endl;
             } catch (const std::exception &e) {
                 std::cerr << "EXR Error: " << e.what() << std::endl;
+            }
+        }
+
+        bool loadEXR(const std::string& filename) {
+            try {
+                Imf::InputFile file(filename.c_str());
+                Imath::Box2i dw = file.header().dataWindow();
+
+                int newWidth = dw.max.x - dw.min.x + 1;
+                int newHeight = dw.max.y - dw.min.y + 1;
+                resize(newWidth, newHeight);
+
+                Imf::FrameBuffer frameBuffer;
+                char* base = (char*)m_pixels.data();
+
+                int dx = dw.min.x;
+                int dy = dw.min.y;
+                size_t xStride = sizeof(T);
+                size_t yStride = m_width * sizeof(T);
+
+                base = base - dx * xStride - dy * yStride;
+
+                if constexpr (IsVector3<T>) {
+                    frameBuffer.insert("R", Imf::Slice(Imf::FLOAT, base, xStride, yStride));
+                    frameBuffer.insert("G", Imf::Slice(Imf::FLOAT, base + sizeof(float), xStride, yStride));
+                    frameBuffer.insert("B", Imf::Slice(Imf::FLOAT, base + 2 * sizeof(float), xStride, yStride));
+                }
+                else if constexpr (IsScalar<T>) {
+                    frameBuffer.insert("Y", Imf::Slice(Imf::FLOAT, base, xStride, yStride));
+                }
+                file.setFrameBuffer(frameBuffer);
+                file.readPixels(dw.min.y, dw.max.y);
+
+                std::cout << "Loaded AOV: " << filename << std::endl;
+                return true;
+            } catch (const std::exception &e) {
+                std::cerr << "EXR Load Error (" << filename << "): " << e.what() << std::endl;
+                return false;
             }
         }
 
