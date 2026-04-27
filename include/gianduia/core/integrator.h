@@ -2,7 +2,7 @@
 #include <gianduia/core/object.h>
 #include <gianduia/core/sampler.h>
 #include <gianduia/scene/scene.h>
-#include <gianduia/core/bitmap.h>
+#include <gianduia/core/film.h>
 
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
@@ -21,13 +21,13 @@ namespace gnd {
         virtual void render(Scene *scene) = 0;
         virtual void cancel() { m_stopRequested = true; }
 
-        using RenderCallback = std::function<void(int sampleIndex, const Bitmap& film)>;
+        using RenderCallback = std::function<void(int sampleIndex, const Film& film)>;
         void setCallback(RenderCallback cb) { m_callback = cb; }
 
         EClassType getClassType() const override { return EIntegrator; }
 
     protected:
-        void notifyUpdate(int sampleIndex, const Bitmap& film) {
+        void notifyUpdate(int sampleIndex, const Film& film) {
             if (m_callback && !m_stopRequested) {
                 m_callback(sampleIndex, film);
             }
@@ -42,7 +42,7 @@ namespace gnd {
     public:
         SamplerIntegrator(const PropertyList& props) { }
 
-        virtual Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo = nullptr, Color3f* outNormal = nullptr) const = 0;
+        virtual Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo = nullptr, Normal3f* outNormal = nullptr) const = 0;
 
         void render(Scene *scene) override {
             m_stopRequested = false;
@@ -55,7 +55,7 @@ namespace gnd {
             int width = camera->getWidth();
             int height = camera->getHeight();
 
-            Bitmap* film = camera->getFilm();
+            Film* film = camera->getFilm();
             film->clear();
 
             std::cout << "Rendering started..." << std::endl;
@@ -122,7 +122,7 @@ namespace gnd {
                             Ray ray;
                             float rayWeight = camera->shootRay(camSample, &ray);
                             Color3f sampleAlbedo(0.0f);
-                            Color3f sampleNormal(0.0f);
+                            Normal3f sampleNormal(0.0f);
 
                             Color3f rawColor = Li(ray, *scene, threadSampler, threadArena, &sampleAlbedo, &sampleNormal);
                             rawColor *= rayWeight;

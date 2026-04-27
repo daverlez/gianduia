@@ -1,6 +1,6 @@
 #pragma once
 #include <glad/glad.h>
-#include <gianduia/core/bitmap.h>
+#include <gianduia/core/film.h>
 
 class glTexture {
 public:
@@ -11,8 +11,8 @@ public:
         if (id) glDeleteTextures(1, &id);
     }
 
-    void update(gnd::Bitmap& bitmap) {
-        update(bitmap.width(), bitmap.height(), bitmap.data());
+    void update(gnd::Film& film) {
+        update(film.width(), film.height(), reinterpret_cast<float*>(film.getRadiance().data()));
     }
 
     void update(int _width, int _height, const float* data) {

@@ -34,7 +34,7 @@ private:
     void loadScene(const std::string& path);
     void startRender();
 
-    void onRenderUpdate(int sample, const gnd::Bitmap& film);
+    void onRenderUpdate(int sample, const gnd::Film& film);
 
 private:
     enum class ViewMode {

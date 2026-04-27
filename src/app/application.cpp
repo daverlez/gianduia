@@ -89,11 +89,11 @@ void Application::run() {
                 auto film = m_scene->getCamera()->getFilm();
 
                 if (m_viewMode == ViewMode::Beauty) {
-                    m_texture.update(film->width(), film->height(), film->data());
+                    m_texture.update(film->width(), film->height(), reinterpret_cast<float*>(film->getRadiance().data()));
                 } else if (m_viewMode == ViewMode::Albedo) {
-                    m_texture.update(film->width(), film->height(), film->albedoData());
+                    m_texture.update(film->width(), film->height(), reinterpret_cast<float*>(film->getAlbedo().data()));
                 } else if (m_viewMode == ViewMode::Normal) {
-                    m_texture.update(film->width(), film->height(), film->normalData());
+                    m_texture.update(film->width(), film->height(), reinterpret_cast<float*>(film->getNormal().data()));
                 }
             }
             m_textureDirty = false;
@@ -263,7 +263,7 @@ void Application::startRender() {
     m_renderTime = 0.0;
 
     if (auto integrator = m_scene->getIntegrator()) {
-        integrator->setCallback([this](int sample, const gnd::Bitmap& film) {
+        integrator->setCallback([this](int sample, const gnd::Film& film) {
              this->onRenderUpdate(sample, film);
         });
     }
@@ -282,7 +282,7 @@ void Application::cancelRender() {
     }
 }
 
-void Application::onRenderUpdate(int sample, const gnd::Bitmap& film) {
+void Application::onRenderUpdate(int sample, const gnd::Film& film) {
     std::lock_guard<std::mutex> lock(m_textureMutex);
     m_currentSample = sample + 1;
     m_textureDirty = true;

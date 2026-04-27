@@ -4,7 +4,7 @@
 #include <gianduia/math/transform.h>
 #include <gianduia/math/geometry.h>
 #include <gianduia/math/animated.h>
-#include <gianduia/core/bitmap.h>
+#include <gianduia/core/film.h>
 
 namespace gnd {
 
@@ -36,7 +36,7 @@ namespace gnd {
         int getWidth() const { return m_outputWidth; }
         int getHeight() const { return m_outputHeight; }
         float getAspectRatio() const { return m_outputWidth / (float)m_outputHeight; }
-        Bitmap* getFilm() const { return m_film.get(); }
+        Film* getFilm() const { return m_film.get(); }
 
         EClassType getClassType() const override { return ECamera; }
 
@@ -44,21 +44,21 @@ namespace gnd {
             if (child->getClassType() == EFilter) {
                 if (m_film)
                     throw std::runtime_error("Camera: cannot define multiple films!");
-                m_film = std::make_unique<Bitmap>(m_outputWidth, m_outputHeight,
+                m_film = std::make_unique<Film>(m_outputWidth, m_outputHeight,
                             std::static_pointer_cast<Filter>(child));
             }
         }
 
         void activate() {
             if (!m_film)
-                m_film = std::make_unique<Bitmap>(m_outputWidth, m_outputHeight);
+                m_film = std::make_unique<Film>(m_outputWidth, m_outputHeight);
         }
 
     protected:
         AnimatedTransform m_cameraToWorld;
         int m_outputWidth;
         int m_outputHeight;
-        std::unique_ptr<Bitmap> m_film;
+        std::unique_ptr<Film> m_film;
     };
 
 }

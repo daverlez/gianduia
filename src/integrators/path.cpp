@@ -9,7 +9,7 @@ namespace gnd {
             maxDepth = props.getInteger("maxDepth", 1000);
         }
 
-        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo, Color3f* outNormal) const override {
+        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo, Normal3f* outNormal) const override {
             auto powerHeuristic = [](int nf, float fPdf, int ng, float gPdf) -> float {
                 float f = nf * fPdf; float g = ng * gPdf;
                 float denom = (f * f) + (g * g);
@@ -27,7 +27,7 @@ namespace gnd {
 
                     if (needsGBuffer) {
                         if (outAlbedo) *outAlbedo = L;
-                        if (outNormal) *outNormal = Color3f(0.0f);
+                        if (outNormal) *outNormal = Normal3f(0.0f);
                         needsGBuffer = false;
                     }
                 }
@@ -45,7 +45,7 @@ namespace gnd {
                     if (outAlbedo) *outAlbedo = primaryIsect.primitive->getMaterial()->getAlbedo(primaryIsect);
                     if (outNormal) {
                         Normal3f n = primaryIsect.n / 2.0f + Normal3f(0.5f);
-                        *outNormal = Color3f(n.x(), n.y(), n.z());
+                        *outNormal = n;
                     }
                     needsGBuffer = false;
                 }
@@ -120,7 +120,7 @@ namespace gnd {
 
                         if (needsGBuffer) {
                             if (outAlbedo) *outAlbedo = Li_env;
-                            if (outNormal) *outNormal = Color3f(0.0f);
+                            if (outNormal) *outNormal = Normal3f(0.0f);
                             needsGBuffer = false;
                         }
                     }
@@ -159,14 +159,14 @@ namespace gnd {
                         if (outAlbedo) *outAlbedo = isect.primitive->getMaterial()->getAlbedo(isect);
                         if (outNormal) {
                             Normal3f n = isect.n / 2.0f + Normal3f(0.5f);
-                            *outNormal = Color3f(n.x(), n.y(), n.z());
+                            *outNormal = n;
                         }
                         needsGBuffer = false;
                     } else if (bounces == maxDepth - 1) {
                         if (outAlbedo) *outAlbedo = isect.primitive->getMaterial()->getAlbedo(isect);
                         if (outNormal) {
                             Normal3f n = isect.n / 2.0f + Normal3f(0.5f);
-                            *outNormal = Color3f(n.x(), n.y(), n.z());
+                            *outNormal = n;
                         }
                         needsGBuffer = false;
                     }
