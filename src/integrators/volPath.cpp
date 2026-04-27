@@ -190,7 +190,7 @@ namespace gnd {
                             float p_bsdf = emitter->isDelta() ? 0.0f : bsdfPdf;
                             float weightLight = powerHeuristic(1, p_light, 1, p_bsdf);
 
-                            L += tp * f * Li_nee * weightLight * Tr;
+                            L += tp * f * Li_nee * std::abs(Dot(isect.n, wi)) * weightLight * Tr;
                         }
                     }
                 }
