@@ -11,9 +11,11 @@ namespace gnd {
         BSDF(const SurfaceInteraction& isect, float eta = 1.0f);
 
         /// Adds a lobe previously allocated in the memory arena
-        void add(BxDF* bxdf) {
+        void add(BxDF* bxdf, float sampleWeight = 1.0f) {
             if (m_numBxDFs < MaxBxDFs) {
-                m_bxdfs[m_numBxDFs++] = bxdf;
+                m_bxdfs[m_numBxDFs] = bxdf;
+                m_weights[m_numBxDFs] = sampleWeight;
+                m_numBxDFs++;
             }
         }
 
@@ -55,6 +57,7 @@ namespace gnd {
         static constexpr int MaxBxDFs = 8;
         int m_numBxDFs = 0;
         BxDF* m_bxdfs[MaxBxDFs];
+        float m_weights[MaxBxDFs];
     };
 
 }

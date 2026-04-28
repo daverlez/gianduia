@@ -22,12 +22,18 @@ namespace gnd {
 
         /// PDF of sampling wh given known direction wo
         virtual float pdf(const Vector3f& wo, const Vector3f& wh) const = 0;
+
+        static float roughnessToAlpha(float roughness) {
+            roughness = std::max(roughness, 1e-3f);
+            return roughness * roughness;
+        }
     };
 
 
     class TrowbridgeReitzDistribution : public MicrofacetDistribution {
     public:
-        TrowbridgeReitzDistribution(float alpha) : m_alpha(std::max(1e-4f, alpha)) {}
+        explicit TrowbridgeReitzDistribution(float alphaX, float alphaY = alphaX)
+            : m_alphaX(std::max(1e-4f, alphaX)), m_alphaY(std::max(1e-4f, alphaY)) {}
 
         float D(const Vector3f& wh) const override;
         float G(const Vector3f& wo, const Vector3f& wi) const override;
@@ -35,10 +41,19 @@ namespace gnd {
         Vector3f sample_wh(const Vector3f& wo, const Point2f& sample) const override;
         float pdf(const Vector3f& wo, const Vector3f& wh) const override;
 
-        static float roughnessToAlpha(float roughness) {
-            roughness = std::max(roughness, 1e-3f);
-            return roughness * roughness;
-        }
+    private:
+        float m_alphaX, m_alphaY;
+    };
+
+    class GTR1Distribution : public MicrofacetDistribution {
+    public:
+        explicit GTR1Distribution(float alpha) : m_alpha(std::clamp(alpha, 1e-4f, 0.999f)) {}
+
+        float D(const Vector3f& wh) const override;
+        float G(const Vector3f& wo, const Vector3f& wi) const override;
+        float G1(const Vector3f& w) const override;
+        Vector3f sample_wh(const Vector3f& wo, const Point2f& sample) const override;
+        float pdf(const Vector3f& wo, const Vector3f& wh) const override;
 
     private:
         float m_alpha;
