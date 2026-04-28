@@ -25,7 +25,7 @@ namespace gnd {
         float Fss = (1.0f + (FSS90 - 1.0f) * Fi) * (1.0f + (FSS90 - 1.0f) * Fo);
         float fSubsurface = 1.25f * (Fss * (1.0f / (cosThetaO + cosThetaI) - 0.5f) + 0.5f);
 
-        return m_weight * InvPi * m_R * Lerp(m_subsurface, fDiffuse, fSubsurface);
+        return InvPi * m_R * Lerp(m_subsurface, fDiffuse, fSubsurface);
     }
 
     float DisneyDiffuseBxDF::pdf(const Vector3f& wo, const Vector3f& wi) const {
@@ -115,6 +115,81 @@ namespace gnd {
         return f(wo, wi);
     }
 
+
+    // Specular transmission lobe
+
+    Color3f DisneyTransmissionBxDF::f(const Vector3f& wo, const Vector3f& wi) const {
+        if (wo.z() * wi.z() >= 0.0f) return Color3f(0.0f);
+
+        bool entering = wo.z() > 0.0f;
+        float etaI = entering ? m_etaExt : m_etaInt;
+        float etaT = entering ? m_etaInt : m_etaExt;
+
+        Vector3f wh = Normalize(wo * etaI + wi * etaT);
+        if (wh.z() < 0.0f) wh = -wh;
+
+        float dotO = Dot(wo, wh);
+        float dotI = Dot(wi, wh);
+
+        if (dotO * dotI > 0.0f) return Color3f(0.0f);
+
+        float F = FrDielectric(dotO, m_etaExt, m_etaInt);
+        float D = m_distrib->D(wh);
+        float G = m_distrib->G(wo, wi);
+
+        float denom = (etaI * dotO + etaT * dotI);
+        denom *= denom;
+
+        float factor = std::abs(dotO * dotI) / std::abs(wo.z() * wi.z());
+        return m_T * factor * (etaI * etaI) * D * G * (1.0f - F) / denom;
+    }
+
+    float DisneyTransmissionBxDF::pdf(const Vector3f& wo, const Vector3f& wi) const {
+        if (wo.z() * wi.z() >= 0.0f) return 0.0f;
+
+        bool entering = wo.z() > 0.0f;
+        float etaI = entering ? m_etaExt : m_etaInt;
+        float etaT = entering ? m_etaInt : m_etaExt;
+
+        Vector3f wh = Normalize(wo * etaI + wi * etaT);
+        if (wh.z() < 0.0f) wh = -wh;
+
+        float dotO = Dot(wo, wh);
+        float dotI = Dot(wi, wh);
+        if (dotO * dotI > 0.0f) return 0.0f;
+
+        float F = FrDielectric(dotO, m_etaExt, m_etaInt);
+        float pdf_wh = m_distrib->pdf(wo, wh);
+
+        float denom = (etaI * dotO + etaT * dotI);
+        float dwh_dwi = (etaT * etaT * std::abs(dotI)) / (denom * denom);
+
+        return (1.0f - F) * pdf_wh * dwh_dwi;
+    }
+
+    Color3f DisneyTransmissionBxDF::sample(const Vector3f& wo, Vector3f& wi, const Point2f& sample, float uc, float& pdf, BxDFType* sampledType) const {
+        if (std::abs(wo.z()) < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
+
+        Vector3f wh = m_distrib->sample_wh(wo, sample);
+        float dotO = Dot(wo, wh);
+        if (dotO <= 0.0f) { pdf = 0.0f; return Color3f(0.0f); }
+
+        bool entering = wo.z() > 0.0f;
+        float etaI = entering ? m_etaExt : m_etaInt;
+        float etaT = entering ? m_etaInt : m_etaExt;
+
+        Normal3f n_wh(wh.x(), wh.y(), wh.z());
+
+        if (!Refract(wo, n_wh, etaI / etaT, &wi)) { pdf = 0.0f; return Color3f(0.0f); }
+        if (wo.z() * wi.z() > 0.0f) { pdf = 0.0f; return Color3f(0.0f); }
+
+        if (sampledType) *sampledType = type;
+        pdf = this->pdf(wo, wi);
+
+        return f(wo, wi);
+    }
+
+
     class DisneyMaterial : public Material {
     public:
         DisneyMaterial(const PropertyList& props) {
@@ -142,6 +217,7 @@ namespace gnd {
             loadFloat("metallic", m_metallic);
             loadFloat("roughness", m_roughness);
             loadFloat("specular", m_specular);
+            loadFloat("specularTransmission", m_specularTransmission);
             loadFloat("specularTint", m_specularTint);
             loadFloat("anisotropic", m_anisotropic);
             loadFloat("sheen", m_sheen);
@@ -150,6 +226,7 @@ namespace gnd {
             loadFloat("clearcoatGloss", m_clearcoatGloss);
 
             m_subsurface = props.getFloat("subsurface", 0.0f);
+            m_eta = props.getFloat("eta", 1.4f);
         }
 
         void addChild(std::shared_ptr<GndObject> child) override {
@@ -169,6 +246,7 @@ namespace gnd {
             CHECK_AND_ADD_FLOAT("metallic", m_metallic)
             CHECK_AND_ADD_FLOAT("roughness", m_roughness)
             CHECK_AND_ADD_FLOAT("specular", m_specular)
+            CHECK_AND_ADD_FLOAT("specularTransmission", m_specularTransmission)
             CHECK_AND_ADD_FLOAT("specularTint", m_specularTint)
             CHECK_AND_ADD_FLOAT("anisotropic", m_anisotropic)
             CHECK_AND_ADD_FLOAT("sheen", m_sheen)
@@ -205,6 +283,7 @@ namespace gnd {
             ensureFloat(m_metallic, 0.0f);
             ensureFloat(m_roughness, 0.5f);
             ensureFloat(m_specular, 0.5f);
+            ensureFloat(m_specularTransmission, 0.0f);
             ensureFloat(m_specularTint, 0.0f);
             ensureFloat(m_anisotropic, 0.0f);
             ensureFloat(m_sheen, 0.0f);
@@ -220,19 +299,22 @@ namespace gnd {
             float metallic = m_metallic->evaluate(isect);
             float roughness = m_roughness->evaluate(isect);
             float spec = m_specular->evaluate(isect);
+            float specTrans = m_specularTransmission->evaluate(isect);
             float specTint = m_specularTint->evaluate(isect);
             float sheen = m_sheen->evaluate(isect);
             float cc = m_clearcoat->evaluate(isect);
 
-            isect.bsdf = arena.create<BSDF>(isect);
+            isect.bsdf = arena.create<BSDF>(isect, m_eta);
+
+            float transmissionWeight = specTrans * (1.0f - metallic);
+            float diffuseWeight = (1.0f - specTrans) * (1.0f - metallic);
 
             // Diffuse & Sheen
-            if (metallic < 1.0f) {
-                float diffWeight = 1.0f - metallic;
-                isect.bsdf->add(arena.create<DisneyDiffuseBxDF>(diffWeight, color, roughness, m_subsurface), diffWeight);
+            if (diffuseWeight > 0.0f) {
+                isect.bsdf->add(arena.create<DisneyDiffuseBxDF>(diffuseWeight * color, roughness, m_subsurface), diffuseWeight);
 
                 if (sheen > 0.0f) {
-                    float sheenWeight = diffWeight * sheen;
+                    float sheenWeight = diffuseWeight * sheen;
                     isect.bsdf->add(arena.create<DisneySheenBxDF>(sheenWeight, color, m_sheenTint->evaluate(isect)), 0.0f);
                 }
             }
@@ -254,6 +336,12 @@ namespace gnd {
                 auto* distGTR1 = arena.create<GTR1Distribution>(std::lerp(0.1f, 0.001f, gloss));
                 isect.bsdf->add(arena.create<DisneyClearcoatBxDF>(0.25f * cc, distGTR1), cc);
             }
+
+            // Specular transmission
+            if (transmissionWeight > 0.0f) {
+                Color3f T(std::sqrt(color.r()), std::sqrt(color.g()), std::sqrt(color.b()));
+                isect.bsdf->add(arena.create<DisneyTransmissionBxDF>(transmissionWeight * T, distGTR2, 1.0f, m_eta), transmissionWeight);
+            }
         }
 
         Color3f getAlbedo(const SurfaceInteraction& isect) const override {
@@ -267,6 +355,7 @@ namespace gnd {
                 "  metallic = \t\t{}\n"
                 "  roughness = \t\t{}\n"
                 "  specular = \t\t{}\n"
+                "  specularTransmission= \t{}\n"
                 "  specularTint = \t{}\n"
                 "  anisotropic = \t{}\n"
                 "  sheen = \t\t\t{}\n"
@@ -280,6 +369,7 @@ namespace gnd {
                 indent(m_metallic->toString(), 2),
                 indent(m_roughness->toString(), 2),
                 indent(m_specular->toString(), 2),
+                indent(m_specularTransmission->toString(), 2),
                 indent(m_specularTint->toString(), 2),
                 indent(m_anisotropic->toString(), 2),
                 indent(m_sheen->toString(), 2),
@@ -292,9 +382,9 @@ namespace gnd {
 
     private:
         std::shared_ptr<Texture<Color3f>> m_baseColor;
-        std::shared_ptr<Texture<float>> m_metallic, m_roughness, m_specular, m_specularTint;
+        std::shared_ptr<Texture<float>> m_metallic, m_roughness, m_specular, m_specularTint, m_specularTransmission;
         std::shared_ptr<Texture<float>> m_anisotropic, m_sheen, m_sheenTint, m_clearcoat, m_clearcoatGloss;
-        float m_subsurface;
+        float m_subsurface, m_eta;
     };
 
     GND_REGISTER_CLASS(DisneyMaterial, "disney");
