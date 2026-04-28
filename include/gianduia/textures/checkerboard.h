@@ -6,7 +6,7 @@
 
 namespace gnd {
 
-    template <ValidTextureValue T>
+    template <ProceduralTextureValue T>
     class CheckerboardTexture : public Texture<T> {
     public:
         explicit CheckerboardTexture(const PropertyList& props) {

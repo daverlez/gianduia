@@ -6,7 +6,7 @@
 
 namespace gnd {
 
-    template <ValidTextureValue T>
+    template <ProceduralTextureValue T>
     class ConstantTexture : public Texture<T> {
     public:
         explicit ConstantTexture(const PropertyList& props) {
@@ -30,16 +30,5 @@ namespace gnd {
     private:
         T m_value;
     };
-
-
-    template <>
-    inline std::string ConstantTexture<float>::toString() const {
-        return std::format("ConstantTexture(float)[value={:.2f}]", m_value);
-    }
-
-    template <>
-    inline std::string ConstantTexture<Color3f>::toString() const {
-        return std::format("ConstantTexture(color)[value={}]", m_value.toString());
-    }
 
 }
