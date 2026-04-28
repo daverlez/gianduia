@@ -6,9 +6,6 @@
 
 namespace gnd {
 
-    template <typename T>
-    concept ValidTextureValue = std::same_as<T, float> || std::same_as<T, Color3f>;
-
     template <ValidTextureValue T>
     class CheckerboardTexture : public Texture<T> {
     public:
