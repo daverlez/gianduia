@@ -73,23 +73,37 @@ namespace gnd {
 
         Vector3f wi;
         float lobePdf = 0.0f;
+        BxDFType sampledLobeType;
 
-        Color3f f_val = bxdf->sample(wo, wi, sample, uc, lobePdf, sampledType);
+        Color3f f_val = bxdf->sample(wo, wi, sample, uc, lobePdf, &sampledLobeType);
+        *wiWorld = frame.toWorld(wi);
+
+        if (sampledType) *sampledType = sampledLobeType;
 
         if (lobePdf == 0.0f || f_val.isBlack()) {
             *pdf = 0.0f;
             return Color3f(0.0f);
         }
 
-        *wiWorld = frame.toWorld(wi);
-
-        if (!(bxdf->type & BSDF_SPECULAR) && matchingComps > 1) {
-            *pdf = this->pdf(woWorld, *wiWorld, type);
-            return this->f(woWorld, *wiWorld, type);
-        } else {
+        // Delta distribution lobes
+        if (sampledLobeType & BSDF_SPECULAR) {
             *pdf = lobePdf * selectedProb;
-            return f_val;
+            return f_val / *pdf;
         }
+
+        // Continuous distribution lobes
+        Color3f total_f = f_val;
+        float total_pdf = lobePdf * selectedProb;
+
+        if (matchingComps > 1) {
+            total_f = this->f(woWorld, *wiWorld, type);
+            total_pdf = this->pdf(woWorld, *wiWorld, type);
+        }
+
+        *pdf = total_pdf;
+        if (total_pdf < Epsilon) return Color3f(0.0f);
+
+        return total_f * std::abs(wi.z()) / total_pdf;
     }
 
     float BSDF::pdf(const Vector3f& woWorld, const Vector3f& wiWorld, BxDFType flags) const {

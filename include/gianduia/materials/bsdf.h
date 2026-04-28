@@ -40,7 +40,8 @@ namespace gnd {
         /// @param pdf probability of sampling wi given wo (same result from pdf(wo, wi))
         /// @param sampledType specifies the sampled lobe type
         /// @param type restricts sampling to the specified lobe flags
-        /// @return the value of f computed on the two directions
+        /// @return the value of f computed on the two directions, accounting for the foreshortening term and divided
+        /// by the pdf with respect to solid angle.
         Color3f sample(const Vector3f& woWorld, Vector3f* wiWorld,
                          const Point2f& sample, float uc, float* pdf,
                          BxDFType* sampledType = nullptr,

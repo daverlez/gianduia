@@ -38,18 +38,16 @@ namespace gnd {
 
     class DisneyClearcoatBxDF : public BxDF {
     public:
-        DisneyClearcoatBxDF(float weight, float gloss)
-            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_GLOSSY)), m_weight(weight), m_gloss(gloss) {
-            m_distrib = GTR1Distribution(std::lerp(0.1f, 0.001f, gloss));
-        }
+        DisneyClearcoatBxDF(float weight, const MicrofacetDistribution* distribution)
+            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_GLOSSY)), m_weight(weight), m_distrib(distribution) { }
 
         Color3f f(const Vector3f& wo, const Vector3f& wi) const override;
         float pdf(const Vector3f& wo, const Vector3f& wi) const override;
         Color3f sample(const Vector3f& wo, Vector3f& wi, const Point2f& sample,
                        float uc, float& pdf, BxDFType* sampledType) const override;
     private:
-        float m_weight, m_gloss;
-        MicrofacetDistribution* m_distrib;
+        float m_weight;
+        const MicrofacetDistribution* m_distrib;
     };
 
 }

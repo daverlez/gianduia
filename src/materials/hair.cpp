@@ -429,7 +429,7 @@ namespace gnd {
             return Color3f(0.f);
         }
 
-        Color3f res = f(wo, wi) * std::abs(wi.z()) / pdfOut;
+        Color3f res = f(wo, wi);
         if (res.hasNaNs()) {
             pdfOut = 0.f;
             return Color3f(0.f);

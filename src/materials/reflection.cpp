@@ -6,7 +6,7 @@ namespace gnd {
     // ---- Lambertian reflection
 
     Color3f LambertianReflection::f(const Vector3f& wo, const Vector3f& wi) const {
-        return m_albedo * M_1_PI;
+        return m_albedo * InvPi;
     }
 
     Color3f LambertianReflection::sample(const Vector3f &wo, Vector3f &wi,
@@ -23,7 +23,7 @@ namespace gnd {
         if (sampledType) *sampledType = type;
 
         // f(wi, wo) * cosTheta / pdf == m_albedo
-        return m_albedo;
+        return m_albedo * InvPi;
     }
 
     float LambertianReflection::pdf(const Vector3f& wo, const Vector3f& wi) const {
@@ -134,7 +134,7 @@ namespace gnd {
         pdf = this->pdf(wo, wi);
         if (sampledType) *sampledType = type;
 
-        return f(wo, wi) * std::abs(wi.z()) / pdf;
+        return f(wo, wi);
     }
 
     float MicrofacetReflection::pdf(const Vector3f &wo, const Vector3f &wi) const {
@@ -214,7 +214,7 @@ namespace gnd {
 
         pdf = this->pdf(wo, wi);
 
-        return f(wo, wi) * std::abs(wi.z()) / pdf;
+        return f(wo, wi);
     }
 
     float MicrofacetFresnel::pdf(const Vector3f &wo, const Vector3f &wi) const {
@@ -273,7 +273,7 @@ namespace gnd {
         if (wi.z() < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
         pdf = (1.0f - probSpec) * Warp::squareToCosineHemispherePdf(wi);
         if (sampledType) *sampledType = BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE);
-        return f(wo, wi) * std::abs(wi.z()) / pdf;
+        return f(wo, wi);
     }
 
     float SmoothPlasticBxDF::pdf(const Vector3f &wo, const Vector3f &wi) const {
@@ -324,7 +324,7 @@ namespace gnd {
         }
 
         pdf = this->pdf(wo, wi);
-        return f(wo, wi) * std::abs(wi.z()) / pdf;
+        return f(wo, wi);
     }
 
     float RoughPlasticBxDF::pdf(const Vector3f &wo, const Vector3f &wi) const {
