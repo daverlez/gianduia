@@ -30,7 +30,10 @@ namespace gnd {
     Vector3f TrowbridgeReitzDistribution::sample_wh(const Vector3f& wo, const Point2f& sample) const {
         // Heitz (2018): Sampling the GGX distribution of visible normals
 
-        Vector3f Vh = Normalize(Vector3f(m_alphaX * wo.x(), m_alphaY * wo.y(), wo.z()));
+        bool flip = wo.z() < 0.0f;
+        Vector3f wo_h = flip ? -wo : wo;
+
+        Vector3f Vh = Normalize(Vector3f(m_alphaX * wo_h.x(), m_alphaY * wo_h.y(), wo_h.z()));
 
         float lensq = Vh.x() * Vh.x() + Vh.y() * Vh.y();
         Vector3f T1 = lensq > 0.0f ? Vector3f(-Vh.y(), Vh.x(), 0.0f) / std::sqrt(lensq) : Vector3f(1.0f, 0.0f, 0.0f);
@@ -46,6 +49,9 @@ namespace gnd {
         Vector3f Nh = t1 * T1 + t2 * T2 + std::sqrt(std::max(0.0f, 1.0f - t1 * t1 - t2 * t2)) * Vh;
 
         Vector3f wh = Normalize(Vector3f(m_alphaX * Nh.x(), m_alphaY * Nh.y(), std::max(0.0f, Nh.z())));
+
+        if (flip) wh = -wh;
+
         return wh;
     }
 

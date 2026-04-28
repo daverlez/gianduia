@@ -69,7 +69,7 @@ namespace gnd {
             if (sampledType) *sampledType = BxDFType(BSDF_SPECULAR | BSDF_REFLECTION);
             pdf = F;
 
-            return m_R;
+            return m_R * F;
         }
 
         // Sampling transmission lobe
@@ -90,7 +90,7 @@ namespace gnd {
         pdf = 1.f - F;
 
         float etaRatio = etaI / etaT;
-        return m_T * etaRatio * etaRatio;
+        return m_T * etaRatio * etaRatio * (1.0f - F);
     }
 
     float FresnelSpecular::pdf(const Vector3f &wo, const Vector3f &wi) const {
