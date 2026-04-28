@@ -55,6 +55,23 @@ namespace gnd {
         return true;
     }
 
+    /// Computes Schlick weight (1 - cosTheta)^5
+    inline float SchlickWeight(float cosTheta) {
+        float m = std::clamp(1.f - cosTheta, 0.f, 1.f);
+        float m2 = m * m;
+        return m2 * m2 * m;
+    }
+
+    /// Schlick approximation for scalar F0
+    inline float FrSchlick(float R0, float cosTheta) {
+        return R0 + (1.f - R0) * SchlickWeight(cosTheta);
+    }
+
+    /// Schlick approximation for colored F0
+    inline Color3f FrSchlick(const Color3f& R0, float cosTheta) {
+        return R0 + (Color3f(1.f) - R0) * SchlickWeight(cosTheta);
+    }
+
 
     class Fresnel {
     public:
@@ -122,6 +139,57 @@ namespace gnd {
 
     private:
         Color3f m_etaI, m_etaT, m_k;
+    };
+
+    class FresnelSchlick : public Fresnel {
+    public:
+        explicit FresnelSchlick(const Color3f& R0) : m_R0(R0) {}
+
+        Color3f evaluate(float cosThetaI) const override {
+            return FrSchlick(m_R0, std::abs(cosThetaI));
+        }
+
+    private:
+        Color3f m_R0;
+    };
+
+
+    class FresnelDisney : public Fresnel {
+    public:
+        FresnelDisney(const Color3f& baseColor, float metallic, float specular, float specularTint)
+            : m_baseColor(baseColor), m_metallic(metallic) {
+
+            float f0_dielectric_val = 0.08f * specular;
+
+            float lum = baseColor.luminance();
+            Color3f tintColor = (lum > 0.0f) ? (baseColor / lum) : Color3f(1.f);
+
+            m_F0_dielectric = (1.f - specularTint) * Color3f(f0_dielectric_val) +
+                              specularTint * tintColor * f0_dielectric_val;
+        }
+
+        Color3f evaluate(float cosThetaI) const override {
+            cosThetaI = std::abs(cosThetaI);
+
+            // Dielectric component computed using exact Fresnel
+            Color3f F_dielectric;
+            for (int i = 0; i < 3; ++i) {
+                float f0 = std::clamp(m_F0_dielectric[i], 0.0f, 0.999f);
+                float sqrtF0 = std::sqrt(f0);
+                float eta = (1.f + sqrtF0) / (1.f - sqrtF0);
+                F_dielectric[i] = FrDielectric(cosThetaI, 1.f, eta);
+            }
+
+            // Metallic component using Schlick Fresnel approximation
+            Color3f F_metal = FrSchlick(m_baseColor, cosThetaI);
+
+            return (1.f - m_metallic) * F_dielectric + m_metallic * F_metal;
+        }
+
+    private:
+        Color3f m_baseColor;
+        Color3f m_F0_dielectric;
+        float m_metallic;
     };
 
 }
