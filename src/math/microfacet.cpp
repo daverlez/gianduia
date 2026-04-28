@@ -28,31 +28,35 @@ namespace gnd {
     }
 
     Vector3f TrowbridgeReitzDistribution::sample_wh(const Vector3f& wo, const Point2f& sample) const {
-        float phi = 2.0f * Pi * sample.x();
+        // Heitz (2018): Sampling the GGX distribution of visible normals
 
-        Vector3f st(m_alphaX * std::cos(phi), m_alphaY * std::sin(phi), 0.0f);
-        float amp = st.lengthSquared();
+        Vector3f Vh = Normalize(Vector3f(m_alphaX * wo.x(), m_alphaY * wo.y(), wo.z()));
 
-        float cos2Theta = (1.0f - sample.y()) / (1.0f + sample.y() * (amp - 1.0f));
-        float cosTheta = std::sqrt(std::max(0.0f, cos2Theta));
-        float sinTheta = std::sqrt(std::max(0.0f, 1.0f - cos2Theta));
+        float lensq = Vh.x() * Vh.x() + Vh.y() * Vh.y();
+        Vector3f T1 = lensq > 0.0f ? Vector3f(-Vh.y(), Vh.x(), 0.0f) / std::sqrt(lensq) : Vector3f(1.0f, 0.0f, 0.0f);
+        Vector3f T2 = Cross(Vh, T1);
 
-        float normalizedAmp = std::sqrt(amp);
-        if (normalizedAmp > 0.0f) {
-            st.x() /= normalizedAmp;
-            st.y() /= normalizedAmp;
-        } else {
-            st.x() = 1.0f;
-            st.y() = 0.0f;
-        }
+        float r = std::sqrt(sample.x());
+        float phi = 2.0f * Pi * sample.y();
+        float t1 = r * std::cos(phi);
+        float t2 = r * std::sin(phi);
+        float s = 0.5f * (1.0f + Vh.z());
+        t2 = (1.0f - s) * std::sqrt(std::max(0.0f, 1.0f - t1 * t1)) + s * t2;
 
-        Vector3f wh(sinTheta * st.x(), sinTheta * st.y(), cosTheta);
-        if (wh.z() * wo.z() < 0.0f) wh = -wh;
+        Vector3f Nh = t1 * T1 + t2 * T2 + std::sqrt(std::max(0.0f, 1.0f - t1 * t1 - t2 * t2)) * Vh;
+
+        Vector3f wh = Normalize(Vector3f(m_alphaX * Nh.x(), m_alphaY * Nh.y(), std::max(0.0f, Nh.z())));
         return wh;
     }
 
     float TrowbridgeReitzDistribution::pdf(const Vector3f& wo, const Vector3f& wh) const {
-        return D(wh) * std::abs(wh.z());
+        if (wo.z() * wh.z() < 0.0f) return 0.0f;
+
+        float cosThetaO = std::abs(wo.z());
+        if (cosThetaO == 0.0f) return 0.0f;
+
+        float dotOH = std::abs(Dot(wo, wh));
+        return D(wh) * G1(wo) * dotOH / cosThetaO;
     }
 
 

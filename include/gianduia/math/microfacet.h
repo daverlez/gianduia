@@ -32,7 +32,10 @@ namespace gnd {
 
     class TrowbridgeReitzDistribution : public MicrofacetDistribution {
     public:
-        explicit TrowbridgeReitzDistribution(float alphaX, float alphaY = alphaX)
+        explicit TrowbridgeReitzDistribution(float alpha)
+            : m_alphaX(std::max(1e-4f, alpha)), m_alphaY(std::max(1e-4f, alpha)) {}
+
+        TrowbridgeReitzDistribution(float alphaX, float alphaY)
             : m_alphaX(std::max(1e-4f, alphaX)), m_alphaY(std::max(1e-4f, alphaY)) {}
 
         float D(const Vector3f& wh) const override;
