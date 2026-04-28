@@ -6,6 +6,12 @@
 namespace gnd {
 
     template <typename T>
+    concept ValidTextureValue = std::same_as<T, float> || std::same_as<T, Color3f> || std::same_as<T, Normal3f>;
+
+    template <typename T>
+    concept ProceduralTextureValue = std::same_as<T, float> || std::same_as<T, Color3f>;
+
+    template <ValidTextureValue T>
     class Texture : public GndObject {
     public:
         virtual ~Texture() = default;

@@ -26,7 +26,7 @@ namespace gnd {
             if (child->getClassType() == ETexture && child->getName() == "normal") {
                 if (m_normalMap)
                     throw std::runtime_error("Material: normal map already defined!");
-                m_normalMap = std::static_pointer_cast<Texture<Color3f>>(child);
+                m_normalMap = std::static_pointer_cast<Texture<Normal3f>>(child);
             }
             else if (child->getClassType() == EMedium && child->getName() == "inside") {
                 if (m_inside)
@@ -46,24 +46,18 @@ namespace gnd {
         EClassType getClassType() const override { return EMaterial; }
 
     protected:
-        std::shared_ptr<Texture<Color3f>> m_normalMap;
+        std::shared_ptr<Texture<Normal3f>> m_normalMap;
         std::shared_ptr<Medium> m_inside;
         std::shared_ptr<Medium> m_outside;
 
         void applyNormalMap(SurfaceInteraction& isect) const {
             if (m_normalMap) {
-                Color3f rgb = m_normalMap->evaluate(isect);
-
-                Vector3f localNormal(
-                    rgb.r() * 2.0f - 1.0f,
-                    rgb.g() * 2.0f - 1.0f,
-                    rgb.b() * 2.0f - 1.0f
-                );
+                Normal3f normal = m_normalMap->evaluate(isect);
 
                 Vector3f dpdv = Normalize(Cross(isect.n, isect.dpdu));
-                Vector3f perturbedN = isect.dpdu * localNormal.x() +
-                                      dpdv * localNormal.y() +
-                                      Vector3f(isect.n) * localNormal.z();
+                Vector3f perturbedN = isect.dpdu * normal.x() +
+                                      dpdv * normal.y() +
+                                      Vector3f(isect.n) * normal.z();
 
                 isect.n = Normal3f(Normalize(perturbedN));
 

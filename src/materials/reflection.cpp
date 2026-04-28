@@ -6,7 +6,7 @@ namespace gnd {
     // ---- Lambertian reflection
 
     Color3f LambertianReflection::f(const Vector3f& wo, const Vector3f& wi) const {
-        return m_albedo * M_1_PI;
+        return m_albedo * InvPi;
     }
 
     Color3f LambertianReflection::sample(const Vector3f &wo, Vector3f &wi,
@@ -23,7 +23,7 @@ namespace gnd {
         if (sampledType) *sampledType = type;
 
         // f(wi, wo) * cosTheta / pdf == m_albedo
-        return m_albedo;
+        return m_albedo * InvPi;
     }
 
     float LambertianReflection::pdf(const Vector3f& wo, const Vector3f& wi) const {
@@ -69,7 +69,7 @@ namespace gnd {
             if (sampledType) *sampledType = BxDFType(BSDF_SPECULAR | BSDF_REFLECTION);
             pdf = F;
 
-            return m_R;
+            return m_R * F;
         }
 
         // Sampling transmission lobe
@@ -90,7 +90,7 @@ namespace gnd {
         pdf = 1.f - F;
 
         float etaRatio = etaI / etaT;
-        return m_T * etaRatio * etaRatio;
+        return m_T * etaRatio * etaRatio * (1.0f - F);
     }
 
     float FresnelSpecular::pdf(const Vector3f &wo, const Vector3f &wi) const {
@@ -101,9 +101,9 @@ namespace gnd {
     // ---- Microfacet reflection
 
     Color3f MicrofacetReflection::f(const Vector3f &wo, const Vector3f &wi) const {
+        if (wo.z() * wi.z() <= 0.0f) return Color3f(0.0f);
         float cosThetaO = std::abs(wo.z()), cosThetaI = std::abs(wi.z());
         if (cosThetaO == 0.0f || cosThetaI == 0.0f) return Color3f(0.0f);
-        if (wo.z() * wi.z() <= 0.0f) return Color3f(0.0f);
 
         Vector3f wh = wo + wi;
         if (wh.x() == 0.0f && wh.y() == 0.0f && wh.z() == 0.0f) return Color3f(0.0f);
@@ -134,7 +134,7 @@ namespace gnd {
         pdf = this->pdf(wo, wi);
         if (sampledType) *sampledType = type;
 
-        return f(wo, wi) * std::abs(wi.z()) / pdf;
+        return f(wo, wi);
     }
 
     float MicrofacetReflection::pdf(const Vector3f &wo, const Vector3f &wi) const {
@@ -161,17 +161,20 @@ namespace gnd {
         } else {
             wh = Normalize(wo * etaI + wi * etaT);
         }
-        if (wh.z() < 0.0f) wh = -wh;
-
-        // Discard backfacing microfacets
-        if (Dot(wo, wh) * wo.z() < 0.0f || Dot(wi, wh) * wi.z() < 0.0f)
-            return Color3f(0.0f);
+        if (wh.z() * wo.z() < 0.0f) wh = -wh;
 
         // Cosines with respect to halfway vector (microfacet normal)
         float dotO = Dot(wo, wh);
         float dotI = Dot(wi, wh);
 
-        float F = FrDielectric(dotO, m_etaExt, m_etaInt);
+        // Culling
+        if (reflect) {
+            if (dotO <= 0.0f || dotI <= 0.0f) return Color3f(0.0f);
+        } else {
+            if (dotO <= 0.0f || dotI >= 0.0f) return Color3f(0.0f);
+        }
+
+        float F = FrDielectric(dotO, etaI, etaT);
         float D = m_distribution->D(wh);
         float G = m_distribution->G(wo, wi);
 
@@ -191,11 +194,15 @@ namespace gnd {
                                         const Point2f &sample, float uc, float &pdf, BxDFType *sampledType) const {
         if (std::abs(wo.z()) < Epsilon) return Color3f(0.0f);
 
+        bool entering = wo.z() > 0.0f;
+        float etaI = entering ? m_etaExt : m_etaInt;
+        float etaT = entering ? m_etaInt : m_etaExt;
+
         Vector3f wh = m_distribution->sample_wh(wo, sample);
         float dotO = Dot(wo, wh);
         if (dotO <= 0.0f) { pdf = 0.0f; return Color3f(0.0f); }
 
-        float F = FrDielectric(dotO, m_etaExt, m_etaInt);
+        float F = FrDielectric(dotO, etaI, etaT);
 
         if (uc < F) {
             wi = -wo + wh * 2.0f * dotO;
@@ -214,7 +221,7 @@ namespace gnd {
 
         pdf = this->pdf(wo, wi);
 
-        return f(wo, wi) * std::abs(wi.z()) / pdf;
+        return f(wo, wi);
     }
 
     float MicrofacetFresnel::pdf(const Vector3f &wo, const Vector3f &wi) const {
@@ -227,12 +234,12 @@ namespace gnd {
         Vector3f wh;
         if (reflect) wh = Normalize(wo + wi);
         else wh = Normalize(wo * etaI + wi * etaT);
-        if (wh.z() < 0.0f) wh = -wh;
+        if (wh.z() * wo.z() < 0.0f) wh = -wh;
 
         float dotO = Dot(wo, wh);
         float dotI = Dot(wi, wh);
 
-        float F = FrDielectric(dotO, m_etaExt, m_etaInt);
+        float F = FrDielectric(dotO, etaI, etaT);
         float pdf_wh = m_distribution->pdf(wo, wh);
 
         if (reflect)
@@ -273,7 +280,7 @@ namespace gnd {
         if (wi.z() < Epsilon) { pdf = 0.0f; return Color3f(0.0f); }
         pdf = (1.0f - probSpec) * Warp::squareToCosineHemispherePdf(wi);
         if (sampledType) *sampledType = BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE);
-        return f(wo, wi) * std::abs(wi.z()) / pdf;
+        return f(wo, wi);
     }
 
     float SmoothPlasticBxDF::pdf(const Vector3f &wo, const Vector3f &wi) const {
@@ -324,7 +331,7 @@ namespace gnd {
         }
 
         pdf = this->pdf(wo, wi);
-        return f(wo, wi) * std::abs(wi.z()) / pdf;
+        return f(wo, wi);
     }
 
     float RoughPlasticBxDF::pdf(const Vector3f &wo, const Vector3f &wi) const {

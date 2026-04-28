@@ -2,30 +2,25 @@
 
 namespace gnd {
 
-    inline float cos2Theta(const Vector3f& w) { return w.z() * w.z(); }
-    inline float sin2Theta(const Vector3f& w) { return std::max(0.0f, 1.0f - cos2Theta(w)); }
-    inline float tan2Theta(const Vector3f& w) { return sin2Theta(w) / cos2Theta(w); }
+    // Trowbridge-Reitz (GTR2)
 
-    // D(wh) = alpha^2 / (PI * ((alpha^2 - 1) * cos^2(theta_h) + 1)^2)
     float TrowbridgeReitzDistribution::D(const Vector3f& wh) const {
-        float cos2 = cos2Theta(wh);
-        if (cos2 <= 0.0f) return 0.0f;
+        if (std::abs(wh.z()) < Epsilon) return 0.0f;
 
-        float alpha2 = m_alpha * m_alpha;
-        float denom = (alpha2 - 1.0f) * cos2 + 1.0f;
+        float d = (wh.x() * wh.x()) / (m_alphaX * m_alphaX) +
+                  (wh.y() * wh.y()) / (m_alphaY * m_alphaY) +
+                  (wh.z() * wh.z());
 
-        return alpha2 * InvPi / (denom * denom);
+        return 1.0f / (Pi * m_alphaX * m_alphaY * d * d);
     }
 
     float TrowbridgeReitzDistribution::G1(const Vector3f& w) const {
-        float cos2 = cos2Theta(w);
-        if (cos2 <= 0.0f) return 0.0f;
+        if (std::abs(w.z()) < Epsilon) return 0.0f;
 
-        float tan2 = std::max(0.0f, 1.0f - cos2) / cos2;
-        if (tan2 == 0.0f) return 1.0f;
+        float a2tan2 = (w.x() * w.x() * m_alphaX * m_alphaX + w.y() * w.y() * m_alphaY * m_alphaY) / (w.z() * w.z());
+        float lambda = 0.5f * (-1.0f + std::sqrt(1.0f + a2tan2));
 
-        float alpha2 = m_alpha * m_alpha;
-        return 2.0f / (1.0f + std::sqrt(1.0f + alpha2 * tan2));
+        return 1.0f / (1.0f + lambda);
     }
 
     float TrowbridgeReitzDistribution::G(const Vector3f& wo, const Vector3f& wi) const {
@@ -33,24 +28,89 @@ namespace gnd {
     }
 
     Vector3f TrowbridgeReitzDistribution::sample_wh(const Vector3f& wo, const Point2f& sample) const {
-        float alpha2 = m_alpha * m_alpha;
+        // Heitz (2018): Sampling the GGX distribution of visible normals
 
-        float cos2Theta = (1.0f - sample.y()) / (1.0f + (alpha2 - 1.0f) * sample.y());
-        float cosTheta = std::sqrt(cos2Theta);
-        float sinTheta = std::sqrt(std::max(0.0f, 1.0f - cos2Theta));
+        bool flip = wo.z() < 0.0f;
+        Vector3f wo_h = flip ? -wo : wo;
 
-        float phi = 2.0f * M_PI * sample.x();
+        Vector3f Vh = Normalize(Vector3f(m_alphaX * wo_h.x(), m_alphaY * wo_h.y(), wo_h.z()));
 
-        Vector3f wh(sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta);
+        float lensq = Vh.x() * Vh.x() + Vh.y() * Vh.y();
+        Vector3f T1 = lensq > 0.0f ? Vector3f(-Vh.y(), Vh.x(), 0.0f) / std::sqrt(lensq) : Vector3f(1.0f, 0.0f, 0.0f);
+        Vector3f T2 = Cross(Vh, T1);
 
-        if (wh.z() * wo.z() < 0.0f) {
-            wh = -wh;
-        }
+        float r = std::sqrt(sample.x());
+        float phi = 2.0f * Pi * sample.y();
+        float t1 = r * std::cos(phi);
+        float t2 = r * std::sin(phi);
+        float s = 0.5f * (1.0f + Vh.z());
+        t2 = (1.0f - s) * std::sqrt(std::max(0.0f, 1.0f - t1 * t1)) + s * t2;
+
+        Vector3f Nh = t1 * T1 + t2 * T2 + std::sqrt(std::max(0.0f, 1.0f - t1 * t1 - t2 * t2)) * Vh;
+
+        Vector3f wh = Normalize(Vector3f(m_alphaX * Nh.x(), m_alphaY * Nh.y(), std::max(0.0f, Nh.z())));
+
+        if (flip) wh = -wh;
 
         return wh;
     }
 
     float TrowbridgeReitzDistribution::pdf(const Vector3f& wo, const Vector3f& wh) const {
+        if (wo.z() * wh.z() < 0.0f) return 0.0f;
+
+        float cosThetaO = std::abs(wo.z());
+        if (cosThetaO == 0.0f) return 0.0f;
+
+        float dotOH = std::abs(Dot(wo, wh));
+        return D(wh) * G1(wo) * dotOH / cosThetaO;
+    }
+
+
+    // Berry (GTR1)
+
+    float GTR1Distribution::D(const Vector3f& wh) const {
+        if (std::abs(wh.z()) < Epsilon) return 0.0f;
+
+        float alpha2 = m_alpha * m_alpha;
+        float cos2 = wh.z() * wh.z();
+
+        float num = alpha2 - 1.0f;
+        float den = Pi * std::log(alpha2) * (1.0f + (alpha2 - 1.0f) * cos2);
+
+        return num / den;
+    }
+
+    float GTR1Distribution::G1(const Vector3f& w) const {
+        if (std::abs(w.z()) < Epsilon) return 0.0f;
+
+        // Burley (2012): roughness = 0.25f -> alpha = 0.25^2 = 0.0625f
+        float alpha2 = 0.0625f;
+        float cos2 = w.z() * w.z();
+        float tan2 = std::max(0.0f, 1.0f - cos2) / cos2;
+
+        float lambda = 0.5f * (-1.0f + std::sqrt(1.0f + alpha2 * tan2));
+        return 1.0f / (1.0f + lambda);
+    }
+
+    float GTR1Distribution::G(const Vector3f& wo, const Vector3f& wi) const {
+        return G1(wo) * G1(wi);
+    }
+
+    Vector3f GTR1Distribution::sample_wh(const Vector3f& wo, const Point2f& sample) const {
+        float alpha2 = m_alpha * m_alpha;
+
+        float cos2Theta = (1.0f - std::pow(alpha2, 1.0f - sample.y())) / (1.0f - alpha2);
+        float cosTheta = std::sqrt(std::max(0.0f, cos2Theta));
+        float sinTheta = std::sqrt(std::max(0.0f, 1.0f - cos2Theta));
+
+        float phi = 2.0f * Pi * sample.x();
+
+        Vector3f wh(sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta);
+        if (wh.z() * wo.z() < 0.0f) wh = -wh;
+        return wh;
+    }
+
+    float GTR1Distribution::pdf(const Vector3f& wo, const Vector3f& wh) const {
         return D(wh) * std::abs(wh.z());
     }
 

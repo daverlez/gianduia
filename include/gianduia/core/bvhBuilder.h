@@ -18,6 +18,15 @@ namespace gnd {
         uint8_t pad;                        // Explicit 1 byte padding for 32 bytes alignment
     };
 
+    struct alignas(16) BVHNode4 {
+        float minX[4], minY[4], minZ[4];
+        float maxX[4], maxY[4], maxZ[4];
+
+        uint32_t offset[4];
+        uint32_t packCount[4];
+        uint8_t childType[4]; // 0 = empty, 1 = inner, 2 = leaf
+    };
+
     struct BVHBuildInfo {
         Bounds3f bounds;
         Point3f centroid;
@@ -32,5 +41,6 @@ namespace gnd {
     class BVHBuilder {
     public:
         static BVHBuildResult build(std::vector<BVHBuildInfo>& buildData);
+        static std::vector<BVHNode4> buildWide(const std::vector<BVHNode>& binaryNodes);
     };
 }

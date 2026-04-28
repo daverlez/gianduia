@@ -3,9 +3,7 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
-
 #include <stb_image.h>
-
 #include <gianduia/math/color.h>
 
 namespace gnd {
@@ -13,7 +11,8 @@ namespace gnd {
     struct ImageData {
         int width = 0;
         int height = 0;
-        std::vector<Color3f> pixels;
+        int channels = 0;
+        std::vector<float> data;
     };
 
     class TextureCache {
@@ -21,47 +20,40 @@ namespace gnd {
         static std::shared_ptr<ImageData> load(const std::string& filepath, bool isSRGB) {
             std::string key = filepath + (isSRGB ? "_srgb" : "_linear");
 
-            if (m_cache.find(key) != m_cache.end()) {
+            if (m_cache.contains(key)) {
                 return m_cache[key];
             }
 
-            auto data = std::make_shared<ImageData>();
-            int originalChannels;
-
+            auto imgData = std::make_shared<ImageData>();
             stbi_set_flip_vertically_on_load(true);
-            unsigned char* rawData = stbi_load(filepath.c_str(), &data->width, &data->height, &originalChannels, 3);
+            unsigned char* rawData = stbi_load(filepath.c_str(), &imgData->width, &imgData->height, &imgData->channels, 0);
 
             if (!rawData) {
                 throw std::runtime_error("TextureCache: Failed to load image " + filepath);
             }
 
-            int totalPixels = data->width * data->height;
-            data->pixels.resize(totalPixels);
+            int totalValues = imgData->width * imgData->height * imgData->channels;
+            imgData->data.resize(totalValues);
 
-            for (int i = 0; i < totalPixels; ++i) {
-                float r = rawData[i * 3 + 0] / 255.0f;
-                float g = rawData[i * 3 + 1] / 255.0f;
-                float b = rawData[i * 3 + 2] / 255.0f;
+            auto toLinear = [](float c) { return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f); };
 
-                Color3f c(r, g, b);
-                if (isSRGB) {
-                    c = c.toLinear();
+            for (int i = 0; i < totalValues; ++i) {
+                float val = rawData[i] / 255.0f;
+                if (isSRGB && (imgData->channels <= 3 || i % imgData->channels < 3)) {
+                    val = toLinear(val);
                 }
-                data->pixels[i] = c;
+                imgData->data[i] = val;
             }
 
             stbi_image_free(rawData);
-            m_cache[key] = data;
+            m_cache[key] = imgData;
 
-            return data;
+            return imgData;
         }
 
-        static void clear() {
-            m_cache.clear();
-        }
+        static void clear() { m_cache.clear(); }
 
     private:
         inline static std::unordered_map<std::string, std::shared_ptr<ImageData>> m_cache;
     };
-
 }

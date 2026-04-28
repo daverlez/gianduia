@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-#include "gianduia/core/bitmap.h"
+#include "gianduia/core/film.h"
 #include "gianduia/core/emitter.h"
 #include "gianduia/core/factory.h"
 #include "gianduia/core/fileResolver.h"
@@ -20,7 +20,7 @@ namespace gnd {
             if (absPath.extension() != ".exr" && absPath.extension() != "exr")
                 throw std::runtime_error("EnvMap: Invalid environment map extension.");
 
-            m_bitmap = Bitmap(absPath.string());
+            m_bitmap = Film(absPath.string());
             m_strength = props.getFloat("strength", 1.0f);
 
             this->buildPDFs();
@@ -190,7 +190,7 @@ namespace gnd {
         }
 
     protected:
-        Bitmap m_bitmap = Bitmap(0, 0);
+        Film m_bitmap = Film(0, 0);
         std::vector<float> m_discretePdf2d;
         std::vector<float> m_thetaMarginalPdf;
         std::vector<float> m_thetaCdf;

@@ -1,13 +1,12 @@
 #include "gianduia/shapes/mesh.h"
 #include "gianduia/core/factory.h"
 #include "gianduia/core/fileResolver.h"
+#include "gianduia/core/bvhTraversal.h"
 
 #include <iostream>
 #include <filesystem>
 
 #include <tiny_obj_loader.h>
-
-namespace hn = hwy::HWY_NAMESPACE;
 
 namespace gnd {
 
@@ -106,97 +105,17 @@ namespace gnd {
             }
         }
 
-        std::cout << "Mesh: Done! Built a BVH with " << m_nodes.size()
-                  << " nodes, occupying " << m_nodes.size() * sizeof(BVHNode) << " bytes, "
-                  "packed into " << m_trianglePacks.size() << " SIMD TrianglePacks." << std::endl;
 
         // ---- Tree Collapsing (binary BVH to BVH4)
-        m_nodes4.clear();
-        m_nodes4.reserve(m_nodes.size());
-
-        std::function<int(int)> buildBVH4 = [&](int binNodeIdx) -> int {
-            int bvh4Idx = (int)m_nodes4.size();
-            m_nodes4.push_back(BVHNode4());
-
-            std::vector<int> candidates = { binNodeIdx };
-
-            // Expanding internal nodes until there are four boxes
-            while(candidates.size() < 4) {
-                int bestIdx = -1;
-                float bestArea = -1.0f;
-
-                // Expanding biggest candidate bbox
-                for(size_t i = 0; i < candidates.size(); ++i) {
-                    const BVHNode& c = m_nodes[candidates[i]];
-                    if (c.nPrimitives == 0) {
-                        float area = c.bounds.surfaceArea();
-                        if (area > bestArea) {
-                            bestArea = area;
-                            bestIdx = (int)i;
-                        }
-                    }
-                }
-
-                if (bestIdx == -1) break;
-
-                // Substitute best candidate with children
-                int expandIdx = candidates[bestIdx];
-                candidates.erase(candidates.begin() + bestIdx);
-                const BVHNode& expandNode = m_nodes[expandIdx];
-
-                candidates.push_back(expandIdx + 1);
-                candidates.push_back(expandNode.rightChildOffset);
-            }
-
-            struct ChildData {
-                uint8_t type;
-                uint32_t offset;
-                uint32_t packCount;
-                Bounds3f bounds;
-            };
-            std::vector<ChildData> childrenData;
-
-            for(int candIdx : candidates) {
-                const BVHNode& c = m_nodes[candIdx];
-                if (c.nPrimitives > 0) {
-                    // Leaf node
-                    childrenData.push_back({2, (uint32_t)c.primitivesOffset, (uint32_t)c.nPrimitives, c.bounds});
-                } else {
-                    // Internal node
-                    int child4Idx = buildBVH4(candIdx);
-                    childrenData.push_back({1, (uint32_t)child4Idx, 0, c.bounds});
-                }
-            }
-
-            BVHNode4& node4 = m_nodes4[bvh4Idx];
-            for(int i = 0; i < 4; ++i) {
-                if (i < childrenData.size()) {
-                    node4.childType[i] = childrenData[i].type;
-                    node4.offset[i]    = childrenData[i].offset;
-                    node4.packCount[i] = childrenData[i].packCount;
-                    node4.minX[i] = childrenData[i].bounds.pMin.x();
-                    node4.minY[i] = childrenData[i].bounds.pMin.y();
-                    node4.minZ[i] = childrenData[i].bounds.pMin.z();
-                    node4.maxX[i] = childrenData[i].bounds.pMax.x();
-                    node4.maxY[i] = childrenData[i].bounds.pMax.y();
-                    node4.maxZ[i] = childrenData[i].bounds.pMax.z();
-                } else {
-                    // Empty node: degenerate bbox
-                    node4.childType[i] = 0;
-                    node4.minX[i] = node4.minY[i] = node4.minZ[i] = std::numeric_limits<float>::infinity();
-                    node4.maxX[i] = node4.maxY[i] = node4.maxZ[i] = -std::numeric_limits<float>::infinity();
-                }
-            }
-            return bvh4Idx;
-        };
-
         if (!m_nodes.empty()) {
-            buildBVH4(0);
+            m_nodes4 = BVHBuilder::buildWide(m_nodes);
             m_nodes.clear();
             m_nodes.shrink_to_fit();
         }
 
-        std::cout << "Mesh: BVH Collapsed into " << m_nodes4.size() << " Wide-BVH4 nodes." << std::endl;
+        std::cout << "Mesh: Done! Built a BVH with " << m_nodes4.size()
+                  << " wide nodes, occupying " << m_nodes4.size() * sizeof(BVHNode4) << " bytes, "
+                  "packed into " << m_trianglePacks.size() << " SIMD TrianglePacks." << std::endl;
 
         // ---- Computing CDF
         m_cdf.resize(triangleCount + 1, 0.0f);
@@ -310,19 +229,10 @@ namespace gnd {
     }
 
     bool Mesh::rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const {
-        if (m_nodes4.empty()) return false;
-
-        bool hitAny = false;
-        int stack[64];
-        int stackPtr = 0;
-
-        stack[stackPtr++] = 0;
-
         hn::FixedTag<float, 4> d;
         using V = hn::Vec<decltype(d)>;
         using M = hn::Mask<decltype(d)>;
 
-        // Ray data broadcasting
         V r_ox = hn::Set(d, ray.o.x());
         V r_oy = hn::Set(d, ray.o.y());
         V r_oz = hn::Set(d, ray.o.z());
@@ -331,15 +241,6 @@ namespace gnd {
         V r_dy = hn::Set(d, ray.d.y());
         V r_dz = hn::Set(d, ray.d.z());
 
-        Vector3f invDir = {1.0f / ray.d.x(), 1.0f / ray.d.y(), 1.0f / ray.d.z()};
-        V r_invdx = hn::Set(d, invDir.x());
-        V r_invdy = hn::Set(d, invDir.y());
-        V r_invdz = hn::Set(d, invDir.z());
-
-        V rayTMin = hn::Set(d, ray.tMin);
-        V t_max_simd = hn::Set(d, ray.tMax);
-
-        // Möller–Trumbore: SIMD helpers
         auto crossX = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(ay, bz), hn::Mul(az, by)); };
         auto crossY = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(az, bx), hn::Mul(ax, bz)); };
         auto crossZ = [](V ax, V ay, V az, V bx, V by, V bz) { return hn::Sub(hn::Mul(ax, by), hn::Mul(ay, bx)); };
@@ -347,122 +248,81 @@ namespace gnd {
             return hn::Add(hn::Add(hn::Mul(ax, bx), hn::Mul(ay, by)), hn::Mul(az, bz));
         };
 
-        while (stackPtr > 0) {
-            int nodeIdx = stack[--stackPtr];
-            const BVHNode4& node = m_nodes4[nodeIdx];
+        auto leafIntersector = [&](int offset, int count) -> bool {
+            bool hitLocal = false;
 
-            // BBox load
-            V minX = hn::Load(d, node.minX); V minY = hn::Load(d, node.minY); V minZ = hn::Load(d, node.minZ);
-            V maxX = hn::Load(d, node.maxX); V maxY = hn::Load(d, node.maxY); V maxZ = hn::Load(d, node.maxZ);
+            V t_max_simd = hn::Set(d, ray.tMax);
 
-            // AABB test
-            V t1x = hn::Mul(hn::Sub(minX, r_ox), r_invdx);
-            V t2x = hn::Mul(hn::Sub(maxX, r_ox), r_invdx);
-            V tminx = hn::Min(t1x, t2x); V tmaxx = hn::Max(t1x, t2x);
+            for (int p = 0; p < count; ++p) {
+                const TrianglePack4& pack = m_trianglePacks[offset + p];
 
-            V t1y = hn::Mul(hn::Sub(minY, r_oy), r_invdy);
-            V t2y = hn::Mul(hn::Sub(maxY, r_oy), r_invdy);
-            V tminy = hn::Min(t1y, t2y); V tmaxy = hn::Max(t1y, t2y);
+                V v0x = hn::Load(d, pack.v0x); V v0y = hn::Load(d, pack.v0y); V v0z = hn::Load(d, pack.v0z);
+                V v1x = hn::Load(d, pack.v1x); V v1y = hn::Load(d, pack.v1y); V v1z = hn::Load(d, pack.v1z);
+                V v2x = hn::Load(d, pack.v2x); V v2y = hn::Load(d, pack.v2y); V v2z = hn::Load(d, pack.v2z);
 
-            V t1z = hn::Mul(hn::Sub(minZ, r_oz), r_invdz);
-            V t2z = hn::Mul(hn::Sub(maxZ, r_oz), r_invdz);
-            V tminz = hn::Min(t1z, t2z); V tmaxz = hn::Max(t1z, t2z);
+                V e1x = hn::Sub(v1x, v0x); V e1y = hn::Sub(v1y, v0y); V e1z = hn::Sub(v1z, v0z);
+                V e2x = hn::Sub(v2x, v0x); V e2y = hn::Sub(v2y, v0y); V e2z = hn::Sub(v2z, v0z);
 
-            V tmin = hn::Max(hn::Max(tminx, tminy), hn::Max(tminz, rayTMin));
-            V tmax = hn::Min(hn::Min(tmaxx, tmaxy), hn::Min(tmaxz, t_max_simd));
+                V pvecx = crossX(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+                V pvecy = crossY(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+                V pvecz = crossZ(r_dx, r_dy, r_dz, e2x, e2y, e2z);
 
-            M validBox = hn::Le(tmin, tmax);
+                V det = dot(e1x, e1y, e1z, pvecx, pvecy, pvecz);
+                V eps = hn::Set(d, 1e-8f);
+                M validTri = hn::Gt(hn::Abs(det), eps);
 
-            if (!hn::AllFalse(d, validBox)) {
-                uint8_t mask_bytes[8] = {0};
-                hn::StoreMaskBits(d, validBox, mask_bytes);
+                V invDet = hn::Div(hn::Set(d, 1.0f), det);
+                V tvecx = hn::Sub(r_ox, v0x); V tvecy = hn::Sub(r_oy, v0y); V tvecz = hn::Sub(r_oz, v0z);
 
-                for (int i = 0; i < 4; ++i) {
-                    if ((mask_bytes[0] & (1 << i)) == 0) continue;
+                V u = hn::Mul(dot(tvecx, tvecy, tvecz, pvecx, pvecy, pvecz), invDet);
+                validTri = hn::And(validTri, hn::Ge(u, hn::Set(d, 0.0f)));
+                validTri = hn::And(validTri, hn::Le(u, hn::Set(d, 1.0f)));
 
-                    // Internal node: enqueue
-                    if (node.childType[i] == 1) {
-                        stack[stackPtr++] = node.offset[i];
-                        continue;
-                    }
+                V qvecx = crossX(tvecx, tvecy, tvecz, e1x, e1y, e1z);
+                V qvecy = crossY(tvecx, tvecy, tvecz, e1x, e1y, e1z);
+                V qvecz = crossZ(tvecx, tvecy, tvecz, e1x, e1y, e1z);
 
-                    // Empty node: skip
-                    if (node.childType[i] == 0) continue;
+                V v = hn::Mul(dot(r_dx, r_dy, r_dz, qvecx, qvecy, qvecz), invDet);
+                validTri = hn::And(validTri, hn::Ge(v, hn::Set(d, 0.0f)));
+                validTri = hn::And(validTri, hn::Le(hn::Add(u, v), hn::Set(d, 1.0f)));
 
-                    // Leaf node: triangle intersection test
-                    int packStart = node.offset[i];
-                    int pCount = node.packCount[i];
+                V t = hn::Mul(dot(e2x, e2y, e2z, qvecx, qvecy, qvecz), invDet);
+                validTri = hn::And(validTri, hn::Gt(t, hn::Set(d, ray.tMin)));
+                validTri = hn::And(validTri, hn::Lt(t, t_max_simd));
 
-                    for (int p = 0; p < pCount; ++p) {
-                        const TrianglePack4& pack = m_trianglePacks[packStart + p];
+                if (!hn::AllFalse(d, validTri)) {
+                    alignas(16) float t_arr[4];
+                    alignas(16) float u_arr[4];
+                    alignas(16) float v_arr[4];
 
-                        V v0x = hn::Load(d, pack.v0x); V v0y = hn::Load(d, pack.v0y); V v0z = hn::Load(d, pack.v0z);
-                        V v1x = hn::Load(d, pack.v1x); V v1y = hn::Load(d, pack.v1y); V v1z = hn::Load(d, pack.v1z);
-                        V v2x = hn::Load(d, pack.v2x); V v2y = hn::Load(d, pack.v2y); V v2z = hn::Load(d, pack.v2z);
+                    hn::Store(t, d, t_arr);
+                    hn::Store(u, d, u_arr);
+                    hn::Store(v, d, v_arr);
 
-                        V e1x = hn::Sub(v1x, v0x); V e1y = hn::Sub(v1y, v0y); V e1z = hn::Sub(v1z, v0z);
-                        V e2x = hn::Sub(v2x, v0x); V e2y = hn::Sub(v2y, v0y); V e2z = hn::Sub(v2z, v0z);
+                    uint8_t mask_tri[8] = {0};
+                    hn::StoreMaskBits(d, validTri, mask_tri);
 
-                        V pvecx = crossX(r_dx, r_dy, r_dz, e2x, e2y, e2z);
-                        V pvecy = crossY(r_dx, r_dy, r_dz, e2x, e2y, e2z);
-                        V pvecz = crossZ(r_dx, r_dy, r_dz, e2x, e2y, e2z);
+                    for (int l = 0; l < 4; ++l) {
+                        if ((mask_tri[0] & (1 << l)) != 0) {
+                            if (t_arr[l] < ray.tMax) {
+                                if (predicate) return true;
 
-                        V det = dot(e1x, e1y, e1z, pvecx, pvecy, pvecz);
-                        V eps = hn::Set(d, 1e-8f);
-                        M validTri = hn::Gt(hn::Abs(det), eps);
+                                ray.tMax = t_arr[l];
+                                t_max_simd = hn::Set(d, ray.tMax);
 
-                        V invDet = hn::Div(hn::Set(d, 1.0f), det);
-                        V tvecx = hn::Sub(r_ox, v0x); V tvecy = hn::Sub(r_oy, v0y); V tvecz = hn::Sub(r_oz, v0z);
-
-                        V u = hn::Mul(dot(tvecx, tvecy, tvecz, pvecx, pvecy, pvecz), invDet);
-                        validTri = hn::And(validTri, hn::Ge(u, hn::Set(d, 0.0f)));
-                        validTri = hn::And(validTri, hn::Le(u, hn::Set(d, 1.0f)));
-
-                        V qvecx = crossX(tvecx, tvecy, tvecz, e1x, e1y, e1z);
-                        V qvecy = crossY(tvecx, tvecy, tvecz, e1x, e1y, e1z);
-                        V qvecz = crossZ(tvecx, tvecy, tvecz, e1x, e1y, e1z);
-
-                        V v = hn::Mul(dot(r_dx, r_dy, r_dz, qvecx, qvecy, qvecz), invDet);
-                        validTri = hn::And(validTri, hn::Ge(v, hn::Set(d, 0.0f)));
-                        validTri = hn::And(validTri, hn::Le(hn::Add(u, v), hn::Set(d, 1.0f)));
-
-                        V t = hn::Mul(dot(e2x, e2y, e2z, qvecx, qvecy, qvecz), invDet);
-                        validTri = hn::And(validTri, hn::Gt(t, hn::Set(d, ray.tMin)));
-                        validTri = hn::And(validTri, hn::Lt(t, t_max_simd));
-
-                        if (!hn::AllFalse(d, validTri)) {
-                            alignas(16) float t_arr[4];
-                            alignas(16) float u_arr[4];
-                            alignas(16) float v_arr[4];
-
-                            hn::Store(t, d, t_arr);
-                            hn::Store(u, d, u_arr);
-                            hn::Store(v, d, v_arr);
-
-                            uint8_t mask_tri[8] = {0};
-                            hn::StoreMaskBits(d, validTri, mask_tri);
-
-                            for (int l = 0; l < 4; ++l) {
-                                if ((mask_tri[0] & (1 << l)) != 0) {
-                                    if (t_arr[l] < ray.tMax) {
-                                        if (predicate) return true;
-
-                                        ray.tMax = t_arr[l];
-                                        t_max_simd = hn::Set(d, ray.tMax);
-
-                                        isect.t = t_arr[l];
-                                        isect.uv = Point2f(u_arr[l], v_arr[l]);
-                                        isect.primIndex = pack.primIndex[l];
-                                        hitAny = true;
-                                    }
-                                }
+                                isect.t = t_arr[l];
+                                isect.uv = Point2f(u_arr[l], v_arr[l]);
+                                isect.primIndex = pack.primIndex[l];
+                                hitLocal = true;
                             }
                         }
                     }
                 }
             }
-        }
-        return hitAny;
+            return hitLocal;
+        };
+
+        return traverseBVH4(m_nodes4, ray, predicate, leafIntersector);
     }
 
     void Mesh::fillInteraction(const Ray& ray, SurfaceInteraction& isect) const {

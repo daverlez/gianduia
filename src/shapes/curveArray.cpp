@@ -1,9 +1,14 @@
 #include "gianduia/shapes/curveArray.h"
-#include <gianduia/core/factory.h>
-#include <gianduia/core/fileResolver.h>
+#include "gianduia/core/factory.h"
+#include "gianduia/core/fileResolver.h"
+#include "gianduia/core/bvhTraversal.h"
 #include <fstream>
 #include <cstring>
 #include <algorithm>
+#include <functional>
+#include <iostream>
+#include <limits>
+
 
 namespace gnd {
 
@@ -46,7 +51,7 @@ namespace gnd {
         char magic[4];
         is.read(magic, 4);
         if (std::strncmp(magic, "HAIR", 4) != 0) {
-            throw std::runtime_error("CurveArraY: invalid file format for " + filename);
+            throw std::runtime_error("CurveArray: invalid file format for " + filename);
         }
 
         uint32_t count = 0;
@@ -70,7 +75,13 @@ namespace gnd {
 
         if (!m_nodes.empty()) {
             m_bounds = m_nodes[0].bounds;
+            m_nodes4 = BVHBuilder::buildWide(m_nodes);
+
+            m_nodes.clear();
+            m_nodes.shrink_to_fit();
         }
+
+        std::cout << "CurveArray: BVH Collapsed into " << m_nodes4.size() << " Wide-BVH4 nodes." << std::endl;
     }
 
     Bounds3f CurveArray::getBounds() const {
@@ -78,54 +89,32 @@ namespace gnd {
     }
 
     bool CurveArray::rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool predicate) const {
-        if (m_nodes.empty()) return false;
-
-        bool hit = false;
-        Vector3f invDir(1.0f / ray.d.x(), 1.0f / ray.d.y(), 1.0f / ray.d.z());
-        int dirIsNeg[3] = { invDir.x() < 0.0f, invDir.y() < 0.0f, invDir.z() < 0.0f };
-
-        int nodesToVisit[64];
-        int toVisitOffset = 0;
-        int currentNodeIndex = 0;
-        float tHitMax = ray.tMax;
-
         int bestSegmentIndex = -1;
 
-        while (true) {
-            const BVHNode& node = m_nodes[currentNodeIndex];
+        auto leafIntersector = [&](int offset, int count) -> bool {
+            bool hitLocal = false;
 
-            if (node.bounds.rayIntersect(ray, invDir)) {
-                if (node.nPrimitives > 0) {
-                    for (int i = 0; i < node.nPrimitives; ++i) {
-                        int segIdx = m_orderedIndices[node.primitivesOffset + i];
-                        if (intersectSegment(ray, segIdx, tHitMax, isect)) {
-                            hit = true;
-                            bestSegmentIndex = segIdx;
-                            if (predicate) return true;
-                        }
-                    }
-                    if (toVisitOffset == 0) break;
-                    currentNodeIndex = nodesToVisit[--toVisitOffset];
-                } else {
-                    if (dirIsNeg[node.axis]) {
-                        nodesToVisit[toVisitOffset++] = currentNodeIndex + 1;
-                        currentNodeIndex = node.rightChildOffset;
-                    } else {
-                        nodesToVisit[toVisitOffset++] = node.rightChildOffset;
-                        currentNodeIndex = currentNodeIndex + 1;
-                    }
+            for (int p = 0; p < count; ++p) {
+                int segIdx = m_orderedIndices[offset + p];
+                float currentTMax = ray.tMax;
+
+                if (intersectSegment(ray, segIdx, currentTMax, isect)) {
+                    hitLocal = true;
+                    bestSegmentIndex = segIdx;
+
+                    ray.tMax = currentTMax;
+
+                    if (predicate) return true;
                 }
-            } else {
-                if (toVisitOffset == 0) break;
-                currentNodeIndex = nodesToVisit[--toVisitOffset];
             }
-        }
+            return hitLocal;
+        };
 
-        if (hit && !predicate) {
+        bool hitAny = traverseBVH4(m_nodes4, ray, predicate, leafIntersector);
+        if (hitAny && !predicate)
             isect.primIndex = bestSegmentIndex;
-        }
 
-        return hit;
+        return hitAny;
     }
 
     void CurveArray::fillInteraction(const Ray& ray, SurfaceInteraction& isect) const {
@@ -139,18 +128,18 @@ namespace gnd {
         isect.dpdu = seg.evaluateDerivative(uHit);
 
         Point3f curvePointObj = seg.evaluateBezier(uHit);
-        Vector3f dpdv = isect.p - curvePointObj;
+        Vector3f normalRad = isect.p - curvePointObj;
 
         float dpduLength2 = isect.dpdu.lengthSquared();
         if (dpduLength2 > 0.0f) {
-            dpdv = dpdv - isect.dpdu * (Dot(dpdv, isect.dpdu) / dpduLength2);
+            normalRad = normalRad - isect.dpdu * (Dot(normalRad, isect.dpdu) / dpduLength2);
         }
 
-        if (dpdv.lengthSquared() < 1e-6f) {
-            dpdv = Vector3f(0.0f, 1.0f, 0.0f);
+        if (normalRad.lengthSquared() < 1e-6f) {
+            normalRad = Vector3f(0.0f, 1.0f, 0.0f);
         }
 
-        isect.n = Normal3f(Normalize(dpdv));
+        isect.n = Normal3f(Normalize(normalRad));
         isect.dpdu = Normalize(isect.dpdu);
     }
 
@@ -260,7 +249,10 @@ namespace gnd {
                 if (zHit > ray.tMin && zHit < tMax) {
                     tMax = zHit;
                     isect.t = zHit;
-                    isect.uv = Point2f(uHit, 0.0f);
+                    float hHit = std::sqrt(d2) / radius;
+                    if (pProj.x() < 0.0f) hHit = -hHit;
+
+                    isect.uv = Point2f(uHit, (hHit + 1.0f) * 0.5f);
                     return true;
                 }
             }

@@ -11,9 +11,11 @@ namespace gnd {
         BSDF(const SurfaceInteraction& isect, float eta = 1.0f);
 
         /// Adds a lobe previously allocated in the memory arena
-        void add(BxDF* bxdf) {
+        void add(BxDF* bxdf, float sampleWeight = 1.0f) {
             if (m_numBxDFs < MaxBxDFs) {
-                m_bxdfs[m_numBxDFs++] = bxdf;
+                m_bxdfs[m_numBxDFs] = bxdf;
+                m_weights[m_numBxDFs] = sampleWeight;
+                m_numBxDFs++;
             }
         }
 
@@ -38,7 +40,8 @@ namespace gnd {
         /// @param pdf probability of sampling wi given wo (same result from pdf(wo, wi))
         /// @param sampledType specifies the sampled lobe type
         /// @param type restricts sampling to the specified lobe flags
-        /// @return the value of f computed on the two directions
+        /// @return the value of f computed on the two directions, accounting for the foreshortening term and divided
+        /// by the pdf with respect to solid angle.
         Color3f sample(const Vector3f& woWorld, Vector3f* wiWorld,
                          const Point2f& sample, float uc, float* pdf,
                          BxDFType* sampledType = nullptr,
@@ -55,6 +58,7 @@ namespace gnd {
         static constexpr int MaxBxDFs = 8;
         int m_numBxDFs = 0;
         BxDF* m_bxdfs[MaxBxDFs];
+        float m_weights[MaxBxDFs];
     };
 
 }

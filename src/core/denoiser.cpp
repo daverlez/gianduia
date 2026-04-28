@@ -3,7 +3,7 @@
 #include <iostream>
 
 namespace gnd {
-    void Denoiser::execute(Bitmap* film) {
+    void Denoiser::execute(Film* film) {
         if (!film) return;
 
         std::cout << "Denoising image with OIDN..." << std::endl;
@@ -15,9 +15,9 @@ namespace gnd {
 
         int width = film->width();
         int height = film->height();
-        float* colorPtr  = film->data();
-        float* albedoPtr = film->albedoData();
-        float* normalPtr = film->normalData();
+        float* colorPtr  = reinterpret_cast<float*>(film->getRadiance().data());
+        float* albedoPtr = reinterpret_cast<float*>(film->getAlbedo().data());
+        float* normalPtr = reinterpret_cast<float*>(film->getNormal().data());
 
         filter.setImage("color",  colorPtr, oidn::Format::Float3, width, height);
 
