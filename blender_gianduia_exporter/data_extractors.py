@@ -216,6 +216,7 @@ def get_light_data(light):
 def export_texture_or_value(parent_node, input_socket, prop_name, export_dir, textures_dir_name="textures"):
     if input_socket.is_linked:
         from_node = input_socket.links[0].from_node
+
         if from_node.type == 'NORMAL_MAP':
             if not from_node.inputs['Color'].is_linked: return
             from_node = from_node.inputs['Color'].links[0].from_node
@@ -224,7 +225,15 @@ def export_texture_or_value(parent_node, input_socket, prop_name, export_dir, te
             img = from_node.image
             filename = copy_asset(bpy.path.abspath(img.filepath), os.path.join(export_dir, textures_dir_name))
 
-            tex_node = ET.SubElement(parent_node, "texture", type="image", name=prop_name)
+            tex_type = "image_color"
+
+            if prop_name == "normal":
+                tex_type = "image_normal"
+            elif input_socket.type == 'VALUE' or prop_name in ["roughness", "eta", "beta_m", "beta_n", "alpha"]:
+                tex_type = "image_float"
+
+            tex_node = ET.SubElement(parent_node, "texture", type=tex_type, name=prop_name)
+
             add_string(tex_node, "filename", f"{textures_dir_name}/{filename}")
             add_string(tex_node, "color_space", "sRGB" if img.colorspace_settings.name == 'sRGB' else "linear")
             add_string(tex_node, "interpolation_mode", "closest" if from_node.interpolation == 'Closest' else "linear")
