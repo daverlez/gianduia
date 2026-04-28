@@ -25,11 +25,11 @@ namespace gnd {
         float Fss = (1.0f + (FSS90 - 1.0f) * Fi) * (1.0f + (FSS90 - 1.0f) * Fo);
         float fSubsurface = 1.25f * (Fss * (1.0f / (cosThetaO + cosThetaI) - 0.5f) + 0.5f);
 
-        return InvPi * m_R * Lerp(m_subsurface, fDiffuse, fSubsurface);
+        return m_weight * InvPi * m_R * Lerp(m_subsurface, fDiffuse, fSubsurface);
     }
 
     float DisneyDiffuseBxDF::pdf(const Vector3f& wo, const Vector3f& wi) const {
-        return Warp::squareToCosineHemispherePdf(wo);
+        return Warp::squareToCosineHemispherePdf(wi);
     }
 
     Color3f DisneyDiffuseBxDF::sample(const Vector3f& wo, Vector3f& wi, const Point2f& sample,
@@ -57,7 +57,7 @@ namespace gnd {
         float lum = m_R.luminance();
         Color3f tintColor = lum > 0.0f ? m_R / lum : Color3f(1.0f);
 
-        return Lerp(m_tint, Color3f(1.0f), tintColor) * SchlickWeight(cosThetaD);
+        return m_weight * Lerp(m_tint, Color3f(1.0f), tintColor) * SchlickWeight(cosThetaD);
     }
 
     float DisneySheenBxDF::pdf(const Vector3f& wo, const Vector3f& wi) const {
@@ -228,11 +228,12 @@ namespace gnd {
 
             // Diffuse & Sheen
             if (metallic < 1.0f) {
-                float weight = 1.0f - metallic;
-                isect.bsdf->add(arena.create<DisneyDiffuseBxDF>(color, roughness, m_subsurface), weight);
+                float diffWeight = 1.0f - metallic;
+                isect.bsdf->add(arena.create<DisneyDiffuseBxDF>(diffWeight, color, roughness, m_subsurface), diffWeight);
 
                 if (sheen > 0.0f) {
-                    isect.bsdf->add(arena.create<DisneySheenBxDF>(color, m_sheenTint->evaluate(isect)), 0.0f);
+                    float sheenWeight = diffWeight * sheen;
+                    isect.bsdf->add(arena.create<DisneySheenBxDF>(sheenWeight, color, m_sheenTint->evaluate(isect)), 0.0f);
                 }
             }
 
@@ -241,7 +242,7 @@ namespace gnd {
             float ax = std::max(0.001f, roughness * roughness / aspect);
             float ay = std::max(0.001f, roughness * roughness * aspect);
 
-            float specularWeight = Lerp(metallic, spec, 1.0f);
+            float specularWeight = std::max(0.01f, Lerp(metallic, spec, 1.0f));
 
             auto* distGTR2 = arena.create<TrowbridgeReitzDistribution>(ax, ay);
             auto* fresnel = arena.create<FresnelDisney>(color, metallic, spec, specTint);
@@ -285,6 +286,7 @@ namespace gnd {
                 indent(m_sheenTint->toString(), 2),
                 indent(m_clearcoat->toString(), 2),
                 indent(m_clearcoatGloss->toString(), 2),
+                m_subsurface,
                 m_normalMap ? indent(m_normalMap->toString(), 2) : "  null");
         }
 

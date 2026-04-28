@@ -11,6 +11,8 @@ namespace gnd {
     /// @param etaExt external index of refraction. Automatically swaps it if cosThetaI < 0.
     /// @param etaInt internal index of refraction. Automatically swaps it if cosThetaI < 0
     inline float FrDielectric(float cosThetaI, float etaExt, float etaInt) {
+        if (etaExt == etaInt) return 0.0f;
+
         cosThetaI = std::clamp(cosThetaI, -1.f, 1.f);
 
         // If getting out of the dielectric, swap the two indices of refraction

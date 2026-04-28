@@ -8,8 +8,8 @@ namespace gnd {
 
     class DisneyDiffuseBxDF : public BxDF {
     public:
-        DisneyDiffuseBxDF(const Color3f& R, float roughness, float subsurface)
-            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE)), m_R(R),
+        DisneyDiffuseBxDF(float weight, const Color3f& R, float roughness, float subsurface)
+            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE)), m_weight(weight), m_R(R),
               m_roughness(roughness), m_subsurface(subsurface) {}
 
         Color3f f(const Vector3f& wo, const Vector3f& wi) const override;
@@ -20,12 +20,13 @@ namespace gnd {
     private:
         Color3f m_R;
         float m_roughness, m_subsurface;
+        float m_weight;
     };
 
     class DisneySheenBxDF : public BxDF {
     public:
-        DisneySheenBxDF(const Color3f& R, float tint)
-            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE)), m_R(R), m_tint(tint) {}
+        DisneySheenBxDF(float weight, const Color3f& R, float tint)
+            : BxDF(BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE)), m_weight(weight), m_R(R), m_tint(tint) {}
 
         Color3f f(const Vector3f& wo, const Vector3f& wi) const override;
         float pdf(const Vector3f& wo, const Vector3f& wi) const override;
@@ -33,7 +34,7 @@ namespace gnd {
                        float uc, float& pdf, BxDFType* sampledType) const override;
     private:
         Color3f m_R;
-        float m_tint;
+        float m_tint, m_weight;
     };
 
     class DisneyClearcoatBxDF : public BxDF {
