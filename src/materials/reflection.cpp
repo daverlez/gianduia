@@ -101,9 +101,9 @@ namespace gnd {
     // ---- Microfacet reflection
 
     Color3f MicrofacetReflection::f(const Vector3f &wo, const Vector3f &wi) const {
+        if (wo.z() * wi.z() <= 0.0f) return Color3f(0.0f);
         float cosThetaO = std::abs(wo.z()), cosThetaI = std::abs(wi.z());
         if (cosThetaO == 0.0f || cosThetaI == 0.0f) return Color3f(0.0f);
-        if (wo.z() * wi.z() <= 0.0f) return Color3f(0.0f);
 
         Vector3f wh = wo + wi;
         if (wh.x() == 0.0f && wh.y() == 0.0f && wh.z() == 0.0f) return Color3f(0.0f);

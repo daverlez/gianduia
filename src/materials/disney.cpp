@@ -7,6 +7,8 @@ namespace gnd {
     // Diffuse lobe
 
     Color3f DisneyDiffuseBxDF::f(const Vector3f &wo, const Vector3f &wi) const {
+        if (wo.z() * wi.z() <= 0.0f) return Color3f(0.0f);
+
         float cosThetaO = Frame::cosTheta(wo);
         float cosThetaI = Frame::cosTheta(wi);
 
@@ -29,6 +31,7 @@ namespace gnd {
     }
 
     float DisneyDiffuseBxDF::pdf(const Vector3f& wo, const Vector3f& wi) const {
+        if (wo.z() * wi.z() <= 0.0f) return 0.0f;
         return Warp::squareToCosineHemispherePdf(wi);
     }
 
@@ -51,6 +54,8 @@ namespace gnd {
     // Sheen lobe
 
     Color3f DisneySheenBxDF::f(const Vector3f& wo, const Vector3f& wi) const {
+        if (wo.z() * wi.z() <= 0.0f) return Color3f(0.0f);
+
         Vector3f wh = Normalize(wo + wi);
         float cosThetaD = Dot(wi, wh);
 
@@ -76,6 +81,8 @@ namespace gnd {
     // Clearcoat lobe
 
     Color3f DisneyClearcoatBxDF::f(const Vector3f& wo, const Vector3f& wi) const {
+        if (wo.z() * wi.z() <= 0.0f) return Color3f(0.0f);
+
         Vector3f wh = Normalize(wo + wi);
         float cosThetaD = Dot(wi, wh);
 
@@ -90,6 +97,8 @@ namespace gnd {
     }
 
     float DisneyClearcoatBxDF::pdf(const Vector3f& wo, const Vector3f& wi) const {
+        if (wo.z() * wi.z() <= 0.0f) return 0.0f;
+
         Vector3f wh = Normalize(wo + wi);
         float dotOH = Dot(wo, wh);
         if (dotOH <= 0.0f) return 0.0f;
