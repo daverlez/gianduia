@@ -5,7 +5,7 @@ namespace gnd {
     // Trowbridge-Reitz (GTR2)
 
     float TrowbridgeReitzDistribution::D(const Vector3f& wh) const {
-        if (wh.z() <= 0.0f) return 0.0f;
+        if (std::abs(wh.z()) < Epsilon) return 0.0f;
 
         float d = (wh.x() * wh.x()) / (m_alphaX * m_alphaX) +
                   (wh.y() * wh.y()) / (m_alphaY * m_alphaY) +
@@ -15,7 +15,7 @@ namespace gnd {
     }
 
     float TrowbridgeReitzDistribution::G1(const Vector3f& w) const {
-        if (w.z() <= 0.0f) return 0.0f;
+        if (std::abs(w.z()) < Epsilon) return 0.0f;
 
         float a2tan2 = (w.x() * w.x() * m_alphaX * m_alphaX + w.y() * w.y() * m_alphaY * m_alphaY) / (w.z() * w.z());
         float lambda = 0.5f * (-1.0f + std::sqrt(1.0f + a2tan2));
@@ -69,7 +69,7 @@ namespace gnd {
     // Berry (GTR1)
 
     float GTR1Distribution::D(const Vector3f& wh) const {
-        if (wh.z() <= 0.0f) return 0.0f;
+        if (std::abs(wh.z()) < Epsilon) return 0.0f;
 
         float alpha2 = m_alpha * m_alpha;
         float cos2 = wh.z() * wh.z();
@@ -81,7 +81,7 @@ namespace gnd {
     }
 
     float GTR1Distribution::G1(const Vector3f& w) const {
-        if (w.z() <= 0.0f) return 0.0f;
+        if (std::abs(w.z()) < Epsilon) return 0.0f;
 
         // Burley (2012): roughness = 0.25f -> alpha = 0.25^2 = 0.0625f
         float alpha2 = 0.0625f;

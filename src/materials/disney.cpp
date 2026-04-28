@@ -126,14 +126,14 @@ namespace gnd {
         float etaT = entering ? m_etaInt : m_etaExt;
 
         Vector3f wh = Normalize(wo * etaI + wi * etaT);
-        if (wh.z() < 0.0f) wh = -wh;
+        if (wh.z() * wo.z() < 0.0f) wh = -wh;
 
         float dotO = Dot(wo, wh);
         float dotI = Dot(wi, wh);
 
         if (dotO * dotI > 0.0f) return Color3f(0.0f);
 
-        float F = FrDielectric(dotO, m_etaExt, m_etaInt);
+        float F = FrDielectric(dotO, etaI, etaT);
         float D = m_distrib->D(wh);
         float G = m_distrib->G(wo, wi);
 
@@ -152,13 +152,13 @@ namespace gnd {
         float etaT = entering ? m_etaInt : m_etaExt;
 
         Vector3f wh = Normalize(wo * etaI + wi * etaT);
-        if (wh.z() < 0.0f) wh = -wh;
+        if (wh.z() * wo.z() < 0.0f) wh = -wh;
 
         float dotO = Dot(wo, wh);
         float dotI = Dot(wi, wh);
         if (dotO * dotI > 0.0f) return 0.0f;
 
-        float F = FrDielectric(dotO, m_etaExt, m_etaInt);
+        float F = FrDielectric(dotO, etaI, etaT);
         float pdf_wh = m_distrib->pdf(wo, wh);
 
         float denom = (etaI * dotO + etaT * dotI);
