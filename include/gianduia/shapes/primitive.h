@@ -22,7 +22,7 @@ namespace gnd {
 
         Bounds3f getWorldBounds() const;
         std::shared_ptr<Shape> getShape() const;
-        const Transform& getToWorld(float time) const;
+        Transform getToWorld(float time) const;
         std::shared_ptr<Material> getMaterial() const;
         std::shared_ptr<Emitter> getEmitter() const;
 

@@ -79,7 +79,7 @@ namespace gnd {
         return m_shape;
     }
 
-    const Transform& Primitive::getToWorld(float time) const {
+    Transform Primitive::getToWorld(float time) const {
         return m_objectToWorld.interpolate(time);
     }
 

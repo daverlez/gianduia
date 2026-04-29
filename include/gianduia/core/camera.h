@@ -32,7 +32,7 @@ namespace gnd {
         virtual float shootRay(const CameraSample& sample, Ray* ray) const = 0;
         virtual bool hasChromaticAberration() const { return false; }
 
-        const Transform& getCameraToWorld(float time) const { return m_cameraToWorld.interpolate(time); }
+        Transform getCameraToWorld(float time) const { return m_cameraToWorld.interpolate(time); }
         int getWidth() const { return m_outputWidth; }
         int getHeight() const { return m_outputHeight; }
         float getAspectRatio() const { return m_outputWidth / (float)m_outputHeight; }
