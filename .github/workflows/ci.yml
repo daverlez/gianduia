@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-and-test:
     name: Build on ${{ matrix.os }}
@@ -16,18 +20,23 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-14]
 
     env:
-      VCPKG_BINARY_SOURCES: 'clear;x-gha,readwrite'
+      VCPKG_BINARY_SOURCES: 'clear;nuget,GitHub,readwrite'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Configure NuGet for vcpkg
+        run: >
+          nuget sources add 
+          -Name "GitHub" 
+          -Source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" 
+          -UserName "${{ github.repository_owner }}" 
+          -Password "${{ secrets.GITHUB_TOKEN }}"
+          -StorePasswordInClearText
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -43,7 +52,7 @@ jobs:
         shell: bash
 
       - name: Build Gianduia
-        run: cmake --build build --config Release --parallel 4
+        run: cmake --build build --config Release --parallel
 
       - name: Run Tests
         run: ctest --test-dir build -C Release --output-on-failure
