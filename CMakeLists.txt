@@ -29,17 +29,13 @@ include(FetchContent)
 if(APPLE)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
         set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.arm64.macos.tar.gz")
-        set(OIDN_FOLDER "oidn-2.4.1.arm64.macos")
     else()
         set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x86_64.macos.tar.gz")
-        set(OIDN_FOLDER "oidn-2.4.1.x86_64.macos")
     endif()
 elseif(WIN32)
     set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x64.windows.zip")
-    set(OIDN_FOLDER "oidn-2.4.1.x64.windows")
 elseif(UNIX AND NOT APPLE)
     set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x86_64.linux.tar.gz")
-    set(OIDN_FOLDER "oidn-2.4.1.x86_64.linux")
 endif()
 
 FetchContent_Declare(
@@ -48,7 +44,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(oidn_binaries)
 
-set(OpenImageDenoise_DIR "${oidn_binaries_SOURCE_DIR}/${OIDN_FOLDER}/lib/cmake/OpenImageDenoise")
+file(GLOB_RECURSE OIDN_CONFIG_FILES "${oidn_binaries_SOURCE_DIR}/*OpenImageDenoiseConfig.cmake")
+
+if (OIDN_CONFIG_FILES)
+    list(GET OIDN_CONFIG_FILES 0 OIDN_CONFIG_FILE_PATH)
+
+    get_filename_component(OpenImageDenoise_DIR "${OIDN_CONFIG_FILE_PATH}" DIRECTORY)
+    message(STATUS "Found OpenImageDenoise in: ${OpenImageDenoise_DIR}")
+else()
+    message(FATAL_ERROR "Cannot find OpenImageDenoiseConfig.cmake in downloaded files.")
+endif()
+
 find_package(OpenImageDenoise REQUIRED)
 
 if (MSVC)
