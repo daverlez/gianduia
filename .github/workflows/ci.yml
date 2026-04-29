@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [ "main" ]
 
-permissions:
-  contents: read
-  packages: write
-
 jobs:
   build-and-test:
     name: Build on ${{ matrix.os }}
@@ -20,19 +16,19 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-14]
 
     env:
-      VCPKG_BINARY_SOURCES: 'clear;nuget,GitHub,readwrite'
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_binary_cache
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure NuGet for vcpkg
-        run: >
-          dotnet nuget add source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" 
-          --name "GitHub" 
-          --username "${{ github.repository_owner }}" 
-          --password "${{ secrets.GITHUB_TOKEN }}" 
-          --store-password-in-clear-text
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
