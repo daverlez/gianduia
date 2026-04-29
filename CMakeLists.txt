@@ -20,18 +20,26 @@ find_package(hwy CONFIG REQUIRED)
 
 find_path(STB_INCLUDE_DIR "stb_image.h")
 
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 include(FetchContent)
 
 if(APPLE)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
         set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.arm64.macos.tar.gz")
+        set(OIDN_FOLDER "oidn-2.4.1.arm64.macos")
     else()
         set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x86_64.macos.tar.gz")
+        set(OIDN_FOLDER "oidn-2.4.1.x86_64.macos")
     endif()
 elseif(WIN32)
     set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x64.windows.zip")
+    set(OIDN_FOLDER "oidn-2.4.1.x64.windows")
 elseif(UNIX AND NOT APPLE)
     set(OIDN_URL "https://github.com/RenderKit/oidn/releases/download/v2.4.1/oidn-2.4.1.x86_64.linux.tar.gz")
+    set(OIDN_FOLDER "oidn-2.4.1.x86_64.linux")
 endif()
 
 FetchContent_Declare(
@@ -40,7 +48,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(oidn_binaries)
 
-set(OpenImageDenoise_DIR "${oidn_binaries_SOURCE_DIR}/lib/cmake/OpenImageDenoise")
+set(OpenImageDenoise_DIR "${oidn_binaries_SOURCE_DIR}/${OIDN_FOLDER}/lib/cmake/OpenImageDenoise")
 find_package(OpenImageDenoise REQUIRED)
 
 if (MSVC)
