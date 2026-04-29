@@ -30,6 +30,9 @@ jobs:
           restore-keys: |
             vcpkg-${{ runner.os }}-
 
+      - name: Create vcpkg cache directory
+        run: cmake -E make_directory ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
