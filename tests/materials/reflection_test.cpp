@@ -107,8 +107,7 @@ TEST(ReflectionTest, MicrofacetReflection) {
 
         EXPECT_FLOAT_EQ(pdf, expected_pdf);
 
-        gnd::Color3f expected_weight = expected_f * std::abs(wi_sampled.z()) / pdf;
-        EXPECT_FLOAT_EQ(weight.r(), expected_weight.r());
+        EXPECT_FLOAT_EQ(weight.r(), expected_f.r());
     }
 }
 

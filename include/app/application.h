@@ -56,7 +56,7 @@ private:
     std::atomic<bool> m_isRendering = false;
     std::atomic<int> m_currentSample = 0;
     std::atomic<double> m_renderTime = 0.0;
-    std::chrono::time_point<std::chrono::high_resolution_clock> m_startTime;
+    std::chrono::steady_clock::time_point m_startTime;
 
     glTexture m_texture;
     std::mutex m_textureMutex;

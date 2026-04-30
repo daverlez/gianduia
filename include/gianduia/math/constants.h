@@ -3,12 +3,13 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <algorithm>
+#include <cmath>
 
 namespace gnd {
 
     constexpr float Infinity = std::numeric_limits<float>::infinity();
     constexpr float MachineEpsilon = std::numeric_limits<float>::epsilon() * 0.5f;
-
     constexpr float Epsilon = 0.0001f;
 
     constexpr float Pi = 3.14159265358979323846f;

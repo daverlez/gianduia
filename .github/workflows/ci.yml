@@ -1,0 +1,111 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_binary_cache
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Enable Long Paths (Windows only)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git config --system core.longpaths true
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1
+
+      - name: Create vcpkg cache directory
+        run: cmake -E make_directory "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}"
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          key: ${{ runner.os }}-sccache
+
+      - name: Setup MSVC environment (Windows only)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        run: choco install ninja
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config ninja-build
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew list ninja || brew install ninja
+
+      - name: Configure CMake (Linux & macOS)
+        if: runner.os != 'Windows'
+        run: >
+          cmake -B build -S . 
+          -G Ninja 
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" 
+          -DCMAKE_BUILD_TYPE=Release 
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache 
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        shell: bash
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          cmake -B build -S . 
+          -G Ninja 
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" 
+          -DCMAKE_BUILD_TYPE=Release 
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache 
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+
+      - name: Build Gianduia
+        run: cmake --build build --config Release --parallel
+
+      - name: Run Tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Cleanup old sccache caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Looking for old sccache caches for ${{ runner.os }}..."
+          
+          gh cache list --limit 100 --order desc --sort created_at | awk '/${{ runner.os }}-sccache-/ {print $1}' | while read -r cache_key; do
+            if [ -n "$cache_key" ]; then
+              echo "Deleting old cache: $cache_key"
+              gh cache delete "$cache_key" || true
+            fi
+          done
+        shell: bash

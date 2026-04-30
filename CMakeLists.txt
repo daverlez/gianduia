@@ -20,6 +20,10 @@ find_package(hwy CONFIG REQUIRED)
 
 find_path(STB_INCLUDE_DIR "stb_image.h")
 
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 include(FetchContent)
 
 if(APPLE)
@@ -40,7 +44,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(oidn_binaries)
 
-set(OpenImageDenoise_DIR "${oidn_binaries_SOURCE_DIR}/lib/cmake/OpenImageDenoise")
+file(GLOB_RECURSE OIDN_CONFIG_FILES "${oidn_binaries_SOURCE_DIR}/*OpenImageDenoiseConfig.cmake")
+
+if (OIDN_CONFIG_FILES)
+    list(GET OIDN_CONFIG_FILES 0 OIDN_CONFIG_FILE_PATH)
+
+    get_filename_component(OpenImageDenoise_DIR "${OIDN_CONFIG_FILE_PATH}" DIRECTORY)
+    message(STATUS "Found OpenImageDenoise in: ${OpenImageDenoise_DIR}")
+else()
+    message(FATAL_ERROR "Cannot find OpenImageDenoiseConfig.cmake in downloaded files.")
+endif()
+
 find_package(OpenImageDenoise REQUIRED)
 
 if (MSVC)
@@ -60,12 +74,22 @@ target_link_libraries(GianduiaEngine PUBLIC
         TBB::tbb
         OpenEXR::OpenEXR
         OpenVDB::openvdb
-        blosc_static
         tinyobjloader::tinyobjloader
         pugixml::pugixml
         OpenImageDenoise
         hwy::hwy
 )
+
+# Resolving blosc
+if(TARGET blosc_static)
+    target_link_libraries(GianduiaEngine PUBLIC blosc_static)
+elseif(TARGET blosc_shared)
+    target_link_libraries(GianduiaEngine PUBLIC blosc_shared)
+elseif(TARGET blosc)
+    target_link_libraries(GianduiaEngine PUBLIC blosc)
+else()
+    message(WARNING "No blosc target found. OpenVDB linking may fail.")
+endif()
 
 add_subdirectory(src/core)
 add_subdirectory(src/cameras)

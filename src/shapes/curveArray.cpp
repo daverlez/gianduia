@@ -38,7 +38,7 @@ namespace gnd {
     }
 
     CurveArray::CurveArray(const PropertyList& props) : Shape(props) {
-        std::string filename = FileResolver::resolve(props.getString("filename"));
+        std::string filename = (FileResolver::resolve(props.getString("filename"))).string();
         loadBinary(filename);
     }
 

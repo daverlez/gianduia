@@ -44,7 +44,7 @@ TEST(MicrofacetTest, SamplingAndPdf) {
     EXPECT_GE(wh.z() * wo.z(), 0.0f);
 
     float calculatedPdf = distrib.pdf(wo, wh);
-    float expectedPdf = distrib.D(wh) * std::abs(wh.z());
+    float expectedPdf = distrib.D(wh) * distrib.G1(wo) * std::abs(gnd::Dot(wo, wh)) / std::abs(wo.z());
 
     EXPECT_FLOAT_EQ(calculatedPdf, expectedPdf);
 }
