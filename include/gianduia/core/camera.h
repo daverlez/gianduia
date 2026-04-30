@@ -38,6 +38,13 @@ namespace gnd {
         float getAspectRatio() const { return m_outputWidth / (float)m_outputHeight; }
         Film* getFilm() const { return m_film.get(); }
 
+        virtual void getViewMatrix(float time, float* outMatrix16) const {
+            Transform worldToCam = getCameraToWorld(time).inverse();
+            worldToCam.getMatrixData(outMatrix16);
+        }
+
+        virtual void getProjectionMatrix(float zNear, float zFar, float* outMatrix16) const = 0;
+
         EClassType getClassType() const override { return ECamera; }
 
         virtual void addChild(std::shared_ptr<GndObject> child) {

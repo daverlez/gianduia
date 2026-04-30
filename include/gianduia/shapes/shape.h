@@ -1,7 +1,7 @@
 #pragma once
 
 #include <gianduia/core/object.h>
-
+#include "gianduia/core/bvhBuilder.h"
 #include "gianduia/materials/bsdf.h"
 
 namespace gnd {
@@ -72,5 +72,7 @@ namespace gnd {
         /// Returns pdf with respect to area of the sampled point.
         /// @param info sampled point information
         virtual float pdfSurface(const Point3f& ref, const SurfaceInteraction& info) const = 0;
+
+        virtual void getBvhDebugNodes(std::vector<BvhDebugNode>& outNodes, int nodeIdx, int depth) const {};
     };
 }

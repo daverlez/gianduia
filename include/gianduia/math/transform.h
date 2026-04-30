@@ -5,6 +5,7 @@
 #include <gianduia/math/bounds.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <cstring>
 
 namespace gnd {
 
@@ -89,6 +90,10 @@ namespace gnd {
 
         Vector3f getRight() const {
             return Vector3f(glm::vec3(m[0]));
+        }
+
+        void getMatrixData(float* outMatrix16) const {
+            std::memcpy(outMatrix16, &m[0][0], 16 * sizeof(float));
         }
 
         /* Static factories */

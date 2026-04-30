@@ -23,6 +23,8 @@ namespace gnd {
 
         size_t getSizeBytes() const { return m_nodes4.size() * sizeof(BVHNode4); }
 
+        void getDebugNodes(std::vector<BvhDebugNode>& outNodes, int nodeIdx, int depth) const;
+
     private:
         // SoA (4 bboxes) for parallel bbox intersection tests
         std::vector<BVHNode4> m_nodes4;
