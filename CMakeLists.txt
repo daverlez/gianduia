@@ -106,6 +106,7 @@ add_executable(Gianduia
         src/app/main.cpp
         src/app/application.cpp
         src/app/postProcessor.cpp
+        src/app/debugRenderer.cpp
 )
 
 if(APPLE)

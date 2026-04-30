@@ -86,7 +86,17 @@ namespace gnd {
                 int packCount = node.packCount[i];
 
                 for (int p = 0; p < packCount; ++p) {
-                    m_primitives[primOffset + p]->getShape()->getBvhDebugNodes(outNodes, 0, depth + 1);
+                    std::shared_ptr<Primitive> prim = m_primitives[primOffset + p];
+                    Transform toWorld = prim->getToWorld(0.0f);
+                    std::vector<BvhDebugNode> localNodes;
+                    if (prim->getShape()) {
+                        prim->getShape()->getBvhDebugNodes(localNodes, 0, depth + 1);
+                    }
+
+                    for (auto& localNode : localNodes) {
+                        localNode.bounds = toWorld(localNode.bounds);
+                        outNodes.push_back(localNode);
+                    }
                 }
             }
         }

@@ -6,10 +6,12 @@
 #include <mutex>
 #include <chrono>
 
-#include <app/glTexture.h>
-#include <gianduia/scene/scene.h>
+#include "app/glTexture.h"
+#include "app/interactiveCamera.h"
+#include "app/postProcessor.h"
+#include "app/debugRenderer.h"
 
-#include "postProcessor.h"
+#include <gianduia/scene/scene.h>
 
 struct GLFWwindow;
 
@@ -43,6 +45,12 @@ private:
         Normal
     };
 
+    enum class ViewportMode {
+        Render,
+        Interactive
+    };
+
+    ViewportMode m_viewportMode = ViewportMode::Render;
     ViewMode m_viewMode = ViewMode::Beauty;
 
     bool m_headless;
@@ -63,4 +71,17 @@ private:
     bool m_textureDirty = false;
 
     PostProcessor m_postProcessor;
+    InteractiveCamera m_interactiveCamera;
+    DebugRenderer m_debugRenderer;
+
+    std::vector<gnd::BvhDebugNode> m_cachedBvhNodes;
+    bool m_showTLAS = true;
+    bool m_showBLAS = true;
+    int m_maxBvhDepth = 64;
+    bool m_bvhFiltersDirty = false;
+    int m_maxTlasDepth = 0;
+    int m_maxBlasDepth = 0;
+    int m_absoluteMaxDepth = 0;
+
+    void updateBvhBuffers();
 };

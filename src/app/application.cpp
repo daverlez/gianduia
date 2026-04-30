@@ -59,6 +59,7 @@ void Application::initWindow() {
     }
 
     m_postProcessor.init();
+    m_debugRenderer.init();
 }
 
 void Application::initImGui() {
@@ -182,6 +183,25 @@ void Application::renderSidebar() {
         ImGui::EndDisabled();
 
         ImGui::Separator();
+        ImGui::Text("Viewport Mode");
+        if (ImGui::RadioButton("Path Tracer", m_viewportMode == ViewportMode::Render)) {
+            m_viewportMode = ViewportMode::Render;
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Interactive 3D", m_viewportMode == ViewportMode::Interactive)) {
+            m_viewportMode = ViewportMode::Interactive;
+        }
+
+        if (m_viewportMode == ViewportMode::Interactive) {
+            ImGui::Separator();
+            ImGui::Text("BVH Filters");
+
+            if (ImGui::Checkbox("Show TLAS (Instances)", &m_showTLAS)) m_bvhFiltersDirty = true;
+            if (ImGui::Checkbox("Show BLAS (Geometry)", &m_showBLAS)) m_bvhFiltersDirty = true;
+            if (ImGui::SliderInt("Max Depth", &m_maxBvhDepth, 0, m_absoluteMaxDepth)) m_bvhFiltersDirty = true;
+        }
+
+        ImGui::Separator();
         ImGui::Text("G-Buffer Visualization");
 
         bool canViewBuffers = !m_isRendering && m_currentSample > 0;
@@ -218,23 +238,48 @@ void Application::renderSidebar() {
 void Application::renderViewport() {
     ImGui::Begin("Viewport");
 
-    if (m_texture.id != 0) {
-        ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+    ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+    if (viewportSize.x > 0 && viewportSize.y > 0) {
+        if (m_viewportMode == ViewportMode::Render) {
+            if (m_texture.id != 0) {
+                m_postProcessor.resize((int)viewportSize.x, (int)viewportSize.y);
+                m_postProcessor.render(m_texture.id);
 
-        m_postProcessor.resize((int)viewportSize.x, (int)viewportSize.y);
+                float aspect = (float)m_texture.width / (float)m_texture.height;
+                float viewAspect = viewportSize.x / viewportSize.y;
+                ImVec2 imageSize = viewportSize;
+                if (viewAspect > aspect) imageSize.x = viewportSize.y * aspect;
+                else imageSize.y = viewportSize.x / aspect;
 
-        m_postProcessor.render(m_texture.id);
+                ImGui::SetCursorPosX((viewportSize.x - imageSize.x) * 0.5f);
+                ImGui::Image((ImTextureID)(uintptr_t)m_postProcessor.getOutputTexture(),
+                             imageSize, ImVec2(0, 0), ImVec2(1, 1));
+            }
+        }
+        else if (m_viewportMode == ViewportMode::Interactive) {
+            ImVec2 imageSize = viewportSize;
 
-        float aspect = (float)m_texture.width / (float)m_texture.height;
-        float viewAspect = viewportSize.x / viewportSize.y;
-        ImVec2 imageSize = viewportSize;
-        if (viewAspect > aspect) imageSize.x = viewportSize.y * aspect;
-        else imageSize.y = viewportSize.x / aspect;
+            if (m_bvhFiltersDirty) {
+                updateBvhBuffers();
+            }
 
-        ImGui::SetCursorPosX((viewportSize.x - imageSize.x) * 0.5f);
+            if (ImGui::IsWindowHovered()) {
+                ImGuiIO& io = ImGui::GetIO();
 
-        ImGui::Image((ImTextureID)(uintptr_t)m_postProcessor.getOutputTexture(),
-                     imageSize, ImVec2(0, 0), ImVec2(1, 1));
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+                    m_interactiveCamera.update(io.MouseDelta.x, io.MouseDelta.y, 0.0f);
+                }
+                if (io.MouseWheel != 0.0f) {
+                    m_interactiveCamera.update(0.0f, 0.0f, io.MouseWheel);
+                }
+            }
+
+            m_debugRenderer.resize((int)imageSize.x, (int)imageSize.y);
+            m_debugRenderer.render(m_interactiveCamera);
+
+            ImGui::Image((ImTextureID)(uintptr_t)m_debugRenderer.getOutputTexture(),
+                         imageSize, ImVec2(0, 1), ImVec2(1, 0));
+        }
     }
 
     ImGui::End();
@@ -248,9 +293,62 @@ void Application::loadScene(const std::string& path) {
         m_textureDirty = true;
 
         std::cout << m_scene->toString() << std::endl;
+
+        m_cachedBvhNodes = m_scene->getBvhDebugData();
+
+        m_maxTlasDepth = 0;
+        m_maxBlasDepth = 0;
+
+        for (const auto& node : m_cachedBvhNodes) {
+            if (node.isBlas) {
+                m_maxBlasDepth = std::max(m_maxBlasDepth, node.depth);
+            } else {
+                m_maxTlasDepth = std::max(m_maxTlasDepth, node.depth);
+            }
+        }
+
+        m_absoluteMaxDepth = std::max(m_maxTlasDepth, m_maxBlasDepth);
+
+        m_showTLAS = true;
+        m_showBLAS = true;
+        updateBvhBuffers();
+
+        if (!m_cachedBvhNodes.empty()) {
+            glm::vec3 globalMin(std::numeric_limits<float>::max());
+            glm::vec3 globalMax(-std::numeric_limits<float>::max());
+
+            for (const auto& node : m_cachedBvhNodes) {
+                globalMin = glm::min(globalMin, glm::vec3(node.bounds.pMin.x(), node.bounds.pMin.y(), node.bounds.pMin.z()));
+                globalMax = glm::max(globalMax, glm::vec3(node.bounds.pMax.x(), node.bounds.pMax.y(), node.bounds.pMax.z()));
+            }
+
+            glm::vec3 center = (globalMin + globalMax) * 0.5f;
+            float sceneSize = glm::length(globalMax - globalMin);
+
+            m_interactiveCamera.setTarget(center);
+            m_interactiveCamera.setRadius(sceneSize * 0.8f);
+            m_interactiveCamera.setAngles(30.0f, 45.0f);
+        }
+
     } catch (const std::exception& e) {
         std::cerr << "Error loading scene: " << e.what() << std::endl;
     }
+}
+
+void Application::updateBvhBuffers() {
+    std::vector<gnd::BvhDebugNode> filteredNodes;
+    filteredNodes.reserve(m_cachedBvhNodes.size());
+
+    for (const auto& node : m_cachedBvhNodes) {
+        if (node.depth > m_maxBvhDepth) continue;
+        if (node.isBlas && !m_showBLAS) continue;
+        if (!node.isBlas && !m_showTLAS) continue;
+
+        filteredNodes.push_back(node);
+    }
+
+    m_debugRenderer.buildBuffers(filteredNodes, m_maxTlasDepth, m_maxBlasDepth);
+    m_bvhFiltersDirty = false;
 }
 
 void Application::startRender() {
