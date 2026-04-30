@@ -74,12 +74,22 @@ target_link_libraries(GianduiaEngine PUBLIC
         TBB::tbb
         OpenEXR::OpenEXR
         OpenVDB::openvdb
-        blosc_static
         tinyobjloader::tinyobjloader
         pugixml::pugixml
         OpenImageDenoise
         hwy::hwy
 )
+
+# Resolving blosc
+if(TARGET blosc_static)
+    target_link_libraries(GianduiaEngine PUBLIC blosc_static)
+elseif(TARGET blosc_shared)
+    target_link_libraries(GianduiaEngine PUBLIC blosc_shared)
+elseif(TARGET blosc)
+    target_link_libraries(GianduiaEngine PUBLIC blosc)
+else()
+    message(WARNING "No blosc target found. OpenVDB linking may fail.")
+endif()
 
 add_subdirectory(src/core)
 add_subdirectory(src/cameras)
