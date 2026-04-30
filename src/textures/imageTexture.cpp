@@ -35,8 +35,8 @@ namespace gnd {
     T ImageTexture<T>::evaluate(const SurfaceInteraction &isect) const {
         if (m_interpolation == EInterpolationMode::EClosest)
             return sampleClosest(isect.uv);
-        else
-            return sampleLinear(isect.uv);
+
+        return sampleLinear(isect.uv);
     }
 
     template<ValidTextureValue T>
