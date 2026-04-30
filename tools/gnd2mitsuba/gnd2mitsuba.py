@@ -1,3 +1,4 @@
+import math
 import os
 import shutil
 import xml.etree.ElementTree as ET
@@ -137,6 +138,22 @@ class GianduiaToMitsuba:
                 strength_node = gnd_emitter.find("float[@name='strength']")
                 if strength_node is not None:
                     self.add_param(mi_emitter, "float", "scale", strength_node.get("value"))
+
+            elif gnd_emitter.get("type") == "point":
+                mi_emitter = ET.SubElement(self.mi_root, "emitter", type="point")
+
+                pos_node = gnd_emitter.find("point[@name='position']")
+                if pos_node is not None:
+                    p = pos_node.get("value").split()
+                    ET.SubElement(mi_emitter, "point", name="position", x=p[0], y=p[1], z=p[2])
+
+                power_node = gnd_emitter.find("color[@name='power']")
+                if power_node is not None:
+                    p_vals = [float(x) for x in power_node.get("value").split()]
+                    inv_4pi = 1.0 / (4.0 * math.pi)
+                    int_vals = [v * inv_4pi for v in p_vals]
+                    int_str = f"{int_vals[0]:.6f} {int_vals[1]:.6f} {int_vals[2]:.6f}"
+                    ET.SubElement(mi_emitter, "rgb", name="intensity", value=int_str)
 
     def convert_primitives(self):
         shape_definitions = {}
