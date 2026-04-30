@@ -227,9 +227,16 @@ def export_texture_or_value(parent_node, input_socket, prop_name, export_dir, te
 
             tex_type = "image_color"
 
+            float_props = [
+                "roughness", "eta", "beta_m", "beta_n", "alpha",
+                "metallic", "specular", "specularTransmission",
+                "specularTint", "anisotropic", "sheen", "sheenTint",
+                "clearcoat", "clearcoatGloss"
+            ]
+
             if prop_name == "normal":
                 tex_type = "image_normal"
-            elif input_socket.type == 'VALUE' or prop_name in ["roughness", "eta", "beta_m", "beta_n", "alpha"]:
+            elif input_socket.type == 'VALUE' or prop_name in float_props:
                 tex_type = "image_float"
 
             tex_node = ET.SubElement(parent_node, "texture", type=tex_type, name=prop_name)
@@ -334,9 +341,37 @@ def export_material(prim_node, material, export_dir):
                 add_color(med_node, "sigma_s", *sig_s)
                 add_color(med_node, "sigma_a", *sig_a)
             else:
-                mat_node = ET.SubElement(prim_node, "material", type="matte")
-                export_texture_or_value(mat_node, surface_node.inputs['Base Color'], "albedo", export_dir)
-                export_texture_or_value(mat_node, surface_node.inputs['Normal'], "normal", export_dir)
+                mat_node = ET.SubElement(prim_node, "material", type="disney")
+
+                def export_socket(blender_names, gianduia_name):
+                    for name in blender_names:
+                        socket = surface_node.inputs.get(name)
+                        if socket:
+                            export_texture_or_value(mat_node, socket, gianduia_name, export_dir)
+                            return
+
+                export_socket(['Base Color'], "baseColor")
+                export_socket(['Metallic'], "metallic")
+                export_socket(['Roughness'], "roughness")
+                export_socket(['Specular IOR Level', 'Specular'], "specular")
+                export_socket(['Transmission Weight', 'Transmission'], "specularTransmission")
+                export_socket(['Specular Tint'], "specularTint")
+                export_socket(['Anisotropic'], "anisotropic")
+                export_socket(['Sheen Weight', 'Sheen'], "sheen")
+                export_socket(['Sheen Tint'], "sheenTint")
+                export_socket(['Coat Weight', 'Clearcoat'], "clearcoat")
+                export_socket(['Normal'], "normal")
+
+                coat_roughness = surface_node.inputs.get('Coat Roughness') or surface_node.inputs.get('Clearcoat Roughness')
+                if coat_roughness:
+                    if not coat_roughness.is_linked:
+                        add_float(mat_node, "clearcoatGloss", 1.0 - coat_roughness.default_value)
+                    else:
+                        export_texture_or_value(mat_node, coat_roughness, "clearcoatGloss", export_dir)
+
+                ior_socket = surface_node.inputs.get('IOR')
+                if ior_socket:
+                    add_float(mat_node, "eta", ior_socket.default_value)
 
         elif surface_node.type == 'BSDF_DIFFUSE':
             mat_node = ET.SubElement(prim_node, "material", type="matte")

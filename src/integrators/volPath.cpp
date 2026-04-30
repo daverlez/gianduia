@@ -177,7 +177,7 @@ namespace gnd {
                 Li_nee /= lightSelectPdf;
 
                 if (lightPdf > 1e-6f && !Li_nee.isBlack()) {
-                    shadowRay.medium = Dot(shadowRay.d, isect.n) > 0.0f ? currentRayMedium : isect.mediumInterface.inside;
+                    shadowRay.medium = getNextMedium(-r.d, shadowRay.d, currentRayMedium, isect);
                     Color3f Tr = evaluateTr(scene, shadowRay, sampler, lightIsect.p, arena);
 
                     if (!Tr.isBlack()) {
@@ -205,8 +205,9 @@ namespace gnd {
                 specularBounce = (sampledType & BSDF_SPECULAR) != 0;
                 tp *= f_cos;
 
+                Vector3f incidentDir = -r.d;
                 r = Ray(isect.p, wi);
-                r.medium = Dot(wi, isect.n) > 0.0f ? currentRayMedium : isect.mediumInterface.inside;
+                r.medium = getNextMedium(incidentDir, wi, currentRayMedium, isect);
                 r.time = isect.time;
 
                 // --- Russian Roulette ---
@@ -260,6 +261,13 @@ namespace gnd {
             }
 
             return Tr;
+        }
+
+        const Medium* getNextMedium(const Vector3f& wo, const Vector3f& wi, const Medium* currentRayMedium, const SurfaceInteraction& isect) const {
+            if (Dot(wi, isect.n) > 0.0f)
+                return Dot(wo, isect.n) > 0.0f ? currentRayMedium : isect.mediumInterface.outside;
+
+            return Dot(wo, isect.n) > 0.0f ? isect.mediumInterface.inside : currentRayMedium;
         }
     };
 
