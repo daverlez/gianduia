@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   build-and-test:
     name: Build on ${{ matrix.os }}
@@ -48,6 +52,14 @@ jobs:
           variant: sccache
           key: ${{ runner.os }}-sccache
 
+      - name: Setup MSVC environment (Windows only)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        run: choco install ninja
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -76,3 +88,15 @@ jobs:
 
       - name: Run Tests
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Cleanup old sccache caches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Looking for old sccache caches for ${{ runner.os }}..."
+          
+          gh cache list --limit 100 --order desc --sort created_at | grep "${{ runner.os }}-sccache-" | awk '{print $1}' | while read -r cache_key; do
+            echo "Elimino la vecchia cache: $cache_key"
+            gh cache delete "$cache_key" || true
+          done
+        shell: bash
