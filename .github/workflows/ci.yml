@@ -23,6 +23,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Enable Long Paths (Windows only)
+        if: runner.os == 'Windows'
+        run: |
+          git config --system core.longpaths true
+          reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem" /v "LongPathsEnabled" /t REG_DWORD /d 1 /f
+        shell: bash
+
+      - name: Create vcpkg cache directory
+        run: cmake -E make_directory ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+        shell: bash
+
       - name: Cache vcpkg binaries
         uses: actions/cache@v4
         with:
@@ -31,20 +42,33 @@ jobs:
           restore-keys: |
             vcpkg-${{ runner.os }}-
 
-      - name: Create vcpkg cache directory
-        run: cmake -E make_directory ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+      - name: Setup sccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          key: ${{ runner.os }}-sccache
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
+          sudo apt-get install -y libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config ninja-build
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install ninja
 
       - name: Configure CMake
-        run: >
-          cmake -B build -S . 
-          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" 
-          -DCMAKE_BUILD_TYPE=Release
+        run: |
+          VCPKG_ROOT=$(echo "$VCPKG_INSTALLATION_ROOT" | tr '\\' '/')
+          
+          cmake -B build -S . \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
+            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         shell: bash
 
       - name: Build Gianduia
