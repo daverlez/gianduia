@@ -87,6 +87,12 @@ class GianduiaToMitsuba:
         gnd_cam_type = gnd_cam.get("type")
         cam_type = "thinlens" if gnd_cam_type == "thinlens" else "perspective"
 
+        lens_radius_node = gnd_cam.find("float[@name='lens_radius']")
+        lens_radius = lens_radius_node.get("value") if lens_radius_node is not None else "0.0"
+
+        if cam_type == "thinlens" and float(lens_radius) == 0.0:
+            cam_type = "perspective"
+
         mi_sensor = ET.SubElement(self.mi_root, "sensor", type=cam_type)
 
         gnd_trans = gnd_cam.find("transform")
@@ -97,8 +103,6 @@ class GianduiaToMitsuba:
             self.add_param(mi_sensor, "float", "fov", fov_node.get("value"))
 
         if cam_type == "thinlens":
-            lens_radius_node = gnd_cam.find("float[@name='lens_radius']")
-            lens_radius = lens_radius_node.get("value") if lens_radius_node is not None else "0.0"
             self.add_param(mi_sensor, "float", "aperture_radius", lens_radius)
 
             focal_dist_node = gnd_cam.find("float[@name='focal_distance']")
@@ -251,6 +255,15 @@ class GianduiaToMitsuba:
             return
 
         mat_type = gnd_mat.get("type")
+
+        inside_med = gnd_mat.find("medium[@name='inside']")
+        outside_med = gnd_mat.find("medium[@name='outside']")
+
+        if inside_med is not None:
+            self.convert_medium(inside_med, mi_shape_node, "interior")
+        if outside_med is not None:
+            self.convert_medium(outside_med, mi_shape_node, "exterior")
+
         normal_tex = gnd_mat.find("texture[@name='normal']")
 
         if normal_tex is not None:
@@ -301,6 +314,47 @@ class GianduiaToMitsuba:
             self.map_property(gnd_mat, mi_bsdf, "eta", "eta")
             self.map_property(gnd_mat, mi_bsdf, "k", "k")
             self.map_property(gnd_mat, mi_bsdf, "roughness", "alpha", square_float=True)
+
+        elif mat_type == "index":
+            mi_bsdf.set("type", "null")
+
+    def convert_medium(self, gnd_med, mi_parent, target_name):
+        if gnd_med is None: return
+
+        med_type = gnd_med.get("type")
+        mi_med = ET.SubElement(mi_parent, "medium", type=med_type, name=target_name)
+
+        sa_node = gnd_med.find("color[@name='sigma_a']")
+        ss_node = gnd_med.find("color[@name='sigma_s']")
+
+        sa = [0.1, 0.1, 0.1]
+        ss = [0.1, 0.1, 0.1]
+        if sa_node is not None:
+            sa = [float(x) for x in sa_node.get("value").split()]
+        if ss_node is not None:
+            ss = [float(x) for x in ss_node.get("value").split()]
+
+        st = [sa[i] + ss[i] for i in range(3)]
+        albedo = [ss[i] / st[i] if st[i] > 1e-6 else 0.0 for i in range(3)]
+
+        albedo_str = f"{albedo[0]:.6f} {albedo[1]:.6f} {albedo[2]:.6f}"
+
+        g_node = gnd_med.find("float[@name='g']")
+        g_val = g_node.get("value") if g_node is not None else "0.0"
+        if float(g_val) != 0.0:
+            mi_phase = ET.SubElement(mi_med, "phase", type="hg")
+            self.add_param(mi_phase, "float", "g", g_val)
+
+        if med_type == "homogeneous":
+            max_st = max(st) if max(st) > 0.0 else 1.0
+            scale_val = max_st
+            norm_st = [x / scale_val for x in st]
+
+            st_str = f"{norm_st[0]:.6f} {norm_st[1]:.6f} {norm_st[2]:.6f}"
+
+            ET.SubElement(mi_med, "rgb", name="sigma_t", value=st_str)
+            ET.SubElement(mi_med, "rgb", name="albedo", value=albedo_str)
+            self.add_param(mi_med, "float", "scale", f"{scale_val:.6f}")
 
     def save_xml(self):
         xml_string = ET.tostring(self.mi_root, encoding="utf-8")
