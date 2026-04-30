@@ -62,7 +62,15 @@ class GianduiaToMitsuba:
         print("Conversion completed successfully!")
 
     def convert_integrator(self):
-        mi_int = ET.SubElement(self.mi_root, "integrator", type="path")
+        gnd_int = self.gnd_root.find("integrator")
+        if gnd_int is not None:
+            int_type = gnd_int.get("type")
+            if int_type in ["path", "volpath"]:
+                ET.SubElement(self.mi_root, "integrator", type=int_type)
+            else:
+                ET.SubElement(self.mi_root, "integrator", type="path")
+        else:
+            ET.SubElement(self.mi_root, "integrator", type="path")
 
     def convert_camera_and_sampler(self):
         gnd_cam = self.gnd_root.find("camera")
@@ -70,7 +78,9 @@ class GianduiaToMitsuba:
 
         if gnd_cam is None: return
 
-        cam_type = "perspective"
+        gnd_cam_type = gnd_cam.get("type")
+        cam_type = "thinlens" if gnd_cam_type == "thinlens" else "perspective"
+
         mi_sensor = ET.SubElement(self.mi_root, "sensor", type=cam_type)
 
         gnd_trans = gnd_cam.find("transform")
@@ -79,6 +89,15 @@ class GianduiaToMitsuba:
         fov_node = gnd_cam.find("float[@name='fov']")
         if fov_node is not None:
             self.add_param(mi_sensor, "float", "fov", fov_node.get("value"))
+
+        if cam_type == "thinlens":
+            lens_radius_node = gnd_cam.find("float[@name='lens_radius']")
+            if lens_radius_node is not None:
+                self.add_param(mi_sensor, "float", "aperture_radius", lens_radius_node.get("value"))
+
+            focal_dist_node = gnd_cam.find("float[@name='focal_distance']")
+            if focal_dist_node is not None:
+                self.add_param(mi_sensor, "float", "focus_distance", focal_dist_node.get("value"))
 
         width_node = gnd_cam.find("integer[@name='width']")
         height_node = gnd_cam.find("integer[@name='height']")
