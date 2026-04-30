@@ -31,24 +31,30 @@ class GianduiaToMitsuba:
     def add_param(self, parent, tag, name, value):
         return ET.SubElement(parent, tag, name=name, value=str(value))
 
-    def copy_transform(self, gnd_transform, parent_node, target_name="to_world"):
-        if gnd_transform is None:
+    def copy_transform(self, gnd_transform, parent_node, target_name="to_world", extra_scale=None):
+        if gnd_transform is None and extra_scale is None:
             return
 
         mi_trans = ET.SubElement(parent_node, "transform", name=target_name)
-        for child in gnd_transform:
-            if child.tag == "rotate" and "axis" in child.attrib:
-                axis_vals = child.attrib["axis"].split()
-                if len(axis_vals) == 3:
-                    ET.SubElement(mi_trans, "rotate",
-                                  x=axis_vals[0],
-                                  y=axis_vals[1],
-                                  z=axis_vals[2],
-                                  angle=child.attrib.get("angle", "0"))
+
+        if extra_scale is not None:
+            sx, sy, sz = extra_scale.split()
+            ET.SubElement(mi_trans, "scale", x=sx, y=sy, z=sz)
+
+        if gnd_transform is not None:
+            for child in gnd_transform:
+                if child.tag == "rotate" and "axis" in child.attrib:
+                    axis_vals = child.attrib["axis"].split()
+                    if len(axis_vals) == 3:
+                        ET.SubElement(mi_trans, "rotate",
+                                      x=axis_vals[0],
+                                      y=axis_vals[1],
+                                      z=axis_vals[2],
+                                      angle=child.attrib.get("angle", "0"))
+                    else:
+                        ET.SubElement(mi_trans, child.tag, **child.attrib)
                 else:
                     ET.SubElement(mi_trans, child.tag, **child.attrib)
-            else:
-                ET.SubElement(mi_trans, child.tag, **child.attrib)
 
     def convert(self):
         print(f"==Gianduia2Mitsuba== \nConverting scene:\n  {self.input_file}\n  =>  {self.output_file}\n")
@@ -92,12 +98,12 @@ class GianduiaToMitsuba:
 
         if cam_type == "thinlens":
             lens_radius_node = gnd_cam.find("float[@name='lens_radius']")
-            if lens_radius_node is not None:
-                self.add_param(mi_sensor, "float", "aperture_radius", lens_radius_node.get("value"))
+            lens_radius = lens_radius_node.get("value") if lens_radius_node is not None else "0.0"
+            self.add_param(mi_sensor, "float", "aperture_radius", lens_radius)
 
             focal_dist_node = gnd_cam.find("float[@name='focal_distance']")
-            if focal_dist_node is not None:
-                self.add_param(mi_sensor, "float", "focus_distance", focal_dist_node.get("value"))
+            focal_dist = focal_dist_node.get("value") if focal_dist_node is not None else "10.0"
+            self.add_param(mi_sensor, "float", "focus_distance", focal_dist)
 
         width_node = gnd_cam.find("integer[@name='width']")
         height_node = gnd_cam.find("integer[@name='height']")
@@ -151,16 +157,47 @@ class GianduiaToMitsuba:
             if gnd_shape is None:
                 continue
 
-            if gnd_shape.get("type") == "mesh":
-                mi_shape = ET.SubElement(self.mi_root, "shape", type="obj")
+            shape_type = gnd_shape.get("type")
+            mi_shape = None
+            extra_scale = None
 
+            if shape_type == "mesh":
+                mi_shape = ET.SubElement(self.mi_root, "shape", type="obj")
                 filename_node = gnd_shape.find("string[@name='filename']")
                 if filename_node is not None:
                     new_path = self.copy_asset(filename_node.get("value"))
                     self.add_param(mi_shape, "string", "filename", new_path)
 
+            elif shape_type == "sphere":
+                mi_shape = ET.SubElement(self.mi_root, "shape", type="sphere")
+                radius_node = gnd_shape.find("float[@name='radius']")
+                if radius_node is not None:
+                    self.add_param(mi_shape, "float", "radius", radius_node.get("value"))
+
+            elif shape_type == "cylinder":
+                mi_shape = ET.SubElement(self.mi_root, "shape", type="cylinder")
+
+                radius_node = gnd_shape.find("float[@name='radius']")
+                if radius_node is not None:
+                    self.add_param(mi_shape, "float", "radius", radius_node.get("value"))
+
+                zmin_node = gnd_shape.find("float[@name='zMin']")
+                zmax_node = gnd_shape.find("float[@name='zMax']")
+                zmin = zmin_node.get("value") if zmin_node is not None else "-1.0"
+                zmax = zmax_node.get("value") if zmax_node is not None else "1.0"
+
+                ET.SubElement(mi_shape, "point", name="p0", x="0.0", y="0.0", z=zmin)
+                ET.SubElement(mi_shape, "point", name="p1", x="0.0", y="0.0", z=zmax)
+
+            elif shape_type == "cube":
+                mi_shape = ET.SubElement(self.mi_root, "shape", type="cube")
+                ext_node = gnd_shape.find("vector[@name='extents']")
+                if ext_node is not None:
+                    extra_scale = ext_node.get("value")
+
+            if mi_shape is not None:
                 gnd_trans = gnd_prim.find("transform")
-                self.copy_transform(gnd_trans, mi_shape, "to_world")
+                self.copy_transform(gnd_trans, mi_shape, "to_world", extra_scale)
 
                 gnd_mat = gnd_prim.find("material")
                 self.convert_material(gnd_mat, mi_shape)
