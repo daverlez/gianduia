@@ -101,6 +101,7 @@ class GianduiaToMitsuba:
         fov_node = gnd_cam.find("float[@name='fov']")
         if fov_node is not None:
             self.add_param(mi_sensor, "float", "fov", fov_node.get("value"))
+            self.add_param(mi_sensor, "string", "fov_axis", "y")
 
         if cam_type == "thinlens":
             self.add_param(mi_sensor, "float", "aperture_radius", lens_radius)
@@ -216,15 +217,55 @@ class GianduiaToMitsuba:
     def map_property(self, gnd_parent, mi_parent, gnd_name, mi_name, default=None, square_float=False):
         tex_node = gnd_parent.find(f"texture[@name='{gnd_name}']")
         if tex_node is not None:
-            filename_node = tex_node.find("string[@name='filename']")
-            if filename_node is not None:
-                mi_tex = ET.SubElement(mi_parent, "texture", type="bitmap", name=mi_name)
-                new_path = self.copy_asset(filename_node.get("value"))
-                self.add_param(mi_tex, "string", "filename", new_path)
+            tex_type = tex_node.get("type")
 
-                if tex_node.get("type") == "image_float":
-                    self.add_param(mi_tex, "boolean", "raw", "true")
-            return
+            if tex_type in ["image_color", "image_float", "image_normal"]:
+                filename_node = tex_node.find("string[@name='filename']")
+                if filename_node is not None:
+                    mi_tex = ET.SubElement(mi_parent, "texture", type="bitmap", name=mi_name)
+                    new_path = self.copy_asset(filename_node.get("value"))
+                    self.add_param(mi_tex, "string", "filename", new_path)
+
+                    if tex_type in ["image_float", "image_normal"]:
+                        self.add_param(mi_tex, "boolean", "raw", "true")
+                return
+
+            elif tex_type in ["checkerboard_color", "checkerboard_float"]:
+                mi_tex = ET.SubElement(mi_parent, "texture", type="checkerboard", name=mi_name)
+
+                if tex_type == "checkerboard_color":
+                    val1 = tex_node.find("color[@name='value1']")
+                    val2 = tex_node.find("color[@name='value2']")
+                    if val1 is not None: ET.SubElement(mi_tex, "rgb", name="color1", value=val1.get("value"))
+                    if val2 is not None: ET.SubElement(mi_tex, "rgb", name="color0", value=val2.get("value"))
+                else:
+                    val1 = tex_node.find("float[@name='value1']")
+                    val2 = tex_node.find("float[@name='value2']")
+                    if val1 is not None: self.add_param(mi_tex, "float", "color1", val1.get("value"))
+                    if val2 is not None: self.add_param(mi_tex, "float", "color0", val2.get("value"))
+
+                scale_node = tex_node.find("vector2[@name='scale']")
+                delta_node = tex_node.find("point2[@name='delta']")
+
+                sx, sy = 1.0, 1.0
+                if scale_node is not None:
+                    sx, sy = [float(x) for x in scale_node.get("value").split()]
+
+                dx, dy = 0.0, 0.0
+                if delta_node is not None:
+                    dx, dy = [float(x) for x in delta_node.get("value").split()]
+
+                trans_node = ET.SubElement(mi_tex, "transform", name="to_uv")
+
+                inv_sx = (1.0 / sx) * 0.5 if sx != 0 else 0.5
+                inv_sy = (1.0 / sy) * 0.5 if sy != 0 else 0.5
+
+                ET.SubElement(trans_node, "scale", x=f"{inv_sx:.6f}", y=f"{inv_sy:.6f}")
+
+                if dx != 0.0 or dy != 0.0:
+                    ET.SubElement(trans_node, "translate", x=f"{-dx * 0.5:.6f}", y=f"{-dy * 0.5:.6f}")
+
+                return
 
         col_node = gnd_parent.find(f"color[@name='{gnd_name}']")
         if col_node is not None:
@@ -288,7 +329,7 @@ class GianduiaToMitsuba:
             mi_bsdf.set("type", "principled")
             self.map_property(gnd_mat, mi_bsdf, "baseColor", "base_color")
             self.map_property(gnd_mat, mi_bsdf, "metallic", "metallic")
-            self.map_property(gnd_mat, mi_bsdf, "roughness", "roughness") # Il principled di Mitsuba prende la roughness e si occupa lui di farci il quadrato all'interno
+            self.map_property(gnd_mat, mi_bsdf, "roughness", "roughness")
             self.map_property(gnd_mat, mi_bsdf, "specular", "specular")
             self.map_property(gnd_mat, mi_bsdf, "specularTransmission", "spec_trans")
             self.map_property(gnd_mat, mi_bsdf, "specularTint", "spec_tint")
