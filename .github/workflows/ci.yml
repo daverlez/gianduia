@@ -35,8 +35,7 @@ jobs:
           Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1
 
       - name: Create vcpkg cache directory
-        run: cmake -E make_directory ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
-        shell: bash
+        run: cmake -E make_directory "${{ env.VCPKG_DEFAULT_BINARY_CACHE }}"
 
       - name: Cache vcpkg binaries
         uses: actions/cache@v4
@@ -70,18 +69,27 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ninja
 
-      - name: Configure CMake
-        run: |
-          VCPKG_ROOT=$(echo "$VCPKG_INSTALLATION_ROOT" | tr '\\' '/')
-          
-          cmake -B build -S . \
-            -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER_LAUNCHER=sccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+      - name: Configure CMake (Linux & macOS)
+        if: runner.os != 'Windows'
+        run: >
+          cmake -B build -S . 
+          -G Ninja 
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" 
+          -DCMAKE_BUILD_TYPE=Release 
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache 
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
         shell: bash
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          cmake -B build -S . 
+          -G Ninja 
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" 
+          -DCMAKE_BUILD_TYPE=Release 
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache 
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
       - name: Build Gianduia
         run: cmake --build build --config Release --parallel
@@ -96,7 +104,7 @@ jobs:
           echo "Looking for old sccache caches for ${{ runner.os }}..."
           
           gh cache list --limit 100 --order desc --sort created_at | grep "${{ runner.os }}-sccache-" | awk '{print $1}' | while read -r cache_key; do
-            echo "Elimino la vecchia cache: $cache_key"
+            echo "Deleting old cache: $cache_key"
             gh cache delete "$cache_key" || true
           done
         shell: bash
