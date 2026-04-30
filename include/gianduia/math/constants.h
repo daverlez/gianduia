@@ -3,6 +3,8 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <algorithm>
+#include <cmath>
 
 namespace gnd {
 

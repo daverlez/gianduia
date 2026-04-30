@@ -34,7 +34,7 @@ namespace gnd {
             m_temperatureOffset = props.getFloat("temperatureOffset", 0.0f);
             m_emissionScale = props.getFloat("emissionScale", 10.0f);
 
-            std::string absPath = FileResolver::resolve(filename);
+            std::string absPath = (FileResolver::resolve(filename)).string();
 
             openvdb::initialize();
             openvdb::io::File file(absPath);
