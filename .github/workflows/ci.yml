@@ -21,7 +21,6 @@ jobs:
 
     env:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg_binary_cache
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repository
@@ -67,7 +66,7 @@ jobs:
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
-        run: brew install ninja
+        run: brew list ninja || brew install ninja
 
       - name: Configure CMake (Linux & macOS)
         if: runner.os != 'Windows'
@@ -103,8 +102,10 @@ jobs:
         run: |
           echo "Looking for old sccache caches for ${{ runner.os }}..."
           
-          gh cache list --limit 100 --order desc --sort created_at | grep "${{ runner.os }}-sccache-" | awk '{print $1}' | while read -r cache_key; do
-            echo "Deleting old cache: $cache_key"
-            gh cache delete "$cache_key" || true
+          gh cache list --limit 100 --order desc --sort created_at | awk '/${{ runner.os }}-sccache-/ {print $1}' | while read -r cache_key; do
+            if [ -n "$cache_key" ]; then
+              echo "Deleting old cache: $cache_key"
+              gh cache delete "$cache_key" || true
+            fi
           done
         shell: bash
