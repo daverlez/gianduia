@@ -195,7 +195,6 @@ void Application::run() {
 void Application::renderSidebar() {
     ImGui::Begin(ICON_FA_SLIDERS " Controls");
 
-    // SEZIONE 1: Caricamento Scena
     if (ImGui::CollapsingHeader(ICON_FA_FOLDER_OPEN " Scene Management", ImGuiTreeNodeFlags_DefaultOpen)) {
         static char buf[128] = "assets/scenes/cbox.xml";
         ImGui::InputText("Path", buf, IM_ARRAYSIZE(buf));
@@ -205,16 +204,13 @@ void Application::renderSidebar() {
         }
     }
 
-    // Variabili utili per la UI
     int currentSamples = m_currentSample.load();
     int totalSamples = 0;
     if (m_scene && m_scene->getIntegrator()) {
-        // ASSICURATI CHE IL METODO SI CHIAMI COSI' NEL TUO INTEGRATOR, ALTRIMENTI CAMBIALO:
         totalSamples = m_scene->getSampler()->getSampleCount();
     }
 
     if (m_scene) {
-        // SEZIONE 2: Rendering e Denoise
         if (ImGui::CollapsingHeader(ICON_FA_CAMERA " Rendering & Denoise", ImGuiTreeNodeFlags_DefaultOpen)) {
             if (!m_isRendering) {
                 if (ImGui::Button(ICON_FA_PLAY " Start Render", ImVec2(-1, 30))) {
@@ -229,7 +225,6 @@ void Application::renderSidebar() {
                 }
                 ImGui::PopStyleColor(3);
 
-                // Progress Bar calcolata in base ai sample
                 float progressFraction = (totalSamples > 0) ? (float)currentSamples / totalSamples : 0.0f;
                 char progressOverlay[32];
                 snprintf(progressOverlay, sizeof(progressOverlay), "%.1f%% (%d/%d)", progressFraction * 100.0f, currentSamples, totalSamples);
@@ -251,7 +246,6 @@ void Application::renderSidebar() {
             ImGui::EndDisabled();
         }
 
-        // SEZIONE 3: Viewport & Visualizzazione
         if (ImGui::CollapsingHeader(ICON_FA_DISPLAY " Viewport Options", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::Text("Viewport Mode:");
             if (ImGui::RadioButton("Path Tracer", m_viewportMode == ViewportMode::Render)) m_viewportMode = ViewportMode::Render;
@@ -287,8 +281,7 @@ void Application::renderSidebar() {
         ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), ICON_FA_TRIANGLE_EXCLAMATION " No scene loaded.");
     }
 
-    // STATS ancorate in fondo
-    ImGui::Dummy(ImVec2(0.0f, ImGui::GetContentRegionAvail().y - 80.0f)); // Spazio aumentato per ospitare l'ETA
+    ImGui::Dummy(ImVec2(0.0f, ImGui::GetContentRegionAvail().y - 80.0f));
     ImGui::Separator();
     ImGui::Text(ICON_FA_CHART_SIMPLE " Stats");
 
@@ -441,6 +434,7 @@ void Application::updateBvhBuffers() {
 
 void Application::startRender() {
     if (!m_scene) return;
+    if (m_renderThread.joinable()) m_renderThread.join();
 
     m_viewMode = ViewMode::Beauty;
     m_isRendering = true;
@@ -462,11 +456,9 @@ void Application::startRender() {
 }
 
 void Application::cancelRender() {
-    if (m_isRendering && m_scene && m_scene->getIntegrator()) {
-        m_scene->getIntegrator()->cancel();
-        if (m_renderThread.joinable()) m_renderThread.join();
-        m_isRendering = false;
-    }
+    if (m_isRendering && m_scene && m_scene->getIntegrator()) m_scene->getIntegrator()->cancel();
+    if (m_renderThread.joinable()) m_renderThread.join();
+    m_isRendering = false;
 }
 
 void Application::onRenderUpdate(int sample, const gnd::Film& film) {
