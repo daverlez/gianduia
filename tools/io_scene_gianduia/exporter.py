@@ -1,3 +1,4 @@
+import math
 import os
 import mathutils
 import bpy
@@ -88,6 +89,22 @@ def handle_light(root, inst, obj_eval, base_dir, meshes_dir_name, export_meshes)
 
         emitter_node = ET.SubElement(prim_node, "emitter", type="area")
         data_extractors.add_color(emitter_node, "radiance", power_r, power_g, power_b)
+
+    elif light.type == 'SPOT':
+        emitter_node = ET.SubElement(root, "emitter", type="spot")
+        pos = inst.matrix_world.translation
+
+        local_dir = mathutils.Vector((0.0, 0.0, -1.0))
+        world_dir = (inst.matrix_world.to_3x3() @ local_dir).normalized()
+
+        ET.SubElement(emitter_node, "point", name="position", x=f"{pos.x:.6f}", y=f"{pos.y:.6f}", z=f"{pos.z:.6f}")
+        ET.SubElement(emitter_node, "vector", name="direction", x=f"{world_dir.x:.6f}", y=f"{world_dir.y:.6f}", z=f"{world_dir.z:.6f}")
+
+        data_extractors.add_color(emitter_node, "power", power_r, power_g, power_b)
+
+        spot_size_deg = math.degrees(light.spot_size)
+        data_extractors.add_float(emitter_node, "spot_size", spot_size_deg)
+        data_extractors.add_float(emitter_node, "blend", light.spot_blend)
 
 def handle_volume(root, inst, obj_eval, base_dir):
     volume_data = obj_eval.original.data
