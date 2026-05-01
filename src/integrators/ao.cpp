@@ -10,7 +10,8 @@ namespace gnd {
             m_length = props.getFloat("length", 5.0f);
         }
 
-        Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo, Normal3f* outNormal) const override {
+        Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena,
+            Color3f* outAlbedo, Normal3f* outNormal, float* outDepth = nullptr) const override {
             SurfaceInteraction isect;
 
             if (!scene.rayIntersect(ray, isect))

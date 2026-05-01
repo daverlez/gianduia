@@ -146,6 +146,44 @@ void Application::run() {
                     m_texture.update(film->width(), film->height(), reinterpret_cast<float*>(film->getAlbedo().data()));
                 } else if (m_viewMode == ViewMode::Normal) {
                     m_texture.update(film->width(), film->height(), reinterpret_cast<float*>(film->getNormal().data()));
+                } else if (m_viewMode == ViewMode::Depth) {
+                    int w = film->width();
+                    int h = film->height();
+
+                    static std::vector<float> displayDepth;
+                    displayDepth.resize(w * h * 3);
+
+                    const float* rawDepth = film->getDepth().data();
+
+                    float minZ = std::numeric_limits<float>::max();
+                    float maxZ = std::numeric_limits<float>::lowest();
+
+                    for (int i = 0; i < w * h; ++i) {
+                        float d = rawDepth[i];
+                        if (d > 0.0f) {
+                            if (d < minZ) minZ = d;
+                            if (d > maxZ) maxZ = d;
+                        }
+                    }
+
+                    if (maxZ <= minZ) {
+                        maxZ = minZ + 1.0f;
+                    }
+
+                    for (int i = 0; i < w * h; ++i) {
+                        float d = rawDepth[i];
+                        float val = 0.0f;
+
+                        if (d > 0.0f) {
+                            val = (d - minZ) / (maxZ - minZ);
+                        }
+
+                        displayDepth[i * 3 + 0] = val;
+                        displayDepth[i * 3 + 1] = val;
+                        displayDepth[i * 3 + 2] = val;
+                    }
+
+                    m_texture.update(w, h, displayDepth.data());
                 }
             }
             m_textureDirty = false;
@@ -274,6 +312,10 @@ void Application::renderSidebar() {
                 ImGui::SameLine();
                 if (ImGui::RadioButton("Normal", m_viewMode == ViewMode::Normal)) {
                     m_viewMode = ViewMode::Normal; m_textureDirty = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::RadioButton("Depth", m_viewMode == ViewMode::Depth)) {
+                    m_viewMode = ViewMode::Depth; m_textureDirty = true;
                 }
             }
         }

@@ -42,7 +42,8 @@ namespace gnd {
     public:
         SamplerIntegrator(const PropertyList& props) { }
 
-        virtual Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo = nullptr, Normal3f* outNormal = nullptr) const = 0;
+        virtual Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena,
+            Color3f* outAlbedo = nullptr, Normal3f* outNormal = nullptr, float* outDepth = nullptr) const = 0;
 
         void render(Scene *scene) override {
             m_stopRequested = false;
@@ -123,8 +124,9 @@ namespace gnd {
                             float rayWeight = camera->shootRay(camSample, &ray);
                             Color3f sampleAlbedo(0.0f);
                             Normal3f sampleNormal(0.0f);
+                            float sampleDepth = -1.0f;
 
-                            Color3f rawColor = Li(ray, *scene, threadSampler, threadArena, &sampleAlbedo, &sampleNormal);
+                            Color3f rawColor = Li(ray, *scene, threadSampler, threadArena, &sampleAlbedo, &sampleNormal, &sampleDepth);
                             rawColor *= rayWeight;
 
                             Color3f newColor(0.0f);
@@ -139,7 +141,7 @@ namespace gnd {
                                 newColor = Color3f(0.0f);
                             }
 
-                            film->addSample(pFilm, newColor, sampleAlbedo, sampleNormal);
+                            film->addSample(pFilm, newColor, sampleAlbedo, sampleNormal, sampleDepth);
                         }
                     }
                 });

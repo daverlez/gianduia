@@ -17,7 +17,8 @@ namespace gnd {
 
         void addSample(const Point2f& pFilm, const Color3f& L,
                        const Color3f& albedo = Color3f(0.0f),
-                       const Normal3f& normal = Normal3f(0.0f)) {
+                       const Normal3f& normal = Normal3f(0.0f),
+                       float depth = -1.0f) {
             if (L.hasNaNs()) return;
 
             Vector2f radius = m_filter->getRadius();
@@ -46,6 +47,8 @@ namespace gnd {
                         atomicAdd(m_accumData[idx].nrm_x, normal.x() * weight);
                         atomicAdd(m_accumData[idx].nrm_y, normal.y() * weight);
                         atomicAdd(m_accumData[idx].nrm_z, normal.z() * weight);
+
+                        atomicAdd(m_accumData[idx].depth, depth * weight);
                     }
                 }
             }
@@ -76,6 +79,7 @@ namespace gnd {
         const Image2D<Color3f>& getRadiance() const { return m_radiance; }
         const Image2D<Color3f>& getAlbedo() const { return m_albedo; }
         const Image2D<Normal3f>& getNormal() const { return m_normal; }
+        const Image2D<float>& getDepth() const { return m_depth; }
 
         Image2D<Color3f>& getRadiance() { return m_radiance; }
         Image2D<Color3f>& getAlbedo() { return m_albedo; }
@@ -86,6 +90,7 @@ namespace gnd {
             std::atomic<float> r{0.0f}, g{0.0f}, b{0.0f}, weight{0.0f};
             std::atomic<float> alb_r{0.0f}, alb_g{0.0f}, alb_b{0.0f};
             std::atomic<float> nrm_x{0.0f}, nrm_y{0.0f}, nrm_z{0.0f};
+            std::atomic<float> depth;
         };
 
         inline void atomicAdd(std::atomic<float>& target, float value) {
@@ -102,6 +107,7 @@ namespace gnd {
         Image2D<Color3f> m_radiance;
         Image2D<Color3f> m_albedo;
         Image2D<Normal3f> m_normal;
+        Image2D<float> m_depth;
     };
 
 }

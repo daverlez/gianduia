@@ -9,7 +9,8 @@ namespace gnd {
             maxDepth = props.getInteger("maxDepth", 1000);
         }
 
-        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo, Normal3f* outNormal) const override {
+        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena,
+            Color3f* outAlbedo, Normal3f* outNormal, float* outDepth = nullptr) const override {
             auto powerHeuristic = [](int nf, float fPdf, int ng, float gPdf) -> float {
                 float f = nf * fPdf; float g = ng * gPdf;
                 float denom = (f * f) + (g * g);
@@ -19,7 +20,7 @@ namespace gnd {
             SurfaceInteraction primaryIsect;
             Color3f L(0.0f);
 
-            bool needsGBuffer = (outAlbedo != nullptr || outNormal != nullptr);
+            bool needsGBuffer = (outAlbedo != nullptr || outNormal != nullptr || outDepth != nullptr);
 
             if (!scene.rayIntersect(primaryRay, primaryIsect)) {
                 if (scene.getEnvMap()) {
@@ -28,11 +29,13 @@ namespace gnd {
                     if (needsGBuffer) {
                         if (outAlbedo) *outAlbedo = L;
                         if (outNormal) *outNormal = Normal3f(0.0f);
+                        if (outDepth) *outDepth = -1.0f;
                         needsGBuffer = false;
                     }
                 }
                 return L;
             }
+            if (outDepth) *outDepth = primaryIsect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
 
             if (primaryIsect.primitive->getEmitter()) {
                 L += primaryIsect.primitive->getEmitter()->eval(primaryIsect, -primaryRay.d);
@@ -40,8 +43,8 @@ namespace gnd {
 
             primaryIsect.primitive->getMaterial()->computeScatteringFunctions(primaryIsect, arena);
 
-            if (needsGBuffer && primaryIsect.bsdf) {
-                if (primaryIsect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0) {
+            if (needsGBuffer) {
+                if (primaryIsect.bsdf && primaryIsect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0) {
                     if (outAlbedo) *outAlbedo = primaryIsect.primitive->getMaterial()->getAlbedo(primaryIsect);
                     if (outNormal) {
                         Normal3f n = primaryIsect.n / 2.0f + Normal3f(0.5f);

@@ -22,6 +22,7 @@ namespace gnd {
         m_radiance.resize(width, height, Color3f(0.0f));
         m_albedo.resize(width, height, Color3f(0.0f));
         m_normal.resize(width, height, Normal3f(0.0f));
+        m_depth.resize(width, height, -1.0f);
 
         if (!m_filter) m_filter = std::make_shared<GaussianFilter>(PropertyList());
     }
@@ -37,6 +38,7 @@ namespace gnd {
         m_accumData = std::make_unique<AccumPixel[]>(m_width * m_height);
         m_albedo.resize(m_width, m_height, Color3f(0.0f));
         m_normal.resize(m_width, m_height, Normal3f(0.0f));
+        m_depth.resize(m_width, m_height, -1.0f);
 
         m_filter = std::make_shared<GaussianFilter>(PropertyList());
     }
@@ -67,6 +69,9 @@ namespace gnd {
                         m_accumData[idx].nrm_y.load(std::memory_order_relaxed) * invW,
                         m_accumData[idx].nrm_z.load(std::memory_order_relaxed) * invW
                     ));
+
+                    float d = m_accumData[idx].depth.load(std::memory_order_relaxed) * invW;
+                    m_depth.setPixel(x, y, d);
                 } else {
                     m_radiance.setPixel(x, y, Color3f(0.0f));
                     m_albedo.setPixel(x, y, Color3f(0.0f));
@@ -94,6 +99,8 @@ namespace gnd {
             m_accumData[i].nrm_x.store(0.0f, std::memory_order_relaxed);
             m_accumData[i].nrm_y.store(0.0f, std::memory_order_relaxed);
             m_accumData[i].nrm_z.store(0.0f, std::memory_order_relaxed);
+
+            m_accumData[i].depth.store(0.0f, std::memory_order_relaxed);
         }
     }
 

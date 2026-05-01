@@ -42,7 +42,8 @@ private:
     enum class ViewMode {
         Beauty,
         Albedo,
-        Normal
+        Normal,
+        Depth
     };
 
     enum class ViewportMode {
