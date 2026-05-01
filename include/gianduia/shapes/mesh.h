@@ -25,6 +25,8 @@ namespace gnd {
 
         virtual float pdfSurface(const Point3f& ref, const SurfaceInteraction& isect) const override;
 
+        virtual void getBvhDebugNodes(std::vector<BvhDebugNode>& outNodes, int nodeIdx, int depth) const override;
+
         virtual std::string toString() const override;
 
     private:

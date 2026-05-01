@@ -15,24 +15,31 @@ namespace gnd {
 
         int width = film->width();
         int height = film->height();
+        size_t bufferSize = width * height * 3 * sizeof(float);
+
         float* colorPtr  = reinterpret_cast<float*>(film->getRadiance().data());
         float* albedoPtr = reinterpret_cast<float*>(film->getAlbedo().data());
         float* normalPtr = reinterpret_cast<float*>(film->getNormal().data());
 
-        filter.setImage("color",  colorPtr, oidn::Format::Float3, width, height);
+        oidn::BufferRef colorBuf = device.newBuffer(bufferSize);
+        colorBuf.write(0, bufferSize, colorPtr);
+        filter.setImage("color", colorBuf, oidn::Format::Float3, width, height);
 
         if (albedoPtr) {
-            filter.setImage("albedo", albedoPtr, oidn::Format::Float3, width, height);
+            oidn::BufferRef albedoBuf = device.newBuffer(bufferSize);
+            albedoBuf.write(0, bufferSize, albedoPtr);
+            filter.setImage("albedo", albedoBuf, oidn::Format::Float3, width, height);
         }
 
         if (normalPtr) {
-            filter.setImage("normal", normalPtr, oidn::Format::Float3, width, height);
+            oidn::BufferRef normalBuf = device.newBuffer(bufferSize);
+            normalBuf.write(0, bufferSize, normalPtr);
+            filter.setImage("normal", normalBuf, oidn::Format::Float3, width, height);
         }
 
-        filter.setImage("output", colorPtr, oidn::Format::Float3, width, height);
+        filter.setImage("output", colorBuf, oidn::Format::Float3, width, height);
 
         filter.set("hdr", true);
-
         filter.set("cleanAux", false);
 
         filter.commit();
@@ -42,6 +49,7 @@ namespace gnd {
         if (device.getError(errorMessage) != oidn::Error::None) {
             std::cerr << "OIDN Error: " << errorMessage << std::endl;
         } else {
+            colorBuf.read(0, bufferSize, colorPtr);
             std::cout << "Denoising complete!" << std::endl;
         }
     }

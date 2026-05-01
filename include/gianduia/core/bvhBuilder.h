@@ -38,6 +38,13 @@ namespace gnd {
         std::vector<int> orderedIndices;
     };
 
+    struct BvhDebugNode {
+        Bounds3f bounds;
+        int depth;
+        bool isLeaf;
+        bool isBlas;
+    };
+
     class BVHBuilder {
     public:
         static BVHBuildResult build(std::vector<BVHBuildInfo>& buildData);

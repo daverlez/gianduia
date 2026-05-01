@@ -12,7 +12,8 @@ namespace gnd {
             maxDepth = props.getInteger("maxDepth", 1000);
         }
 
-        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo, Normal3f* outNormal) const override {
+        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena,
+            AOVRecord* aovs = nullptr) const override {
             auto powerHeuristic = [](int nf, float fPdf, int ng, float gPdf) -> float {
                 float f = nf * fPdf; float g = ng * gPdf;
                 float denom = (f * f) + (g * g);
@@ -28,11 +29,24 @@ namespace gnd {
 
             float pdfPrev = 1.0f;
             bool specularBounce = true;
-            bool needsGBuffer = (outAlbedo != nullptr || outNormal != nullptr);
+            bool needsGBuffer = aovs != nullptr;
 
             while (bounces < maxDepth) {
                 SurfaceInteraction isect;
                 bool hitSurface = scene.rayIntersect(r, isect);
+
+                if (bounces == 0 && aovs) {
+                    if (hitSurface) {
+                        aovs->depth = isect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
+                        aovs->metallic = isect.primitive->getMaterial()->getMetallic(isect);
+                        aovs->roughness = isect.primitive->getMaterial()->getRoughness(isect);
+                    }
+                    else {
+                        aovs->depth = -1.0f;
+                        aovs->metallic = 0.0f;
+                        aovs->roughness = 0.0f;
+                    }
+                }
 
                 MediumInteraction mi;
                 if (r.medium) {
@@ -125,8 +139,8 @@ namespace gnd {
                         }
                     }
                     if (needsGBuffer) {
-                        if (outAlbedo) *outAlbedo = Li_env;
-                        if (outNormal) *outNormal = Normal3f(0.0f);
+                        aovs->albedo = Li_env;
+                        aovs->normal = Normal3f(0.0f);
                         needsGBuffer = false;
                     }
                     break;
@@ -148,13 +162,10 @@ namespace gnd {
 
                 isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
 
-                if (needsGBuffer && isect.bsdf) {
-                    if (isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0 || bounces == maxDepth - 1) {
-                        if (outAlbedo) *outAlbedo = isect.primitive->getMaterial()->getAlbedo(isect);
-                        if (outNormal) {
-                            Normal3f n = isect.n / 2.0f + Normal3f(0.5f);
-                            *outNormal = n;
-                        }
+                if (needsGBuffer) {
+                    if (isect.bsdf && isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0 || bounces == maxDepth - 1) {
+                        aovs->albedo = isect.primitive->getMaterial()->getAlbedo(isect);
+                        aovs->normal = isect.n / 2.0f + Normal3f(0.5f);
                         needsGBuffer = false;
                     }
                 }

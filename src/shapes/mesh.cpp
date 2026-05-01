@@ -437,6 +437,27 @@ namespace gnd {
         return m_totalArea > 0.0f ? (1.0f / m_totalArea) : 0.0f;
     }
 
+    void Mesh::getBvhDebugNodes(std::vector<BvhDebugNode>& outNodes, int nodeIdx, int depth) const {
+        if (m_nodes4.empty() || nodeIdx >= m_nodes4.size()) return;
+
+        const BVHNode4& node = m_nodes4[nodeIdx];
+
+        for (int i = 0; i < 4; ++i) {
+            if (node.childType[i] == 0) continue;
+
+            Bounds3f childBounds(
+                Point3f(node.minX[i], node.minY[i], node.minZ[i]),
+                Point3f(node.maxX[i], node.maxY[i], node.maxZ[i])
+            );
+
+            outNodes.push_back({ childBounds, depth, node.childType[i] == 2, true });
+
+            if (node.childType[i] == 1) {
+                getBvhDebugNodes(outNodes, node.offset[i], depth + 1);
+            }
+        }
+    }
+
     std::string Mesh::toString() const {
         return std::format("Mesh[file={}, tris={}]", m_filename, m_indices.size()/3);
     }

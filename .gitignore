@@ -39,7 +39,7 @@ vcpkg/
 vcpkg_downloads/
 vcpkg_packages/
 
-scenes/
+assets/scenes/
 *.exr
 *.png
 *.jpg

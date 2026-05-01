@@ -1,4 +1,6 @@
-#include <app/application.h>
+#include "app/application.h"
+#include "app/IconsFontAwesome6.h"
+
 #include "gianduia/core/integrator.h"
 #include "gianduia/core/parser.h"
 #include "gianduia/core/denoiser.h"
@@ -21,6 +23,20 @@ void handleSignal(int signal) {
         std::cout << "\n[Gianduia Headless] Received interrupt (Ctrl+C). Shutting down..." << std::endl;
         s_appInstance->cancelRender();
     }
+}
+
+std::string FormatTime(double totalSeconds) {
+    int h = static_cast<int>(totalSeconds) / 3600;
+    int m = (static_cast<int>(totalSeconds) % 3600) / 60;
+    int s = static_cast<int>(totalSeconds) % 60;
+
+    char buf[64];
+    if (h > 0) {
+        snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
+    } else {
+        snprintf(buf, sizeof(buf), "%02d:%02d", m, s);
+    }
+    return std::string(buf);
 }
 
 Application::Application(bool headless) : m_headless(headless) {
@@ -59,6 +75,7 @@ void Application::initWindow() {
     }
 
     m_postProcessor.init();
+    m_debugRenderer.init();
 }
 
 void Application::initImGui() {
@@ -68,7 +85,42 @@ void Application::initImGui() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
+    float baseFontSize = 16.0f;
+    float iconFontSize = baseFontSize * 0.8f;
+
+    io.Fonts->AddFontFromFileTTF("assets/fonts/Roboto-Regular.ttf", baseFontSize);
+
+    ImFontConfig icons_config;
+    icons_config.MergeMode = true;
+    icons_config.PixelSnapH = true;
+    icons_config.GlyphMinAdvanceX = iconFontSize;
+
+    static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_16_FA, 0 };
+    io.Fonts->AddFontFromFileTTF("assets/fonts/fa-solid-900.ttf", iconFontSize, &icons_config, icons_ranges);
+
     ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    style.WindowRounding    = 6.0f;
+    style.ChildRounding     = 4.0f;
+    style.FrameRounding     = 4.0f;
+    style.PopupRounding     = 4.0f;
+    style.ScrollbarRounding = 4.0f;
+    style.GrabRounding      = 4.0f;
+
+    style.WindowBorderSize  = 0.0f;
+    style.FrameBorderSize   = 0.0f;
+
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.12f, 0.12f, 0.12f, 1.00f);
+    style.Colors[ImGuiCol_TitleBg]  = ImVec4(0.09f, 0.09f, 0.09f, 1.00f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
+    style.Colors[ImGuiCol_Button]        = ImVec4(0.20f, 0.25f, 0.30f, 1.00f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.25f, 0.30f, 0.35f, 1.00f);
+    style.Colors[ImGuiCol_ButtonActive]  = ImVec4(0.15f, 0.20f, 0.25f, 1.00f);
+    style.Colors[ImGuiCol_Header]        = ImVec4(0.20f, 0.25f, 0.30f, 1.00f);
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.25f, 0.30f, 0.35f, 1.00f);
+    style.Colors[ImGuiCol_HeaderActive]  = ImVec4(0.15f, 0.20f, 0.25f, 1.00f);
+
     ImGui_ImplGlfw_InitForOpenGL(m_window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
 }
@@ -94,6 +146,64 @@ void Application::run() {
                     m_texture.update(film->width(), film->height(), reinterpret_cast<float*>(film->getAlbedo().data()));
                 } else if (m_viewMode == ViewMode::Normal) {
                     m_texture.update(film->width(), film->height(), reinterpret_cast<float*>(film->getNormal().data()));
+                } else if (m_viewMode == ViewMode::Depth) {
+                    int w = film->width();
+                    int h = film->height();
+
+                    static std::vector<float> displayDepth;
+                    displayDepth.resize(w * h * 3);
+
+                    const float* rawDepth = film->getDepth().data();
+
+                    float minZ = std::numeric_limits<float>::max();
+                    float maxZ = std::numeric_limits<float>::lowest();
+
+                    for (int i = 0; i < w * h; ++i) {
+                        float d = rawDepth[i];
+                        if (d > 0.0f) {
+                            if (d < minZ) minZ = d;
+                            if (d > maxZ) maxZ = d;
+                        }
+                    }
+
+                    if (maxZ <= minZ) {
+                        maxZ = minZ + 1.0f;
+                    }
+
+                    for (int i = 0; i < w * h; ++i) {
+                        float d = rawDepth[i];
+                        float val = 0.0f;
+
+                        if (d > 0.0f) {
+                            val = (d - minZ) / (maxZ - minZ);
+                        }
+
+                        displayDepth[i * 3 + 0] = val;
+                        displayDepth[i * 3 + 1] = val;
+                        displayDepth[i * 3 + 2] = val;
+                    }
+
+                    m_texture.update(w, h, displayDepth.data());
+                } else if (m_viewMode == ViewMode::Metallic || m_viewMode == ViewMode::Roughness) {
+                    int w = film->width();
+                    int h = film->height();
+
+                    static std::vector<float> displayMono;
+                    displayMono.resize(w * h * 3);
+
+                    const float* rawData = (m_viewMode == ViewMode::Metallic) ?
+                                           film->getMetallic().data() :
+                                           film->getRoughness().data();
+
+                    for (int i = 0; i < w * h; ++i) {
+                        float val = rawData[i];
+
+                        displayMono[i * 3 + 0] = val;
+                        displayMono[i * 3 + 1] = val;
+                        displayMono[i * 3 + 2] = val;
+                    }
+
+                    m_texture.update(w, h, displayMono.data());
                 }
             }
             m_textureDirty = false;
@@ -116,8 +226,8 @@ void Application::run() {
                 ImGuiID dock_main_id = dockspace_id;
                 ImGuiID dock_id_left = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.25f, NULL, &dock_main_id);
 
-                ImGui::DockBuilderDockWindow("Controls", dock_id_left);
-                ImGui::DockBuilderDockWindow("Viewport", dock_main_id);
+                ImGui::DockBuilderDockWindow(ICON_FA_SLIDERS " Controls", dock_id_left);
+                ImGui::DockBuilderDockWindow(ICON_FA_IMAGE " Viewport", dock_main_id);
 
                 ImGui::DockBuilderFinish(dockspace_id);
             }
@@ -141,100 +251,178 @@ void Application::run() {
 }
 
 void Application::renderSidebar() {
-    ImGui::Begin("Controls");
+    ImGui::Begin(ICON_FA_SLIDERS " Controls");
 
-    ImGui::Text("Scene Loader");
-    static char buf[128] = "../scenes/cbox.xml";
-    ImGui::InputText("Path", buf, IM_ARRAYSIZE(buf));
+    if (ImGui::CollapsingHeader(ICON_FA_FOLDER_OPEN " Scene Management", ImGuiTreeNodeFlags_DefaultOpen)) {
+        static char buf[128] = "assets/scenes/cbox.xml";
+        ImGui::InputText("Path", buf, IM_ARRAYSIZE(buf));
 
-    if (ImGui::Button("Load Scene")) {
-        loadScene(buf);
+        if (ImGui::Button(ICON_FA_FILE_IMPORT " Load Scene", ImVec2(-1, 0))) {
+            loadScene(buf);
+        }
     }
 
-    ImGui::Separator();
+    int currentSamples = m_currentSample.load();
+    int totalSamples = 0;
+    if (m_scene && m_scene->getIntegrator()) {
+        totalSamples = m_scene->getSampler()->getSampleCount();
+    }
 
-    ImGui::Text("Rendering");
     if (m_scene) {
-        if (!m_isRendering) {
-            if (ImGui::Button("Start Render", ImVec2(-1, 0))) {
-                startRender();
+        if (ImGui::CollapsingHeader(ICON_FA_CAMERA " Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (!m_isRendering) {
+                if (ImGui::Button(ICON_FA_PLAY " Start Render", ImVec2(-1, 30))) {
+                    startRender();
+                }
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
+                if (ImGui::Button(ICON_FA_STOP " Stop Render", ImVec2(-1, 30))) {
+                    cancelRender();
+                }
+                ImGui::PopStyleColor(3);
+
+                float progressFraction = (totalSamples > 0) ? (float)currentSamples / totalSamples : 0.0f;
+                char progressOverlay[32];
+                snprintf(progressOverlay, sizeof(progressOverlay), "%.1f%% (%d/%d)", progressFraction * 100.0f, currentSamples, totalSamples);
+                ImGui::ProgressBar(progressFraction, ImVec2(-1, 0), progressOverlay);
             }
-        } else {
-            if (ImGui::Button("Stop Render", ImVec2(-1, 0))) {
-                cancelRender();
+
+            ImGui::Spacing();
+
+            bool canDenoise = !m_isRendering && currentSamples > 0;
+            ImGui::BeginDisabled(!canDenoise);
+            if (ImGui::Button(ICON_FA_FILTER " Denoise", ImVec2(-1, 0))) {
+                gnd::Denoiser denoiser;
+                denoiser.execute(m_scene->getCamera()->getFilm());
+
+                m_textureDirty = true;
+                m_scene->getCamera()->getFilm()->saveEXR();
+                m_scene->getCamera()->getFilm()->savePNG();
             }
-            ImGui::ProgressBar(-1.0f * (float)ImGui::GetTime(), ImVec2(0.0f, 0.0f), "Rendering...");
-        }
-        ImGui::Separator();
-        ImGui::Text("Post-Processing");
-
-        bool canDenoise = !m_isRendering && m_currentSample > 0;
-        ImGui::BeginDisabled(!canDenoise);
-        if (ImGui::Button("Apply OIDN Denoise", ImVec2(-1, 0))) {
-            gnd::Denoiser denoiser;
-            denoiser.execute(m_scene->getCamera()->getFilm());
-
-            m_textureDirty = true;
-
-            m_scene->getCamera()->getFilm()->saveEXR();
-            m_scene->getCamera()->getFilm()->savePNG();
-        }
-        ImGui::EndDisabled();
-
-        ImGui::Separator();
-        ImGui::Text("G-Buffer Visualization");
-
-        bool canViewBuffers = !m_isRendering && m_currentSample > 0;
-        ImGui::BeginDisabled(!canViewBuffers);
-
-        if (ImGui::RadioButton("Beauty", m_viewMode == ViewMode::Beauty)) {
-            m_viewMode = ViewMode::Beauty;
-            m_textureDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Albedo", m_viewMode == ViewMode::Albedo)) {
-            m_viewMode = ViewMode::Albedo;
-            m_textureDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Normal", m_viewMode == ViewMode::Normal)) {
-            m_viewMode = ViewMode::Normal;
-            m_textureDirty = true;
+            ImGui::EndDisabled();
         }
 
-        ImGui::EndDisabled();
+        if (ImGui::CollapsingHeader(ICON_FA_DISPLAY " Viewport Options", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Text(ICON_FA_CUBE " Viewport Mode:");
+            if (ImGui::RadioButton("Render", m_viewportMode == ViewportMode::Render)) m_viewportMode = ViewportMode::Render;
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Interactive", m_viewportMode == ViewportMode::Interactive)) m_viewportMode = ViewportMode::Interactive;
+
+            if (m_viewportMode == ViewportMode::Interactive) {
+                ImGui::Separator();
+                ImGui::Text(ICON_FA_CUBES " BVH Filters");
+                if (ImGui::Checkbox("Show TLAS (Instances)", &m_showTLAS)) m_bvhFiltersDirty = true;
+                if (ImGui::Checkbox("Show BLAS (Geometry)", &m_showBLAS)) m_bvhFiltersDirty = true;
+                if (ImGui::SliderInt("Max Depth", &m_maxBvhDepth, 0, m_absoluteMaxDepth)) m_bvhFiltersDirty = true;
+            }
+
+            bool canViewBuffers = !m_isRendering && currentSamples > 0;
+            if (canViewBuffers && m_viewportMode == ViewportMode::Render) {
+                ImGui::Separator();
+                ImGui::Text(ICON_FA_LAYER_GROUP " G-Buffer Visualization");
+
+                if (ImGui::BeginTable("GBufferTable", 2, ImGuiTableFlags_SizingStretchProp)) {
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    if (ImGui::RadioButton("Beauty", m_viewMode == ViewMode::Beauty)) { m_viewMode = ViewMode::Beauty; m_textureDirty = true; }
+                    ImGui::TableSetColumnIndex(1);
+                    if (ImGui::RadioButton("Depth", m_viewMode == ViewMode::Depth)) { m_viewMode = ViewMode::Depth; m_textureDirty = true; }
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    if (ImGui::RadioButton("Albedo", m_viewMode == ViewMode::Albedo)) { m_viewMode = ViewMode::Albedo; m_textureDirty = true; }
+                    ImGui::TableSetColumnIndex(1);
+                    if (ImGui::RadioButton("Roughness", m_viewMode == ViewMode::Roughness)) { m_viewMode = ViewMode::Roughness; m_textureDirty = true; }
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    if (ImGui::RadioButton("Normal", m_viewMode == ViewMode::Normal)) { m_viewMode = ViewMode::Normal; m_textureDirty = true; }
+                    ImGui::TableSetColumnIndex(1);
+                    if (ImGui::RadioButton("Metallic", m_viewMode == ViewMode::Metallic)) { m_viewMode = ViewMode::Metallic; m_textureDirty = true; }
+
+                    ImGui::EndTable();
+                }
+            }
+        }
     } else {
-        ImGui::TextColored(ImVec4(1,0,0,1), "No scene loaded.");
+        ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), ICON_FA_TRIANGLE_EXCLAMATION " No scene loaded.");
     }
 
+    ImGui::Dummy(ImVec2(0.0f, ImGui::GetContentRegionAvail().y - 80.0f));
     ImGui::Separator();
-    ImGui::Text("Stats");
-    ImGui::Text("Sample: %d", m_currentSample.load());
-    ImGui::Text("Time: %.2fs", m_renderTime.load());
+    ImGui::Text(ICON_FA_CHART_SIMPLE " Stats");
+
+    double elapsed = m_renderTime.load();
+
+    ImGui::Text("Sample: %d", currentSamples);
+    if (totalSamples > 0) {
+        ImGui::SameLine();
+        ImGui::Text("/ %d", totalSamples);
+    }
+
+    ImGui::Text("Time: %s", FormatTime(elapsed).c_str());
+
+    if (m_isRendering && currentSamples > 0 && totalSamples > 0) {
+        double timePerSample = elapsed / currentSamples;
+        int samplesRemaining = totalSamples - currentSamples;
+        double etaSeconds = timePerSample * samplesRemaining;
+
+        ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "ETA:  %s", FormatTime(etaSeconds).c_str());
+    } else if (!m_isRendering && currentSamples > 0) {
+        ImGui::TextColored(ImVec4(0.5f, 0.8f, 0.5f, 1.0f), "Status: Finished");
+    }
 
     ImGui::End();
 }
 
 void Application::renderViewport() {
-    ImGui::Begin("Viewport");
+    ImGui::Begin(ICON_FA_IMAGE " Viewport");
 
-    if (m_texture.id != 0) {
-        ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+    ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+    if (viewportSize.x > 0 && viewportSize.y > 0) {
+        if (m_viewportMode == ViewportMode::Render) {
+            if (m_texture.id != 0) {
+                m_postProcessor.resize((int)viewportSize.x, (int)viewportSize.y);
+                m_postProcessor.render(m_texture.id);
 
-        m_postProcessor.resize((int)viewportSize.x, (int)viewportSize.y);
+                float aspect = (float)m_texture.width / (float)m_texture.height;
+                float viewAspect = viewportSize.x / viewportSize.y;
+                ImVec2 imageSize = viewportSize;
+                if (viewAspect > aspect) imageSize.x = viewportSize.y * aspect;
+                else imageSize.y = viewportSize.x / aspect;
 
-        m_postProcessor.render(m_texture.id);
+                ImGui::SetCursorPosX((viewportSize.x - imageSize.x) * 0.5f);
+                ImGui::Image((ImTextureID)(uintptr_t)m_postProcessor.getOutputTexture(),
+                             imageSize, ImVec2(0, 0), ImVec2(1, 1));
+            }
+        }
+        else if (m_viewportMode == ViewportMode::Interactive) {
+            ImVec2 imageSize = viewportSize;
 
-        float aspect = (float)m_texture.width / (float)m_texture.height;
-        float viewAspect = viewportSize.x / viewportSize.y;
-        ImVec2 imageSize = viewportSize;
-        if (viewAspect > aspect) imageSize.x = viewportSize.y * aspect;
-        else imageSize.y = viewportSize.x / aspect;
+            if (m_bvhFiltersDirty) {
+                updateBvhBuffers();
+            }
 
-        ImGui::SetCursorPosX((viewportSize.x - imageSize.x) * 0.5f);
+            if (ImGui::IsWindowHovered()) {
+                ImGuiIO& io = ImGui::GetIO();
 
-        ImGui::Image((ImTextureID)(uintptr_t)m_postProcessor.getOutputTexture(),
-                     imageSize, ImVec2(0, 0), ImVec2(1, 1));
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+                    m_interactiveCamera.update(io.MouseDelta.x, io.MouseDelta.y, 0.0f);
+                }
+                if (io.MouseWheel != 0.0f) {
+                    m_interactiveCamera.update(0.0f, 0.0f, io.MouseWheel);
+                }
+            }
+
+            m_debugRenderer.resize((int)imageSize.x, (int)imageSize.y);
+            m_debugRenderer.render(m_interactiveCamera);
+
+            ImGui::Image((ImTextureID)(uintptr_t)m_debugRenderer.getOutputTexture(),
+                         imageSize, ImVec2(0, 1), ImVec2(1, 0));
+        }
     }
 
     ImGui::End();
@@ -243,19 +431,82 @@ void Application::renderViewport() {
 void Application::loadScene(const std::string& path) {
     cancelRender();
     try {
+        m_viewMode = ViewMode::Beauty;
+        m_viewportMode = ViewportMode::Render;
+
+        m_isRendering = false;
+        m_renderTime = 0.0f;
+        m_currentSample = 0;
+
         std::shared_ptr<gnd::GndObject> root = gnd::Parser::loadFromXML(path);
         m_scene = std::static_pointer_cast<gnd::Scene>(root);
         m_textureDirty = true;
 
         std::cout << m_scene->toString() << std::endl;
+
+        m_cachedBvhNodes = m_scene->getBvhDebugData();
+
+        m_maxTlasDepth = 0;
+        m_maxBlasDepth = 0;
+
+        for (const auto& node : m_cachedBvhNodes) {
+            if (node.isBlas) {
+                m_maxBlasDepth = std::max(m_maxBlasDepth, node.depth);
+            } else {
+                m_maxTlasDepth = std::max(m_maxTlasDepth, node.depth);
+            }
+        }
+
+        m_absoluteMaxDepth = std::max(m_maxTlasDepth, m_maxBlasDepth);
+        m_maxBvhDepth = m_absoluteMaxDepth;
+
+        m_showTLAS = true;
+        m_showBLAS = true;
+        updateBvhBuffers();
+
+        if (!m_cachedBvhNodes.empty()) {
+            glm::vec3 globalMin(std::numeric_limits<float>::max());
+            glm::vec3 globalMax(-std::numeric_limits<float>::max());
+
+            for (const auto& node : m_cachedBvhNodes) {
+                globalMin = glm::min(globalMin, glm::vec3(node.bounds.pMin.x(), node.bounds.pMin.y(), node.bounds.pMin.z()));
+                globalMax = glm::max(globalMax, glm::vec3(node.bounds.pMax.x(), node.bounds.pMax.y(), node.bounds.pMax.z()));
+            }
+
+            glm::vec3 center = (globalMin + globalMax) * 0.5f;
+            float sceneSize = glm::length(globalMax - globalMin);
+
+            m_interactiveCamera.setTarget(center);
+            m_interactiveCamera.setRadius(sceneSize * 0.8f);
+            m_interactiveCamera.setAngles(30.0f, 45.0f);
+        }
+
     } catch (const std::exception& e) {
         std::cerr << "Error loading scene: " << e.what() << std::endl;
     }
 }
 
+void Application::updateBvhBuffers() {
+    std::vector<gnd::BvhDebugNode> filteredNodes;
+    filteredNodes.reserve(m_cachedBvhNodes.size());
+
+    for (const auto& node : m_cachedBvhNodes) {
+        if (node.depth > m_maxBvhDepth) continue;
+        if (node.isBlas && !m_showBLAS) continue;
+        if (!node.isBlas && !m_showTLAS) continue;
+
+        filteredNodes.push_back(node);
+    }
+
+    m_debugRenderer.buildBuffers(filteredNodes, m_maxTlasDepth, m_maxBlasDepth);
+    m_bvhFiltersDirty = false;
+}
+
 void Application::startRender() {
     if (!m_scene) return;
+    if (m_renderThread.joinable()) m_renderThread.join();
 
+    m_viewMode = ViewMode::Beauty;
     m_isRendering = true;
     m_currentSample = 0;
 
@@ -272,14 +523,12 @@ void Application::startRender() {
         m_scene->render();
         m_isRendering = false;
     });
-    m_renderThread.detach();
 }
 
 void Application::cancelRender() {
-    if (m_isRendering && m_scene && m_scene->getIntegrator()) {
-        m_scene->getIntegrator()->cancel();
-        m_isRendering = false;
-    }
+    if (m_isRendering && m_scene && m_scene->getIntegrator()) m_scene->getIntegrator()->cancel();
+    if (m_renderThread.joinable()) m_renderThread.join();
+    m_isRendering = false;
 }
 
 void Application::onRenderUpdate(int sample, const gnd::Film& film) {

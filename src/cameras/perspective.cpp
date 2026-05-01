@@ -31,6 +31,12 @@ namespace gnd {
             return 1.0f;
         }
 
+        void getProjectionMatrix(float zNear, float zFar, float* outMatrix16) const override {
+            float aspect = getAspectRatio();
+            Transform proj = Transform::Perspective(m_fov, aspect, zNear, zFar);
+            proj.getMatrixData(outMatrix16);
+        }
+
         std::string toString() const override {
             return std::format(
                 "PerspectiveCamera[\n"

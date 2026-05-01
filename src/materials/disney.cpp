@@ -357,6 +357,14 @@ namespace gnd {
             return m_baseColor->evaluate(isect);
         }
 
+        float getRoughness(const SurfaceInteraction &isect) const override {
+            return m_roughness->evaluate(isect);
+        }
+
+        float getMetallic(const SurfaceInteraction &isect) const override {
+            return m_metallic->evaluate(isect);
+        }
+
         std::string toString() const {
             return std::format(
                 "Disney[\n"

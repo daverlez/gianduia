@@ -35,6 +35,12 @@ namespace gnd {
         bool rayIntersect(const Ray& ray, SurfaceInteraction& isect) const;
         bool rayIntersect(const Ray& ray) const;
 
+        [[nodiscard]] std::vector<BvhDebugNode> getBvhDebugData() const {
+            std::vector<BvhDebugNode> outNodes;
+            m_bvh.getDebugNodes(outNodes, 0, 0);
+            return outNodes;
+        }
+
         void render();
 
     private:

@@ -114,6 +114,10 @@ namespace gnd {
             }
         }
 
+        float getRoughness(const SurfaceInteraction &isect) const override {
+            return m_roughness->evaluate(isect);
+        }
+
         std::string toString() const override {
             return std::format(
                 "Glass[\n"

@@ -7,7 +7,8 @@ namespace gnd {
     public:
         DirectLight(const PropertyList& props) : SamplerIntegrator(props) { }
 
-        Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena, Color3f* outAlbedo, Normal3f* outNormal) const override {
+        Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena,
+            AOVRecord* aovs = nullptr) const override {
             SurfaceInteraction isect;
 
             if (!scene.rayIntersect(ray, isect))
