@@ -121,11 +121,21 @@ def write_local_obj(mesh_data, filepath):
     bmesh.ops.triangulate(bm, faces=bm.faces[:])
     bm.normal_update()
 
+    uv_layer = bm.loops.layers.uv.active
+
     with open(filepath, 'w') as f:
         f.write(f"# Exported for Gianduia Renderer\no {mesh_data.name}\n")
 
         for v in bm.verts:
             f.write(f"v {v.co.x:.6f} {v.co.y:.6f} {v.co.z:.6f}\n")
+
+        uv_coords = []
+        if uv_layer:
+            for face in bm.faces:
+                for loop in face.loops:
+                    uv = loop[uv_layer].uv
+                    uv_coords.append((uv.x, uv.y))
+                    f.write(f"vt {uv.x:.6f} {uv.y:.6f}\n")
 
         for face in bm.faces:
             for loop in face.loops:
@@ -133,8 +143,18 @@ def write_local_obj(mesh_data, filepath):
                 f.write(f"vn {n.x:.6f} {n.y:.6f} {n.z:.6f}\n")
 
         n_idx = 1
+        vt_idx = 1
         for face in bm.faces:
-            verts_str = [f"{loop.vert.index + 1}//{n_idx + i}" for i, loop in enumerate(face.loops)]
+            verts_str = []
+            for i, loop in enumerate(face.loops):
+                v_idx = loop.vert.index + 1
+                vn_idx = n_idx + i
+                if uv_layer:
+                    verts_str.append(f"{v_idx}/{vt_idx}/{vn_idx}")
+                    vt_idx += 1
+                else:
+                    verts_str.append(f"{v_idx}//{vn_idx}")
+
             f.write(f"f {' '.join(verts_str)}\n")
             n_idx += len(face.loops)
 
