@@ -23,6 +23,8 @@ namespace gnd {
         m_albedo.resize(width, height, Color3f(0.0f));
         m_normal.resize(width, height, Normal3f(0.0f));
         m_depth.resize(width, height, -1.0f);
+        m_roughness.resize(width, height, 0.0f);
+        m_metallic.resize(width, height, 0.0f);
 
         if (!m_filter) m_filter = std::make_shared<GaussianFilter>(PropertyList());
     }
@@ -39,6 +41,8 @@ namespace gnd {
         m_albedo.resize(m_width, m_height, Color3f(0.0f));
         m_normal.resize(m_width, m_height, Normal3f(0.0f));
         m_depth.resize(m_width, m_height, -1.0f);
+        m_roughness.resize(m_width, m_height, 0.0f);
+        m_metallic.resize(m_width, m_height, 0.0f);
 
         m_filter = std::make_shared<GaussianFilter>(PropertyList());
     }
@@ -72,10 +76,19 @@ namespace gnd {
 
                     float d = m_accumData[idx].depth.load(std::memory_order_relaxed) * invW;
                     m_depth.setPixel(x, y, d);
+
+                    float rgh = m_accumData[idx].roughness.load(std::memory_order_relaxed) * invW;
+                    m_roughness.setPixel(x, y, rgh);
+
+                    float met = m_accumData[idx].metallic.load(std::memory_order_relaxed) * invW;
+                    m_metallic.setPixel(x, y, met);
                 } else {
                     m_radiance.setPixel(x, y, Color3f(0.0f));
                     m_albedo.setPixel(x, y, Color3f(0.0f));
                     m_normal.setPixel(x, y, Normal3f(0.0f));
+                    m_depth.setPixel(x, y, -1.0f);
+                    m_roughness.setPixel(x, y, 0.0f);
+                    m_metallic.setPixel(x, y, 0.0f);
                 }
             }
         }
@@ -85,6 +98,9 @@ namespace gnd {
         m_radiance.clear();
         m_albedo.clear();
         m_normal.clear();
+        m_depth.clear();
+        m_roughness.clear();
+        m_metallic.clear();
 
         for (int i = 0; i < m_width * m_height; ++i) {
             m_accumData[i].r.store(0.0f, std::memory_order_relaxed);
@@ -101,6 +117,8 @@ namespace gnd {
             m_accumData[i].nrm_z.store(0.0f, std::memory_order_relaxed);
 
             m_accumData[i].depth.store(0.0f, std::memory_order_relaxed);
+            m_accumData[i].roughness.store(0.0f, std::memory_order_relaxed);
+            m_accumData[i].metallic.store(0.0f, std::memory_order_relaxed);
         }
     }
 

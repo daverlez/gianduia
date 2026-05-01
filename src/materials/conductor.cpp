@@ -123,6 +123,14 @@ namespace gnd {
             return m_R->evaluate(isect);
         }
 
+        float getRoughness(const SurfaceInteraction& isect) const override {
+            return m_roughness->evaluate(isect);
+        }
+
+        float getMetallic(const SurfaceInteraction& isect) const override {
+            return 1.0f;
+        }
+
         std::string toString() const override {
             return std::format(
                 "Conductor[\n"

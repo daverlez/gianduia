@@ -43,7 +43,9 @@ private:
         Beauty,
         Albedo,
         Normal,
-        Depth
+        Depth,
+        Metallic,
+        Roughness,
     };
 
     enum class ViewportMode {

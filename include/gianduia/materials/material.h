@@ -22,6 +22,14 @@ namespace gnd {
             return Color3f(0.0f);
         }
 
+        virtual float getRoughness(const SurfaceInteraction& isect) const {
+            return 0.0f;
+        }
+
+        virtual float getMetallic(const SurfaceInteraction& isect) const {
+            return 0.0f;
+        }
+
         virtual void addChild(std::shared_ptr<GndObject> child) override {
             if (child->getClassType() == ETexture && child->getName() == "normal") {
                 if (m_normalMap)

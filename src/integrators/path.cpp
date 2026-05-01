@@ -10,7 +10,7 @@ namespace gnd {
         }
 
         Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena,
-            Color3f* outAlbedo, Normal3f* outNormal, float* outDepth = nullptr) const override {
+            AOVRecord* aovs = nullptr) const override {
             auto powerHeuristic = [](int nf, float fPdf, int ng, float gPdf) -> float {
                 float f = nf * fPdf; float g = ng * gPdf;
                 float denom = (f * f) + (g * g);
@@ -20,22 +20,29 @@ namespace gnd {
             SurfaceInteraction primaryIsect;
             Color3f L(0.0f);
 
-            bool needsGBuffer = (outAlbedo != nullptr || outNormal != nullptr || outDepth != nullptr);
+            bool needsGBuffer = aovs != nullptr;
 
             if (!scene.rayIntersect(primaryRay, primaryIsect)) {
                 if (scene.getEnvMap()) {
                     L += scene.getEnvMap()->eval(SurfaceInteraction(), primaryRay.d);
 
                     if (needsGBuffer) {
-                        if (outAlbedo) *outAlbedo = L;
-                        if (outNormal) *outNormal = Normal3f(0.0f);
-                        if (outDepth) *outDepth = -1.0f;
+                        aovs->albedo = L;
+                        aovs->normal = Normal3f(0.0f);
+                        aovs->depth = -1.0f;
+                        aovs->roughness = 0.0f;
+                        aovs->metallic = 0.0f;
                         needsGBuffer = false;
                     }
                 }
                 return L;
             }
-            if (outDepth) *outDepth = primaryIsect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
+
+            if (aovs) {
+                aovs->depth = primaryIsect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
+                aovs->roughness = primaryIsect.primitive->getMaterial()->getRoughness(primaryIsect);
+                aovs->metallic = primaryIsect.primitive->getMaterial()->getMetallic(primaryIsect);
+            }
 
             if (primaryIsect.primitive->getEmitter()) {
                 L += primaryIsect.primitive->getEmitter()->eval(primaryIsect, -primaryRay.d);
@@ -45,11 +52,8 @@ namespace gnd {
 
             if (needsGBuffer) {
                 if (primaryIsect.bsdf && primaryIsect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0) {
-                    if (outAlbedo) *outAlbedo = primaryIsect.primitive->getMaterial()->getAlbedo(primaryIsect);
-                    if (outNormal) {
-                        Normal3f n = primaryIsect.n / 2.0f + Normal3f(0.5f);
-                        *outNormal = n;
-                    }
+                    aovs->albedo = primaryIsect.primitive->getMaterial()->getAlbedo(primaryIsect);
+                    aovs->normal = primaryIsect.n / 2.0f + Normal3f(0.5f);
                     needsGBuffer = false;
                 }
             }
@@ -122,8 +126,8 @@ namespace gnd {
                         }
 
                         if (needsGBuffer) {
-                            if (outAlbedo) *outAlbedo = Li_env;
-                            if (outNormal) *outNormal = Normal3f(0.0f);
+                            aovs->albedo = Li_env;
+                            aovs->normal = Normal3f(0.0f);
                             needsGBuffer = false;
                         }
                     }
@@ -158,19 +162,9 @@ namespace gnd {
                 isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
 
                 if (needsGBuffer && isect.bsdf) {
-                    if (isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0) {
-                        if (outAlbedo) *outAlbedo = isect.primitive->getMaterial()->getAlbedo(isect);
-                        if (outNormal) {
-                            Normal3f n = isect.n / 2.0f + Normal3f(0.5f);
-                            *outNormal = n;
-                        }
-                        needsGBuffer = false;
-                    } else if (bounces == maxDepth - 1) {
-                        if (outAlbedo) *outAlbedo = isect.primitive->getMaterial()->getAlbedo(isect);
-                        if (outNormal) {
-                            Normal3f n = isect.n / 2.0f + Normal3f(0.5f);
-                            *outNormal = n;
-                        }
+                    if (isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0 || bounces == maxDepth - 1) {
+                        aovs->albedo = isect.primitive->getMaterial()->getAlbedo(isect);
+                        aovs->normal = isect.n / 2.0f + Normal3f(0.5f);
                         needsGBuffer = false;
                     }
                 }

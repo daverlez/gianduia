@@ -12,7 +12,7 @@ namespace gnd {
         }
 
         Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena,
-            Color3f* outAlbedo, Normal3f* outNormal, float* outDepth = nullptr) const override {
+            AOVRecord* aovs = nullptr) const override {
             Ray r = primaryRay;
             float accumulatedDensity = 0.0f;
 

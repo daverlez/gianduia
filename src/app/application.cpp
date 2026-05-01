@@ -184,6 +184,26 @@ void Application::run() {
                     }
 
                     m_texture.update(w, h, displayDepth.data());
+                } else if (m_viewMode == ViewMode::Metallic || m_viewMode == ViewMode::Roughness) {
+                    int w = film->width();
+                    int h = film->height();
+
+                    static std::vector<float> displayMono;
+                    displayMono.resize(w * h * 3);
+
+                    const float* rawData = (m_viewMode == ViewMode::Metallic) ?
+                                           film->getMetallic().data() :
+                                           film->getRoughness().data();
+
+                    for (int i = 0; i < w * h; ++i) {
+                        float val = rawData[i];
+
+                        displayMono[i * 3 + 0] = val;
+                        displayMono[i * 3 + 1] = val;
+                        displayMono[i * 3 + 2] = val;
+                    }
+
+                    m_texture.update(w, h, displayMono.data());
                 }
             }
             m_textureDirty = false;
@@ -302,20 +322,28 @@ void Application::renderSidebar() {
             if (canViewBuffers && m_viewportMode == ViewportMode::Render) {
                 ImGui::Separator();
                 ImGui::Text(ICON_FA_LAYER_GROUP " G-Buffer Visualization");
-                if (ImGui::RadioButton("Beauty", m_viewMode == ViewMode::Beauty)) {
-                    m_viewMode = ViewMode::Beauty; m_textureDirty = true;
-                }
-                ImGui::SameLine();
-                if (ImGui::RadioButton("Albedo", m_viewMode == ViewMode::Albedo)) {
-                    m_viewMode = ViewMode::Albedo; m_textureDirty = true;
-                }
-                ImGui::SameLine();
-                if (ImGui::RadioButton("Normal", m_viewMode == ViewMode::Normal)) {
-                    m_viewMode = ViewMode::Normal; m_textureDirty = true;
-                }
-                ImGui::SameLine();
-                if (ImGui::RadioButton("Depth", m_viewMode == ViewMode::Depth)) {
-                    m_viewMode = ViewMode::Depth; m_textureDirty = true;
+
+                if (ImGui::BeginTable("GBufferTable", 2, ImGuiTableFlags_SizingStretchProp)) {
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    if (ImGui::RadioButton("Beauty", m_viewMode == ViewMode::Beauty)) { m_viewMode = ViewMode::Beauty; m_textureDirty = true; }
+                    ImGui::TableSetColumnIndex(1);
+                    if (ImGui::RadioButton("Depth", m_viewMode == ViewMode::Depth)) { m_viewMode = ViewMode::Depth; m_textureDirty = true; }
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    if (ImGui::RadioButton("Albedo", m_viewMode == ViewMode::Albedo)) { m_viewMode = ViewMode::Albedo; m_textureDirty = true; }
+                    ImGui::TableSetColumnIndex(1);
+                    if (ImGui::RadioButton("Roughness", m_viewMode == ViewMode::Roughness)) { m_viewMode = ViewMode::Roughness; m_textureDirty = true; }
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    if (ImGui::RadioButton("Normal", m_viewMode == ViewMode::Normal)) { m_viewMode = ViewMode::Normal; m_textureDirty = true; }
+                    ImGui::TableSetColumnIndex(1);
+                    if (ImGui::RadioButton("Metallic", m_viewMode == ViewMode::Metallic)) { m_viewMode = ViewMode::Metallic; m_textureDirty = true; }
+
+                    ImGui::EndTable();
                 }
             }
         }
