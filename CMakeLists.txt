@@ -124,3 +124,9 @@ target_link_libraries(Gianduia PRIVATE
 enable_testing()
 find_package(GTest CONFIG REQUIRED)
 add_subdirectory(tests)
+
+add_custom_command(TARGET Gianduia POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        "$<TARGET_FILE_DIR:Gianduia>/assets"
+)
