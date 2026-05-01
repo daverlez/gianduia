@@ -211,7 +211,7 @@ void Application::renderSidebar() {
     }
 
     if (m_scene) {
-        if (ImGui::CollapsingHeader(ICON_FA_CAMERA " Rendering & Denoise", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::CollapsingHeader(ICON_FA_CAMERA " Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
             if (!m_isRendering) {
                 if (ImGui::Button(ICON_FA_PLAY " Start Render", ImVec2(-1, 30))) {
                     startRender();
@@ -235,7 +235,7 @@ void Application::renderSidebar() {
 
             bool canDenoise = !m_isRendering && currentSamples > 0;
             ImGui::BeginDisabled(!canDenoise);
-            if (ImGui::Button(ICON_FA_WAND_MAGIC_SPARKLES " Apply OIDN Denoise", ImVec2(-1, 0))) {
+            if (ImGui::Button(ICON_FA_FILTER " Denoise", ImVec2(-1, 0))) {
                 gnd::Denoiser denoiser;
                 denoiser.execute(m_scene->getCamera()->getFilm());
 
@@ -247,10 +247,10 @@ void Application::renderSidebar() {
         }
 
         if (ImGui::CollapsingHeader(ICON_FA_DISPLAY " Viewport Options", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Text("Viewport Mode:");
-            if (ImGui::RadioButton("Path Tracer", m_viewportMode == ViewportMode::Render)) m_viewportMode = ViewportMode::Render;
+            ImGui::Text(ICON_FA_CUBE " Viewport Mode:");
+            if (ImGui::RadioButton("Render", m_viewportMode == ViewportMode::Render)) m_viewportMode = ViewportMode::Render;
             ImGui::SameLine();
-            if (ImGui::RadioButton("Interactive 3D", m_viewportMode == ViewportMode::Interactive)) m_viewportMode = ViewportMode::Interactive;
+            if (ImGui::RadioButton("Interactive", m_viewportMode == ViewportMode::Interactive)) m_viewportMode = ViewportMode::Interactive;
 
             if (m_viewportMode == ViewportMode::Interactive) {
                 ImGui::Separator();
