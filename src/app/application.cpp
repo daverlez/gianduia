@@ -201,28 +201,26 @@ void Application::renderSidebar() {
             if (ImGui::SliderInt("Max Depth", &m_maxBvhDepth, 0, m_absoluteMaxDepth)) m_bvhFiltersDirty = true;
         }
 
-        ImGui::Separator();
-        ImGui::Text("G-Buffer Visualization");
-
         bool canViewBuffers = !m_isRendering && m_currentSample > 0;
-        ImGui::BeginDisabled(!canViewBuffers);
+        if (canViewBuffers) {
+            ImGui::Separator();
+            ImGui::Text("G-Buffer Visualization");
 
-        if (ImGui::RadioButton("Beauty", m_viewMode == ViewMode::Beauty)) {
-            m_viewMode = ViewMode::Beauty;
-            m_textureDirty = true;
+            if (ImGui::RadioButton("Beauty", m_viewMode == ViewMode::Beauty)) {
+                m_viewMode = ViewMode::Beauty;
+                m_textureDirty = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Albedo", m_viewMode == ViewMode::Albedo)) {
+                m_viewMode = ViewMode::Albedo;
+                m_textureDirty = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Normal", m_viewMode == ViewMode::Normal)) {
+                m_viewMode = ViewMode::Normal;
+                m_textureDirty = true;
+            }
         }
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Albedo", m_viewMode == ViewMode::Albedo)) {
-            m_viewMode = ViewMode::Albedo;
-            m_textureDirty = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Normal", m_viewMode == ViewMode::Normal)) {
-            m_viewMode = ViewMode::Normal;
-            m_textureDirty = true;
-        }
-
-        ImGui::EndDisabled();
     } else {
         ImGui::TextColored(ImVec4(1,0,0,1), "No scene loaded.");
     }
@@ -288,6 +286,13 @@ void Application::renderViewport() {
 void Application::loadScene(const std::string& path) {
     cancelRender();
     try {
+        m_viewMode = ViewMode::Beauty;
+        m_viewportMode = ViewportMode::Render;
+
+        m_isRendering = false;
+        m_renderTime = 0.0f;
+        m_currentSample = 0;
+
         std::shared_ptr<gnd::GndObject> root = gnd::Parser::loadFromXML(path);
         m_scene = std::static_pointer_cast<gnd::Scene>(root);
         m_textureDirty = true;
@@ -308,6 +313,7 @@ void Application::loadScene(const std::string& path) {
         }
 
         m_absoluteMaxDepth = std::max(m_maxTlasDepth, m_maxBlasDepth);
+        m_maxBvhDepth = m_absoluteMaxDepth;
 
         m_showTLAS = true;
         m_showBLAS = true;
@@ -354,6 +360,7 @@ void Application::updateBvhBuffers() {
 void Application::startRender() {
     if (!m_scene) return;
 
+    m_viewMode = ViewMode::Beauty;
     m_isRendering = true;
     m_currentSample = 0;
 
@@ -370,12 +377,12 @@ void Application::startRender() {
         m_scene->render();
         m_isRendering = false;
     });
-    m_renderThread.detach();
 }
 
 void Application::cancelRender() {
     if (m_isRendering && m_scene && m_scene->getIntegrator()) {
         m_scene->getIntegrator()->cancel();
+        if (m_renderThread.joinable()) m_renderThread.join();
         m_isRendering = false;
     }
 }

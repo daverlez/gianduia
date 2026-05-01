@@ -133,7 +133,7 @@ void DebugRenderer::buildBuffers(const std::vector<gnd::BvhDebugNode>& nodes, in
         glm::vec3 maxBound(node.bounds.pMax.x(), node.bounds.pMax.y(), node.bounds.pMax.z());
 
         glm::vec3 size = maxBound - minBound;
-        float margin = 0.002f * node.depth;
+        float margin = 0.005f * node.depth;
 
         minBound += size * margin;
         maxBound -= size * margin;
@@ -163,7 +163,7 @@ void DebugRenderer::buildBuffers(const std::vector<gnd::BvhDebugNode>& nodes, in
 }
 
 void DebugRenderer::render(const InteractiveCamera& camera) const {
-    if (!m_isInitialized || m_vertexCount == 0) return;
+    if (!m_isInitialized) return;
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
     glViewport(0, 0, m_width, m_height);
@@ -171,20 +171,22 @@ void DebugRenderer::render(const InteractiveCamera& camera) const {
     glClearColor(0.08f, 0.08f, 0.08f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glUseProgram(m_shaderProgram);
+    if (m_vertexCount > 0) {
+        glUseProgram(m_shaderProgram);
 
-    glm::mat4 view = camera.getViewMatrix();
-    glm::mat4 projection = camera.getProjectionMatrix((float)m_width / (float)m_height);
+        glm::mat4 view = camera.getViewMatrix();
+        glm::mat4 projection = camera.getProjectionMatrix((float)m_width / (float)m_height);
 
-    glUniformMatrix4fv(glGetUniformLocation(m_shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);
-    glUniformMatrix4fv(glGetUniformLocation(m_shaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(m_shaderProgram, "view"), 1, GL_FALSE, &view[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(m_shaderProgram, "projection"), 1, GL_FALSE, &projection[0][0]);
 
-    glBindVertexArray(m_VAO);
-    glDisable(GL_DEPTH_TEST);
+        glBindVertexArray(m_VAO);
+        glDisable(GL_DEPTH_TEST);
 
-    glDrawArrays(GL_LINES, 0, m_vertexCount);
+        glDrawArrays(GL_LINES, 0, m_vertexCount);
 
-    glBindVertexArray(0);
+        glBindVertexArray(0);
+    }
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 

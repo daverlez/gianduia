@@ -85,6 +85,8 @@ namespace gnd {
 
                     for (int y = range.begin(); y != range.end(); ++y) {
                         for (int x = 0; x < width; ++x) {
+                            if (m_stopRequested) return;
+
                             threadArena.reset();
 
                             uint64_t pixelIdx = y * width + x;

@@ -77,7 +77,7 @@ private:
     std::vector<gnd::BvhDebugNode> m_cachedBvhNodes;
     bool m_showTLAS = true;
     bool m_showBLAS = true;
-    int m_maxBvhDepth = 64;
+    int m_maxBvhDepth = 0;
     bool m_bvhFiltersDirty = false;
     int m_maxTlasDepth = 0;
     int m_maxBlasDepth = 0;
