@@ -26,6 +26,7 @@ namespace gnd {
             int bounces = 0;
             int surfaceBounces = 0;
             int volumeBounces = 0;
+            int nullBounces = 0;
 
             float pdfPrev = 1.0f;
             bool specularBounce = true;
@@ -35,7 +36,7 @@ namespace gnd {
                 SurfaceInteraction isect;
                 bool hitSurface = scene.rayIntersect(r, isect);
 
-                if (bounces == 0 && aovs) {
+                if (bounces == 0 && nullBounces == 0 && aovs) {
                     if (hitSurface) {
                         aovs->depth = isect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
                         aovs->metallic = isect.primitive->getMaterial()->getMetallic(isect);
@@ -54,15 +55,15 @@ namespace gnd {
                 }
                 if (tp.isBlack()) break;
 
-                // --- Volumetric scattering ---
+                // Volumetric scattering
                 if (mi.isValid()) {
-                    // --- Volumetric emission ---
+                    // Volumetric emission
                     Color3f emission = mi.medium->Le(mi.p);
                     if (!emission.isBlack()) {
                         L += tp * emission;
                     }
 
-                    // --- Volume NEE ---
+                    // Volume NEE
                     float lightSelectPdf = 1.0f / scene.getEmitters().size();
                     std::shared_ptr<Emitter> emitter = scene.getRandomEmitter(sampler.next1D());
 
@@ -93,7 +94,7 @@ namespace gnd {
                         }
                     }
 
-                    // --- Phase Function Sampling ---
+                    // Phase Function Sampling
                     Vector3f wi;
                     pdfPrev = mi.phase->sample(mi.wo, &wi, sampler.next2D());
                     specularBounce = false;
@@ -104,7 +105,7 @@ namespace gnd {
                     r.medium = prevMedium;
                     r.time = prevTime;
 
-                    // --- Russian Roulette (relaxed on volumes) ---
+                    // Russian Roulette (relaxed on volumes)
                     if (volumeBounces > 6) {
                         float q = std::max(0.05f, std::min(tp.luminance(), 0.99f));
                         if (sampler.next1D() > q) break;
@@ -116,7 +117,7 @@ namespace gnd {
                     continue;
                 }
 
-                // --- Surface scattering ---
+                // Surface scattering
                 const Medium* currentRayMedium = r.medium;
 
                 if (!hitSurface) {
@@ -146,21 +147,26 @@ namespace gnd {
                     break;
                 }
 
+                isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
+
                 if (isect.primitive->getEmitter()) {
-                    Color3f Le = isect.primitive->getEmitter()->eval(isect, -r.d);
-                    if (!Le.isBlack()) {
-                        float weight = 1.0f;
-                        if (!specularBounce) {
-                            SurfaceInteraction dummyRef; dummyRef.p = r.o;
-                            float lightPdf = isect.primitive->getEmitter()->pdf(dummyRef, isect);
-                            float p_light = lightPdf * (1.0f / scene.getEmitters().size());
-                            weight = powerHeuristic(1, pdfPrev, 1, p_light);
+                    std::shared_ptr<Emitter> emitter = isect.primitive->getEmitter();
+                    bool skipEmission = (bounces == 0 && !isect.bsdf);
+
+                    if (!skipEmission) {
+                        Color3f Le = emitter->eval(isect, -r.d);
+                        if (!Le.isBlack()) {
+                            float weight = 1.0f;
+                            if (!specularBounce) {
+                                SurfaceInteraction dummyRef; dummyRef.p = r.o;
+                                float lightPdf = emitter->pdf(dummyRef, isect);
+                                float p_light = lightPdf * (1.0f / scene.getEmitters().size());
+                                weight = powerHeuristic(1, pdfPrev, 1, p_light);
+                            }
+                            L += tp * Le * weight;
                         }
-                        L += tp * Le * weight;
                     }
                 }
-
-                isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
 
                 if (needsGBuffer) {
                     if (isect.bsdf && isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0 || bounces == maxDepth - 1) {
@@ -171,13 +177,14 @@ namespace gnd {
                 }
 
                 if (!isect.bsdf) {
+                    if (nullBounces++ > 100) break;
                     r = Ray(isect.p, r.d);
                     r.medium = isect.getMedium(r.d);
                     r.time = isect.time;
                     continue;
                 }
 
-                // --- Surface NEE ---
+                // Surface NEE
                 float lightSelectPdf = 1.0f / scene.getEmitters().size();
                 std::shared_ptr<Emitter> emitter = scene.getRandomEmitter(sampler.next1D());
 
@@ -206,7 +213,7 @@ namespace gnd {
                     }
                 }
 
-                // --- BSDF Sampling ---
+                // BSDF Sampling
                 BxDFType sampledType;
                 Vector3f wi;
                 Color3f f_cos = isect.bsdf->sample(-r.d, &wi, sampler.next2D(), sampler.next1D(), &pdfPrev, &sampledType);
@@ -221,7 +228,7 @@ namespace gnd {
                 r.medium = getNextMedium(incidentDir, wi, currentRayMedium, isect);
                 r.time = isect.time;
 
-                // --- Russian Roulette ---
+                // Russian Roulette
                 if (surfaceBounces > 2) {
                     float q = std::max(0.05f, std::min(tp.luminance(), 0.99f));
                     if (sampler.next1D() > q) break;
@@ -253,7 +260,7 @@ namespace gnd {
                 if (r.medium) {
                     Ray trRay = r;
                     trRay.tMax = hit ? isect.t : r.tMax;
-                    Tr *= r.medium->Tr(r, sampler);
+                    Tr *= r.medium->Tr(trRay, sampler);
                 }
 
                 if (Tr.isBlack()) return Tr;

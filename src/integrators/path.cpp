@@ -9,67 +9,103 @@ namespace gnd {
             maxDepth = props.getInteger("maxDepth", 1000);
         }
 
-        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena,
-            AOVRecord* aovs = nullptr) const override {
+        Color3f Li(const Ray& primaryRay, Scene& scene, Sampler& sampler, MemoryArena& arena, AOVRecord* aovs = nullptr) const override {
             auto powerHeuristic = [](int nf, float fPdf, int ng, float gPdf) -> float {
                 float f = nf * fPdf; float g = ng * gPdf;
                 float denom = (f * f) + (g * g);
                 return denom > 0.0f ? (f * f) / denom : 0.0f;
             };
 
-            SurfaceInteraction primaryIsect;
             Color3f L(0.0f);
+            Color3f tp(1.0f);
+            Ray r = primaryRay;
 
+            int bounces = 0;
+            int nullBounces = 0;
+            bool specularBounce = true;
             bool needsGBuffer = aovs != nullptr;
+            float pdfPrev = 1.0f;
 
-            if (!scene.rayIntersect(primaryRay, primaryIsect)) {
-                if (scene.getEnvMap()) {
-                    L += scene.getEnvMap()->eval(SurfaceInteraction(), primaryRay.d);
+            while (bounces < maxDepth) {
+                SurfaceInteraction isect;
+                bool hitSurface = scene.rayIntersect(r, isect);
 
-                    if (needsGBuffer) {
-                        aovs->albedo = L;
-                        aovs->normal = Normal3f(0.0f);
+                if (bounces == 0 && nullBounces == 0 && aovs) {
+                    if (hitSurface) {
+                        aovs->depth = isect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
+                        aovs->metallic = isect.primitive->getMaterial()->getMetallic(isect);
+                        aovs->roughness = isect.primitive->getMaterial()->getRoughness(isect);
+                    } else {
                         aovs->depth = -1.0f;
-                        aovs->roughness = 0.0f;
                         aovs->metallic = 0.0f;
+                        aovs->roughness = 0.0f;
+                    }
+                }
+
+                // Envmap
+                if (!hitSurface) {
+                    if (scene.getEnvMap()) {
+                        Color3f Li_env = scene.getEnvMap()->eval(SurfaceInteraction(), r.d);
+                        if (!Li_env.isBlack()) {
+                            float weight = 1.0f;
+                            if (!specularBounce) {
+                                SurfaceInteraction envIsect;
+                                envIsect.p = r.o + r.d * 1e5f;
+                                envIsect.n = Normal3f(-r.d);
+                                float envPdf = scene.getEnvMap()->pdf(SurfaceInteraction(), envIsect);
+                                float p_env = envPdf * (1.0f / scene.getEmitters().size());
+                                weight = powerHeuristic(1, pdfPrev, 1, p_env);
+                            }
+                            L += tp * Li_env * weight;
+                        }
+                    }
+                    if (needsGBuffer) {
+                        if (scene.getEnvMap()) aovs->albedo = scene.getEnvMap()->eval(SurfaceInteraction(), r.d);
+                        aovs->normal = Normal3f(0.0f);
+                        needsGBuffer = false;
+                    }
+                    break;
+                }
+
+                isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
+
+                // Emitted radiance at surface interaction
+                if (isect.primitive->getEmitter()) {
+                    std::shared_ptr<Emitter> emitter = isect.primitive->getEmitter();
+                    bool skipEmission = (bounces == 0 && !isect.bsdf);
+
+                    if (!skipEmission) {
+                        Color3f Le = emitter->eval(isect, -r.d);
+                        if (!Le.isBlack()) {
+                            float weight = 1.0f;
+                            if (!specularBounce) {
+                                SurfaceInteraction dummyRef; dummyRef.p = r.o;
+                                float lightPdf = emitter->pdf(dummyRef, isect);
+                                float p_light = lightPdf * (1.0f / scene.getEmitters().size());
+                                weight = powerHeuristic(1, pdfPrev, 1, p_light);
+                            }
+                            L += tp * Le * weight;
+                        }
+                    }
+                }
+
+                // Null BSDF passthrough
+                if (!isect.bsdf) {
+                    if (nullBounces++ > 100) break;
+                    r = Ray(isect.p, r.d);
+                    r.time = isect.time;
+                    continue;
+                }
+
+                if (needsGBuffer) {
+                    if (isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0 || bounces == maxDepth - 1) {
+                        aovs->albedo = isect.primitive->getMaterial()->getAlbedo(isect);
+                        aovs->normal = isect.n / 2.0f + Normal3f(0.5f);
                         needsGBuffer = false;
                     }
                 }
-                return L;
-            }
 
-            if (aovs) {
-                aovs->depth = primaryIsect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
-                aovs->roughness = primaryIsect.primitive->getMaterial()->getRoughness(primaryIsect);
-                aovs->metallic = primaryIsect.primitive->getMaterial()->getMetallic(primaryIsect);
-            }
-
-            if (primaryIsect.primitive->getEmitter()) {
-                L += primaryIsect.primitive->getEmitter()->eval(primaryIsect, -primaryRay.d);
-            }
-
-            primaryIsect.primitive->getMaterial()->computeScatteringFunctions(primaryIsect, arena);
-
-            if (needsGBuffer) {
-                if (primaryIsect.bsdf && primaryIsect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0) {
-                    aovs->albedo = primaryIsect.primitive->getMaterial()->getAlbedo(primaryIsect);
-                    aovs->normal = primaryIsect.n / 2.0f + Normal3f(0.5f);
-                    needsGBuffer = false;
-                }
-            }
-
-            if (!primaryIsect.bsdf) return L;
-
-            Color3f tp(1.0f);
-            float matsWeight = 1.0f;
-            int bounces = 0;
-
-            SurfaceInteraction isect = primaryIsect;
-            Ray r = primaryRay;
-
-            while (bounces < maxDepth) {
-
-                // --- NEE (Next Event Estimation) ---
+                // Next Event Estimation
                 float lightSelectPdf = 1.0f / scene.getEmitters().size();
                 std::shared_ptr<Emitter> emitter = scene.getRandomEmitter(sampler.next1D());
 
@@ -93,84 +129,26 @@ namespace gnd {
                     }
                 }
 
-                // --- BSDF Sampling ---
+                // BSDF Sampling
                 Vector3f wi;
-                float bsdfPdf;
                 BxDFType sampledType;
 
-                tp *= isect.bsdf->sample(-r.d, &wi, sampler.next2D(), sampler.next1D(), &bsdfPdf, &sampledType);
+                Color3f f_cos = isect.bsdf->sample(-r.d, &wi, sampler.next2D(), sampler.next1D(), &pdfPrev, &sampledType);
 
-                if (tp.isBlack() || bsdfPdf <= 1e-6f) break;
+                if (f_cos.isBlack() || pdfPrev <= 1e-6f) break;
 
-                Ray secRay(isect.p, wi);
-                secRay.time = r.time;
-                SurfaceInteraction secIsect;
+                specularBounce = (sampledType & BSDF_SPECULAR) != 0;
+                tp *= f_cos;
 
-                if (!scene.rayIntersect(secRay, secIsect)) {
-                    if (scene.getEnvMap()) {
-                        std::shared_ptr<Emitter> envMap = scene.getEnvMap();
-                        Color3f Li_env = envMap->eval(isect, wi);
-
-                        if (!Li_env.isBlack()) {
-                            SurfaceInteraction envIsect;
-                            envIsect.p = isect.p + wi * 1e5f;
-                            envIsect.n = Normal3f(-wi);
-
-                            float lightPdfGeo = envMap->pdf(isect, envIsect);
-                            if (std::isinf(lightPdfGeo)) lightPdfGeo = 0.0f;
-
-                            float p_light = (sampledType & BSDF_SPECULAR) ? 0.0f : lightPdfGeo * lightSelectPdf;
-                            matsWeight = powerHeuristic(1, bsdfPdf, 1, p_light);
-
-                            L += tp * matsWeight * Li_env;
-                        }
-
-                        if (needsGBuffer) {
-                            aovs->albedo = Li_env;
-                            aovs->normal = Normal3f(0.0f);
-                            needsGBuffer = false;
-                        }
-                    }
-                    break;
-                }
-
-                if (secIsect.primitive->getEmitter()) {
-                    std::shared_ptr<Emitter> hitEmitter = secIsect.primitive->getEmitter();
-                    Color3f Li_bsdf = hitEmitter->eval(secIsect, -wi);
-
-                    if (!Li_bsdf.isBlack()) {
-                        float lightPdfGeo = hitEmitter->pdf(isect, secIsect);
-                        if (std::isinf(lightPdfGeo)) lightPdfGeo = 0.0f;
-                        float p_light = (sampledType & BSDF_SPECULAR) ? 0.0f : lightPdfGeo * lightSelectPdf;
-                        matsWeight = powerHeuristic(1, bsdfPdf, 1, p_light);
-
-                        L += tp * matsWeight * Li_bsdf;
-                    }
-                } else {
-                    matsWeight = 1.0f;
-                }
-
-                // --- Russian Roulette ---
+                // Russian Roulette
                 if (bounces > 2) {
                     float q = std::max(0.05f, std::min(tp.luminance(), 0.99f));
                     if (sampler.next1D() > q) break;
                     tp /= q;
                 }
 
-                isect = secIsect;
-                r = secRay;
-                isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
-
-                if (needsGBuffer && isect.bsdf) {
-                    if (isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0 || bounces == maxDepth - 1) {
-                        aovs->albedo = isect.primitive->getMaterial()->getAlbedo(isect);
-                        aovs->normal = isect.n / 2.0f + Normal3f(0.5f);
-                        needsGBuffer = false;
-                    }
-                }
-
-                if (!isect.bsdf) break;
-
+                r = Ray(isect.p, wi);
+                r.time = isect.time;
                 bounces++;
             }
 
