@@ -35,4 +35,4 @@ namespace gnd {
         T sampleLinear(const Point2f & uv) const;
     };
 
-} // namespace gnd
+}

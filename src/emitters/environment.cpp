@@ -1,12 +1,13 @@
 #include <filesystem>
 #include <vector>
-#include <algorithm>
+#include <memory>
 #include <stdexcept>
 
 #include "gianduia/core/film.h"
 #include "gianduia/core/emitter.h"
 #include "gianduia/core/factory.h"
 #include "gianduia/core/fileResolver.h"
+#include "gianduia/math/distribution.h"
 
 namespace gnd {
     class EnvironmentMap : public Emitter {
@@ -39,28 +40,17 @@ namespace gnd {
 
         virtual Color3f sample(const SurfaceInteraction& ref, const Point2f& sample_val,
                                SurfaceInteraction& info, float& pdf_val, Ray& shadowRay) const override {
-            const int rows = m_bitmap.height();
-            const int cols = m_bitmap.width();
 
-            int v = sampleDiscreteDistribution(m_thetaCdf, sample_val.x());
-            int u = sampleDiscreteDistributionMatrix(m_phiCdf, cols, v, sample_val.y());
+            float mapPdf;
+            Point2f uv = m_distribution->SampleContinuous(sample_val, &mapPdf);
 
-            float cdf_theta_prev = (v > 0) ? m_thetaCdf[v - 1] : 0.0f;
-            float delta_theta = m_thetaCdf[v] - cdf_theta_prev;
-            float dv = (delta_theta > 0.0f) ? (sample_val.x() - cdf_theta_prev) / delta_theta : 0.5f;
+            if (mapPdf == 0.0f) {
+                pdf_val = 0.0f;
+                return Color3f(0.0f);
+            }
 
-            float cdf_phi_prev = (u > 0) ? m_phiCdf[v * cols + u - 1] : 0.0f;
-            float delta_phi = m_phiCdf[v * cols + u] - cdf_phi_prev;
-            float du = (delta_phi > 0.0f) ? (sample_val.y() - cdf_phi_prev) / delta_phi : 0.5f;
-
-            dv = std::clamp(dv, 0.0f, 1.0f);
-            du = std::clamp(du, 0.0f, 1.0f);
-
-            dv = std::clamp(dv, 0.0f, 1.0f);
-            du = std::clamp(du, 0.0f, 1.0f);
-
-            float theta = M_PI * (v + dv) / rows;
-            float phi = 2.0f * M_PI * (u + du) / cols;
+            float theta = uv.y() * M_PI;
+            float phi = uv.x() * 2.0f * M_PI;
 
             Vector3f wi = SphericalDirection(Point2f(theta, phi));
 
@@ -71,35 +61,32 @@ namespace gnd {
             shadowRay = Ray(ref.p, wi);
             shadowRay.time = ref.time;
 
-            pdf_val = this->pdf(ref, info);
-
-            if (pdf_val <= 0.0f)
+            float sinTheta = std::sin(theta);
+            if (sinTheta <= 0.0f) {
+                pdf_val = 0.0f;
                 return Color3f(0.0f);
+            }
+
+            pdf_val = mapPdf / (2.0f * M_PI * M_PI * sinTheta);
 
             return eval(info, wi) / pdf_val;
         }
 
         virtual float pdf(const SurfaceInteraction& ref, const SurfaceInteraction& info) const override {
-            const int rows = m_bitmap.height();
-            const int cols = m_bitmap.width();
-
             Vector3f wi = Normalize(info.p - ref.p);
             Point2f spherical = SphericalCoordinates(wi);
             float theta = spherical.x();
             float phi = spherical.y();
-
-            int u = std::floor(phi * M_1_PI * 0.5f * cols);
-            int v = std::floor(theta * M_1_PI * rows);
-
-            u = std::clamp(u, 0, cols - 1);
-            v = std::clamp(v, 0, rows - 1);
-
             float sinTheta = std::sin(theta);
+
             if (sinTheta <= 0.0f)
                 return 0.0f;
 
-            float jacobian = (rows * cols) / (sinTheta * 2.0f * M_PI * M_PI);
-            return m_discretePdf2d[v * cols + u] * jacobian;
+            float u = phi * M_1_PI * 0.5f;
+            float v = theta * M_1_PI;
+
+            float mapPdf = m_distribution->Pdf(Point2f(u, v));
+            return mapPdf / (2.0f * M_PI * M_PI * sinTheta);
         }
 
         virtual bool isInfiniteAreaLight() const override { return true; }
@@ -115,87 +102,25 @@ namespace gnd {
         }
 
     private:
-        static int sampleDiscreteDistribution(const std::vector<float>& cdf, float sample_val) {
-            if (sample_val <= 0.0f) return 0;
-            if (sample_val >= 1.0f) return cdf.size() - 1;
-
-            auto it = std::upper_bound(cdf.begin(), cdf.end(), sample_val);
-            return std::clamp<int>(std::distance(cdf.begin(), it), 0, cdf.size() - 1);
-        }
-
-        static int sampleDiscreteDistributionMatrix(const std::vector<float>& cdf, int cols, int row, float sample_val) {
-            int offset = row * cols;
-            if (sample_val <= 0.0f) return 0;
-            if (sample_val >= 1.0f) return cols - 1;
-
-            auto begin_it = cdf.begin() + offset;
-            auto end_it = begin_it + cols;
-            
-            auto it = std::upper_bound(begin_it, end_it, sample_val);
-            return std::clamp<int>(std::distance(begin_it, it), 0, cols - 1);
-        }
-
         void buildPDFs() {
             const int rows = m_bitmap.height();
             const int cols = m_bitmap.width();
-            const int totalPixels = rows * cols;
 
-            m_discretePdf2d.resize(totalPixels, 0.0f);
-            m_thetaMarginalPdf.assign(rows, 0.0f);
-            m_thetaCdf.assign(rows, 0.0f);
-            m_phiConditionalPdf.assign(totalPixels, 0.0f);
-            m_phiCdf.assign(totalPixels, 0.0f);
-
-            float lumSum = 0.0f;
-            for (int i = 0; i < rows; i++) {
-                float sinTheta = std::sin(M_PI * (i + 0.5f) / rows);
-                for (int j = 0; j < cols; j++) {
-                    lumSum += m_bitmap.getPixel(j, i).luminance() * sinTheta;
-                }
-            }
-
-            if (lumSum == 0.0f)
-                throw std::runtime_error("Environment map is completely black/invalid.");
+            std::vector<float> imgData(rows * cols);
 
             for (int i = 0; i < rows; i++) {
                 float sinTheta = std::sin(M_PI * (i + 0.5f) / rows);
                 for (int j = 0; j < cols; j++) {
-                    m_discretePdf2d[i * cols + j] = (m_bitmap.getPixel(j, i).luminance() * sinTheta) / lumSum;
+                    imgData[i * cols + j] = m_bitmap.getPixel(j, i).luminance() * sinTheta;
                 }
             }
 
-            float F_theta = 0.0f;
-            for (int i = 0; i < rows; ++i) {
-                for (int j = 0; j < cols; ++j) {
-                    m_thetaMarginalPdf[i] += m_discretePdf2d[i * cols + j];
-                }
-                F_theta += m_thetaMarginalPdf[i];
-                m_thetaCdf[i] = F_theta;
-            }
-            m_thetaCdf[rows - 1] = 1.0f;
-
-            for (int i = 0; i < rows; ++i) {
-                float F_phi = 0.0f;
-                for (int j = 0; j < cols; ++j) {
-                    if (m_thetaMarginalPdf[i] > 0.0f) {
-                        m_phiConditionalPdf[i * cols + j] = m_discretePdf2d[i * cols + j] / m_thetaMarginalPdf[i];
-                    } else {
-                        m_phiConditionalPdf[i * cols + j] = 0.0f;
-                    }
-                    F_phi += m_phiConditionalPdf[i * cols + j];
-                    m_phiCdf[i * cols + j] = F_phi;
-                }
-                m_phiCdf[i * cols + cols - 1] = 1.0f;
-            }
+            m_distribution = std::make_unique<Distribution2D>(imgData.data(), cols, rows);
         }
 
     protected:
         Film m_bitmap = Film(0, 0);
-        std::vector<float> m_discretePdf2d;
-        std::vector<float> m_thetaMarginalPdf;
-        std::vector<float> m_thetaCdf;
-        std::vector<float> m_phiConditionalPdf;
-        std::vector<float> m_phiCdf;
+        std::unique_ptr<Distribution2D> m_distribution;
         std::string m_relPath;
         float m_strength;
     };
