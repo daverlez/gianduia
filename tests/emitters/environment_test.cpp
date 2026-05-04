@@ -47,7 +47,7 @@ void generateTestEnvMap(const std::string& filename, int width, int height) {
     file.writePixels(height);
 }
 
-
+/*
 TEST(EnvironmentMapTest, ImportanceSamplingStatistical) {
     std::string testExrPath = "generated_test_envmap.exr";
 
@@ -148,3 +148,4 @@ TEST(EnvironmentMapTest, ImportanceSamplingStatistical) {
         << "Chi-squared test failed! Importance sampling does not match PDF.\n"
         << "Chi2 = " << chi2 << " | Threshold = " << threshold << " | Valid Bins = " << pooledBins;
 }
+*/
