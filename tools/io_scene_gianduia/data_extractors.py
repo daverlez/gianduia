@@ -30,7 +30,6 @@ def add_integer(parent, name, value):
     return add_param(parent, "integer", name, str(value))
 
 def copy_asset(filepath, target_dir):
-    """Copia un file nella cartella di destinazione se non esiste o è diverso."""
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
     filename = os.path.basename(filepath)
@@ -40,6 +39,64 @@ def copy_asset(filepath, target_dir):
             shutil.copy2(filepath, dest_path)
     return filename
 
+def export_image_asset(img, target_dir):
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
+
+    filepath = bpy.path.abspath(img.filepath)
+    filename = os.path.basename(filepath)
+
+    if not filename:
+        filename = img.name + ".png"
+
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext != '.dds':
+        dest_path = os.path.join(target_dir, filename)
+
+        if os.path.exists(filepath):
+            if not os.path.exists(dest_path) or not os.path.samefile(filepath, dest_path):
+                shutil.copy2(filepath, dest_path)
+
+        elif img.packed_file:
+            if not os.path.exists(dest_path):
+                with open(dest_path, 'wb') as f:
+                    f.write(img.packed_file.data)
+
+        elif img.has_data:
+            if not os.path.exists(dest_path):
+                orig_path = img.filepath_raw
+                img.filepath_raw = dest_path
+                img.save()
+                img.filepath_raw = orig_path
+
+        return filename
+
+    new_filename = os.path.splitext(filename)[0] + ".png"
+    dest_path = os.path.join(target_dir, new_filename)
+
+    if not os.path.exists(dest_path):
+        scene = bpy.context.scene
+
+        orig_format = scene.render.image_settings.file_format
+        orig_view = scene.view_settings.view_transform
+        orig_look = scene.view_settings.look
+
+        scene.render.image_settings.file_format = 'PNG'
+        scene.view_settings.look = 'None'
+
+        if img.colorspace_settings.name == 'sRGB':
+            scene.view_settings.view_transform = 'Standard'
+        else:
+            scene.view_settings.view_transform = 'Raw'
+
+        img.save_render(filepath=dest_path, scene=scene)
+
+        scene.render.image_settings.file_format = orig_format
+        scene.view_settings.view_transform = orig_view
+        scene.view_settings.look = orig_look
+
+    return new_filename
 
 # EXTRACTION LOGIC
 
@@ -172,12 +229,13 @@ def export_world(root_node, scene, export_dir):
     if color_input.is_linked:
         env_node = color_input.links[0].from_node
         if env_node.type == 'TEX_ENVIRONMENT' and env_node.image:
-            img_path = bpy.path.abspath(env_node.image.filepath)
+            img = env_node.image
+            img_path = bpy.path.abspath(img.filepath)
 
-            if not img_path.lower().endswith('.exr'):
-                print(f"ATTENZIONE: Gianduia accetta solo .exr. Trovato: {img_path}")
+            if not img_path.lower().endswith('.exr') and not img_path.lower().endswith('.hdr'):
+                print(f"Careful: Gianduia accepts .exr or .hdr for envmaps. Found: {img_path}")
 
-            filename = copy_asset(img_path, export_dir)
+            filename = export_image_asset(img, export_dir)
 
             env_xml = ET.SubElement(root_node, "emitter", type="environment")
             add_string(env_xml, "filename", filename)
@@ -243,7 +301,7 @@ def export_texture_or_value(parent_node, input_socket, prop_name, export_dir, te
 
         if from_node.type == 'TEX_IMAGE' and from_node.image:
             img = from_node.image
-            filename = copy_asset(bpy.path.abspath(img.filepath), os.path.join(export_dir, textures_dir_name))
+            filename = export_image_asset(img, os.path.join(export_dir, textures_dir_name))
 
             tex_type = "image_color"
 
@@ -347,16 +405,29 @@ def export_material(prim_node, material, export_dir):
                 add_float(mat_node, "eta", 1.4)
 
                 base_color = surface_node.inputs['Base Color'].default_value[:3]
-                sss_scale = surface_node.inputs['Subsurface Scale'].default_value
+
+                sss_scale_socket = surface_node.inputs.get('Subsurface Scale')
+                if sss_scale_socket and sss_scale_socket.is_linked:
+                    sss_scale = 1.0
+                else:
+                    sss_scale = sss_scale_socket.default_value if sss_scale_socket else 1.0
+
                 sss_radius = surface_node.inputs['Subsurface Radius'].default_value[:3]
+                scene_unit_scale = bpy.context.scene.unit_settings.scale_length
+                total_scale = sss_scale * scene_unit_scale
 
                 med_node = ET.SubElement(mat_node, "medium", type="homogeneous", name="inside")
                 sig_s, sig_a = [0,0,0], [0,0,0]
 
                 for i in range(3):
-                    sigma_t = 1.0 / max(sss_radius[i] * sss_scale, 0.0001)
-                    sig_s[i] = base_color[i] * sigma_t
-                    sig_a[i] = max(sigma_t - sig_s[i], 0.0)
+                    mfp = max(sss_radius[i] * total_scale, 0.0001)
+                    sigma_t = 1.0 / mfp
+
+                    A = max(min(base_color[i], 0.999), 0.001)
+                    alpha = 1.0 - math.exp(-5.09406 * A + 2.61188 * (A**2) - 4.31805 * (A**3))
+
+                    sig_s[i] = alpha * sigma_t
+                    sig_a[i] = sigma_t - sig_s[i]
 
                 add_color(med_node, "sigma_s", *sig_s)
                 add_color(med_node, "sigma_a", *sig_a)

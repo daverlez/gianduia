@@ -87,8 +87,19 @@ def handle_light(root, inst, obj_eval, base_dir, meshes_dir_name, export_meshes)
         mat_node = ET.SubElement(prim_node, "material", type="matte")
         data_extractors.add_color(mat_node, "albedo", 0, 0, 0)
 
+        if light.shape in {'RECTANGLE', 'ELLIPSE'}:
+            area = light.size * light.size_y
+        else:
+            area = light.size * light.size
+
+        area = max(area, 0.000001)
+
+        radiance_r = power_r / (area * math.pi)
+        radiance_g = power_g / (area * math.pi)
+        radiance_b = power_b / (area * math.pi)
+
         emitter_node = ET.SubElement(prim_node, "emitter", type="area")
-        data_extractors.add_color(emitter_node, "radiance", power_r, power_g, power_b)
+        data_extractors.add_color(emitter_node, "radiance", radiance_r, radiance_g, radiance_b)
 
     elif light.type == 'SPOT':
         emitter_node = ET.SubElement(root, "emitter", type="spot")
