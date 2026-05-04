@@ -84,8 +84,7 @@ def handle_light(root, inst, obj_eval, base_dir, meshes_dir_name, export_meshes)
         if export_meshes:
             data_extractors.write_area_light_obj(light, os.path.join(base_dir, rel_obj_path))
 
-        mat_node = ET.SubElement(prim_node, "material", type="matte")
-        data_extractors.add_color(mat_node, "albedo", 0, 0, 0)
+        mat_node = ET.SubElement(prim_node, "material", type="index")
 
         if light.shape in {'RECTANGLE', 'ELLIPSE'}:
             area = light.size * light.size_y

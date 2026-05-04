@@ -7,7 +7,6 @@
 #include <stb_image.h>
 #include <gianduia/math/color.h>
 
-// Header OpenEXR
 #include <ImfRgbaFile.h>
 #include <ImfArray.h>
 
