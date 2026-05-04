@@ -26,24 +26,19 @@ namespace gnd {
             bool needsGBuffer = aovs != nullptr;
             float pdfPrev = 1.0f;
 
+            Point3f lastScatterPoint = primaryRay.o;
+
             while (bounces < maxDepth) {
                 SurfaceInteraction isect;
                 bool hitSurface = scene.rayIntersect(r, isect);
 
-                if (bounces == 0 && nullBounces == 0 && aovs) {
-                    if (hitSurface) {
-                        aovs->depth = isect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
-                        aovs->metallic = isect.primitive->getMaterial()->getMetallic(isect);
-                        aovs->roughness = isect.primitive->getMaterial()->getRoughness(isect);
-                    } else {
+                if (!hitSurface) {
+                    if (bounces == 0 && aovs) {
                         aovs->depth = -1.0f;
                         aovs->metallic = 0.0f;
                         aovs->roughness = 0.0f;
                     }
-                }
 
-                // Envmap
-                if (!hitSurface) {
                     if (scene.getEnvMap()) {
                         Color3f Li_env = scene.getEnvMap()->eval(SurfaceInteraction(), r.d);
                         if (!Li_env.isBlack()) {
@@ -79,7 +74,7 @@ namespace gnd {
                         if (!Le.isBlack()) {
                             float weight = 1.0f;
                             if (!specularBounce) {
-                                SurfaceInteraction dummyRef; dummyRef.p = r.o;
+                                SurfaceInteraction dummyRef; dummyRef.p = lastScatterPoint;
                                 float lightPdf = emitter->pdf(dummyRef, isect);
                                 float p_light = lightPdf * (1.0f / scene.getEmitters().size());
                                 weight = powerHeuristic(1, pdfPrev, 1, p_light);
@@ -89,12 +84,17 @@ namespace gnd {
                     }
                 }
 
-                // Null BSDF passthrough
                 if (!isect.bsdf) {
                     if (nullBounces++ > 100) break;
                     r = Ray(isect.p, r.d);
                     r.time = isect.time;
                     continue;
+                }
+
+                if (bounces == 0 && aovs) {
+                    aovs->depth = Dot(isect.p - primaryRay.o, scene.getCamera()->getForward());
+                    aovs->metallic = isect.primitive->getMaterial()->getMetallic(isect);
+                    aovs->roughness = isect.primitive->getMaterial()->getRoughness(isect);
                 }
 
                 if (needsGBuffer) {
@@ -116,16 +116,40 @@ namespace gnd {
                 Color3f Li_nee = emitter->sample(isect, sampler.next2D(), lightIsect, lightPdf, shadowRay);
                 Li_nee /= lightSelectPdf;
 
-                if (lightPdf > 1e-6f && !Li_nee.isBlack() && !scene.rayIntersect(shadowRay)) {
-                    Vector3f wi = Normalize(lightIsect.p - isect.p);
-                    float bsdfPdf = isect.bsdf->pdf(-r.d, wi);
-                    Color3f f = isect.bsdf->f(-r.d, wi);
+                if (lightPdf > 1e-6f && !Li_nee.isBlack()) {
+                    // Passthrough shadows on primitives with null bsdf
+                    bool occluded = false;
+                    Ray traceRay = shadowRay;
 
-                    if (!f.isBlack() && bsdfPdf > 1e-6f) {
-                        float p_light = lightPdf * lightSelectPdf;
-                        float p_bsdf = emitter->isDelta() ? 0.0f : bsdfPdf;
-                        float weightLight = powerHeuristic(1, p_light, 1, p_bsdf);
-                        L += tp * f * Li_nee * std::abs(Dot(isect.n, wi)) * weightLight;
+                    while (true) {
+                        SurfaceInteraction shadowIsect;
+                        if (!scene.rayIntersect(traceRay, shadowIsect)) {
+                            break;
+                        }
+
+                        shadowIsect.primitive->getMaterial()->computeScatteringFunctions(shadowIsect, arena);
+                        if (shadowIsect.bsdf != nullptr) {
+                            occluded = true;
+                            break;
+                        }
+
+                        float nextTmax = traceRay.tMax - (shadowIsect.p - traceRay.o).length();
+                        traceRay = Ray(shadowIsect.p, traceRay.d);
+                        traceRay.tMax = nextTmax;
+                        traceRay.time = shadowIsect.time;
+                    }
+
+                    if (!occluded) {
+                        Vector3f wi = Normalize(lightIsect.p - isect.p);
+                        float bsdfPdf = isect.bsdf->pdf(-r.d, wi);
+                        Color3f f = isect.bsdf->f(-r.d, wi);
+
+                        if (!f.isBlack() && bsdfPdf > 1e-6f) {
+                            float p_light = lightPdf * lightSelectPdf;
+                            float p_bsdf = emitter->isDelta() ? 0.0f : bsdfPdf;
+                            float weightLight = powerHeuristic(1, p_light, 1, p_bsdf);
+                            L += tp * f * Li_nee * std::abs(Dot(isect.n, wi)) * weightLight;
+                        }
                     }
                 }
 
@@ -147,6 +171,7 @@ namespace gnd {
                     tp /= q;
                 }
 
+                lastScatterPoint = isect.p;
                 r = Ray(isect.p, wi);
                 r.time = isect.time;
                 bounces++;

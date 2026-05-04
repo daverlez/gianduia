@@ -32,22 +32,11 @@ namespace gnd {
             bool specularBounce = true;
             bool needsGBuffer = aovs != nullptr;
 
+            Point3f lastScatterPoint = primaryRay.o;
+
             while (bounces < maxDepth) {
                 SurfaceInteraction isect;
                 bool hitSurface = scene.rayIntersect(r, isect);
-
-                if (bounces == 0 && nullBounces == 0 && aovs) {
-                    if (hitSurface) {
-                        aovs->depth = isect.t * Dot(primaryRay.d, scene.getCamera()->getForward());
-                        aovs->metallic = isect.primitive->getMaterial()->getMetallic(isect);
-                        aovs->roughness = isect.primitive->getMaterial()->getRoughness(isect);
-                    }
-                    else {
-                        aovs->depth = -1.0f;
-                        aovs->metallic = 0.0f;
-                        aovs->roughness = 0.0f;
-                    }
-                }
 
                 MediumInteraction mi;
                 if (r.medium) {
@@ -101,6 +90,9 @@ namespace gnd {
 
                     const Medium* prevMedium = r.medium;
                     float prevTime = r.time;
+
+                    lastScatterPoint = mi.p;
+
                     r = Ray(mi.p, wi);
                     r.medium = prevMedium;
                     r.time = prevTime;
@@ -121,6 +113,12 @@ namespace gnd {
                 const Medium* currentRayMedium = r.medium;
 
                 if (!hitSurface) {
+                    if (bounces == 0 && aovs) {
+                        aovs->depth = -1.0f;
+                        aovs->metallic = 0.0f;
+                        aovs->roughness = 0.0f;
+                    }
+
                     Color3f Li_env(0.0f);
                     if (scene.getEnvMap()) {
                         Li_env = scene.getEnvMap()->eval(SurfaceInteraction(), r.d);
@@ -158,7 +156,7 @@ namespace gnd {
                         if (!Le.isBlack()) {
                             float weight = 1.0f;
                             if (!specularBounce) {
-                                SurfaceInteraction dummyRef; dummyRef.p = r.o;
+                                SurfaceInteraction dummyRef; dummyRef.p = lastScatterPoint;
                                 float lightPdf = emitter->pdf(dummyRef, isect);
                                 float p_light = lightPdf * (1.0f / scene.getEmitters().size());
                                 weight = powerHeuristic(1, pdfPrev, 1, p_light);
@@ -168,20 +166,26 @@ namespace gnd {
                     }
                 }
 
-                if (needsGBuffer) {
-                    if (isect.bsdf && isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0 || bounces == maxDepth - 1) {
-                        aovs->albedo = isect.primitive->getMaterial()->getAlbedo(isect);
-                        aovs->normal = isect.n / 2.0f + Normal3f(0.5f);
-                        needsGBuffer = false;
-                    }
-                }
-
                 if (!isect.bsdf) {
                     if (nullBounces++ > 100) break;
                     r = Ray(isect.p, r.d);
                     r.medium = isect.getMedium(r.d);
                     r.time = isect.time;
                     continue;
+                }
+
+                if (bounces == 0 && aovs) {
+                    aovs->depth = Dot(isect.p - primaryRay.o, scene.getCamera()->getForward());
+                    aovs->metallic = isect.primitive->getMaterial()->getMetallic(isect);
+                    aovs->roughness = isect.primitive->getMaterial()->getRoughness(isect);
+                }
+
+                if (needsGBuffer) {
+                    if (isect.bsdf && isect.bsdf->numComponents(BxDFType(BSDF_ALL & ~BSDF_SPECULAR)) > 0 || bounces == maxDepth - 1) {
+                        aovs->albedo = isect.primitive->getMaterial()->getAlbedo(isect);
+                        aovs->normal = isect.n / 2.0f + Normal3f(0.5f);
+                        needsGBuffer = false;
+                    }
                 }
 
                 // Surface NEE
@@ -224,6 +228,9 @@ namespace gnd {
                 tp *= f_cos;
 
                 Vector3f incidentDir = -r.d;
+
+                lastScatterPoint = isect.p;
+
                 r = Ray(isect.p, wi);
                 r.medium = getNextMedium(incidentDir, wi, currentRayMedium, isect);
                 r.time = isect.time;
