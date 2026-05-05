@@ -61,6 +61,33 @@ namespace gnd {
             return 0.0f;
         }
 
+        virtual Color3f samplePhoton(const Point2f& uPos, const Point2f& uDir, float time, Ray& photonRay) const override {
+            photonRay.o = m_position;
+
+            Vector3f localDir = Warp::squareToUniformSphereCap(uDir, m_cosTotalWidth);
+
+            Frame frame(m_direction);
+            photonRay.d = frame.toWorld(localDir);
+
+            photonRay.tMin = Epsilon;
+            photonRay.tMax = std::numeric_limits<float>::max();
+            photonRay.time = time;
+
+            float pdfDir = Warp::squareToUniformSphereCapPdf(localDir, m_cosTotalWidth);
+            if (pdfDir <= 0.0f) return Color3f(0.0f);
+
+            float cosTheta = Dot(photonRay.d, m_direction);
+            float falloff = 1.0f;
+
+            if (cosTheta < m_cosFalloffStart) {
+                float t = (cosTheta - m_cosTotalWidth) / (m_cosFalloffStart - m_cosTotalWidth);
+                falloff = (t * t) * (3.0f - 2.0f * t);
+            }
+
+            Color3f I = m_power * Inv4Pi;
+            return (I * falloff) / pdfDir;
+        }
+
         std::string toString() const override {
             return std::format(
                 "SpotLight[\n"

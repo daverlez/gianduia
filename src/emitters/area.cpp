@@ -121,6 +121,42 @@ namespace gnd {
             return anglePdf;
         }
 
+        virtual Color3f samplePhoton(const Point2f& uPos, const Point2f& uDir, float time, Ray& photonRay) const override {
+            SurfaceInteraction local;
+            const Transform& toWorld = m_primitive->getToWorld(time);
+            float areaPdf = m_primitive->getShape()->sampleSurface(Point3f(0.0f), uPos, local);
+
+            SurfaceInteraction info;
+            info.p = toWorld(local.p);
+            info.n = Normalize(toWorld(local.n));
+            info.uv = local.uv;
+            info.time = time;
+
+            Frame frame(Vector3f(info.n.x(), info.n.y(), info.n.z()));
+            Vector3f t1World = toWorld(frame.x);
+            Vector3f t2World = toWorld(frame.y);
+
+            float areaScale = Cross(t1World, t2World).length();
+            if (areaScale > 0.0f) {
+                areaPdf /= areaScale;
+            }
+
+            if (areaPdf <= Epsilon) return Color3f(0.0f);
+
+            Vector3f localDir = Warp::squareToCosineHemisphere(uDir);
+            Vector3f wi = frame.toWorld(localDir);
+
+            photonRay.o = info.p;
+            photonRay.d = wi;
+            photonRay.tMin = Epsilon;
+            photonRay.tMax = std::numeric_limits<float>::max();
+            photonRay.time = time;
+
+            Color3f Le = m_radiance->evaluate(info);
+
+            return (Le * Pi) / areaPdf;
+        }
+
         std::string toString() const override {
             return std::format(
                 "AreaLight[\n"

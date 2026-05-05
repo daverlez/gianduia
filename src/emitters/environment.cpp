@@ -89,6 +89,11 @@ namespace gnd {
             return mapPdf / (2.0f * M_PI * M_PI * sinTheta);
         }
 
+        virtual Color3f samplePhoton(const Point2f& uPos, const Point2f& uDir, float time, Ray& photonRay) const override {
+            std::cerr << "Warning: samplePhoton not yet supported for infinite lights!" << std::endl;
+            return Color3f(0.0f);
+        }
+
         virtual bool isInfiniteAreaLight() const override { return true; }
 
         virtual std::string toString() const override {

@@ -37,6 +37,11 @@ namespace gnd {
             return 0.0f;
         }
 
+        virtual Color3f samplePhoton(const Point2f& uPos, const Point2f& uDir, float time, Ray& photonRay) const override {
+            std::cerr << "Warning: samplePhoton not yet supported for infinite lights!" << std::endl;
+            return Color3f(0.0f);
+        }
+
         std::string toString() const override {
             return std::format(
                 "DirectionalLight[\n"
