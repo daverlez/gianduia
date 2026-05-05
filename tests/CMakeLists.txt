@@ -9,6 +9,7 @@ add_executable(GianduiaTests
         math/frame_test.cpp
         math/kdtree_test.cpp
         math/microfacet_test.cpp
+        math/photon_test.cpp
         math/reservoir_test.cpp
         math/warp_test.cpp
         shapes/cube_test.cpp
