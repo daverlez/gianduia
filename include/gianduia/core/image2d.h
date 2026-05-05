@@ -18,12 +18,15 @@
 namespace gnd {
 
     template <typename T>
-    concept IsScalar = std::same_as<T, float> || std::same_as<T, double>;
+    concept Scalar = std::same_as<T, float> || std::same_as<T, double>;
 
     template <typename T>
-    concept IsVector3 = std::same_as<T, Color3f> || std::same_as<T, Vector3f> || std::same_as<T, Normal3f>;
+    concept Vector3 = std::is_trivially_copyable_v<T> && requires {
+        requires sizeof(T) == 3 * sizeof(float);
+    };
 
     template <typename T>
+        requires Scalar<T> || Vector3<T>
     class Image2D {
     public:
         Image2D() : m_width(0), m_height(0) {}
@@ -67,7 +70,7 @@ namespace gnd {
                 size_t xStride = sizeof(T);
                 size_t yStride = m_width * sizeof(T);
 
-                if constexpr (IsVector3<T>) {
+                if constexpr (Vector3<T>) {
                     header.channels().insert("R", Imf::Channel(Imf::FLOAT));
                     header.channels().insert("G", Imf::Channel(Imf::FLOAT));
                     header.channels().insert("B", Imf::Channel(Imf::FLOAT));
@@ -76,12 +79,12 @@ namespace gnd {
                     frameBuffer.insert("G", Imf::Slice(Imf::FLOAT, base + sizeof(float), xStride, yStride));
                     frameBuffer.insert("B", Imf::Slice(Imf::FLOAT, base + 2 * sizeof(float), xStride, yStride));
                 }
-                else if constexpr (IsScalar<T>) {
+                else if constexpr (Scalar<T>) {
                     header.channels().insert("Y", Imf::Channel(Imf::FLOAT));
                     frameBuffer.insert("Y", Imf::Slice(Imf::FLOAT, base, xStride, yStride));
                 }
                 else {
-                    static_assert(IsVector3<T> || IsScalar<T>, "Image2D: Unsupported type for EXR export.");
+                    static_assert(Vector3<T> || Scalar<T>, "Image2D: Unsupported type for EXR export.");
                 }
 
                 Imf::OutputFile file(filename.c_str(), header);
@@ -113,12 +116,12 @@ namespace gnd {
 
                 base = base - dx * xStride - dy * yStride;
 
-                if constexpr (IsVector3<T>) {
+                if constexpr (Vector3<T>) {
                     frameBuffer.insert("R", Imf::Slice(Imf::FLOAT, base, xStride, yStride));
                     frameBuffer.insert("G", Imf::Slice(Imf::FLOAT, base + sizeof(float), xStride, yStride));
                     frameBuffer.insert("B", Imf::Slice(Imf::FLOAT, base + 2 * sizeof(float), xStride, yStride));
                 }
-                else if constexpr (IsScalar<T>) {
+                else if constexpr (Scalar<T>) {
                     frameBuffer.insert("Y", Imf::Slice(Imf::FLOAT, base, xStride, yStride));
                 }
                 file.setFrameBuffer(frameBuffer);
