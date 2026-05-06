@@ -10,10 +10,14 @@ using namespace gnd;
 struct TestPhoton {
     Point3f p;
     int id;
+    uint16_t kdFlags = 0;
 
     bool operator==(const TestPhoton& other) const {
         return id == other.id;
     }
+
+    void setAxis(int axis) { kdFlags = (kdFlags & ~3) | (axis & 3); }
+    int getAxis() const { return kdFlags & 3; }
 };
 
 TEST(KdTreeTest, EmptyTree) {

@@ -8,15 +8,15 @@
 
 namespace gnd {
     struct Photon {
-        Point3f p; // 12 byte: position
-        uint8_t rgbe[4]; // 4 byte: Power in RGBE format
-        uint8_t theta; // 1 byte: Theta direction in [0, 255]
-        uint8_t phi; // 1 byte: Phi direction [0, 255]
-        // 2 byte of automatic padding for 4 byte alignment
+        Point3f p;              // 12 bytes: position
+        uint8_t rgbe[4];        // 4  bytes: Power in RGBE format
+        uint8_t theta;          // 1  bytes: Theta direction in [0, 255]
+        uint8_t phi;            // 1  bytes: Phi direction [0, 255]
+        uint16_t kdFlags;       // 2  bytes: kd-tree flags (bits 1-0) and padding to 20 bytes
 
-        Photon() = default;
+        Photon() : kdFlags(0) {}
 
-        Photon(const Point3f &pos, const Color3f &power, const Vector3f &dir) : p(pos) {
+        Photon(const Point3f &pos, const Color3f &power, const Vector3f &dir) : p(pos), kdFlags(0) {
             float v = std::max({power.r(), power.g(), power.b()});
             if (v < 1e-32f) {
                 rgbe[0] = rgbe[1] = rgbe[2] = rgbe[3] = 0;
@@ -37,6 +37,14 @@ namespace gnd {
 
             theta = static_cast<uint8_t>(std::clamp(th * (256.0f / Pi), 0.0f, 255.0f));
             phi = static_cast<uint8_t>(std::clamp(ph * (256.0f / (2.0f * Pi)), 0.0f, 255.0f));
+        }
+
+        void setAxis(int axis) {
+            kdFlags = (kdFlags & ~3) | (axis & 3);
+        }
+
+        int getAxis() const {
+            return kdFlags & 3;
         }
 
         Color3f getPower() const {

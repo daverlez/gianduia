@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include <gianduia/math/photon.h>
-#include <gianduia/math/kdtree.h>
 #include <cmath>
 
 using namespace gnd;
@@ -14,7 +13,7 @@ protected:
 
 TEST_F(PhotonTest, MemoryFootprint) {
     EXPECT_EQ(sizeof(Photon), 20);
-    EXPECT_EQ(sizeof(KdTree<Photon>::Node), 24);
+    EXPECT_EQ(sizeof(typename std::vector<Photon>::value_type), 20);
 }
 
 TEST_F(PhotonTest, BlackPowerCompression) {

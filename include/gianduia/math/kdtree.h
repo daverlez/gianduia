@@ -4,6 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 
 namespace gnd {
     template<typename T>
@@ -12,59 +13,24 @@ namespace gnd {
         { a.p.x() } -> std::convertible_to<float>;
         { a.p.y() } -> std::convertible_to<float>;
         { a.p.z() } -> std::convertible_to<float>;
+        { a.getAxis() } -> std::convertible_to<int>;
+        { a.setAxis(0) };
     };
 
     template<SpatialPoint T>
     class KdTree {
     public:
-        static constexpr uint32_t InvalidNode = 0x1FFFFFFF;
-
-        struct Node {
-            T data;
-            // 31-30:   axis
-            // 39:      child/internal node flag
-            // 28-0:    right child index
-            uint32_t rightChildAndFlags;
-
-            Node(const T& d) : data(d), rightChildAndFlags(InvalidNode) {}
-
-            void setRightChild(uint32_t index) {
-                rightChildAndFlags = (rightChildAndFlags & 0xE0000000) | (index & 0x1FFFFFFF);
-            }
-
-            uint32_t getRightChild() const {
-                return rightChildAndFlags & 0x1FFFFFFF;
-            }
-
-            void setAxis(int axis) {
-                rightChildAndFlags = (rightChildAndFlags & 0x3FFFFFFF) | ((uint32_t)axis << 30);
-            }
-
-            int getAxis() const {
-                return (rightChildAndFlags >> 30) & 0x03;
-            }
-
-            void setLeaf(bool isLeaf) {
-                if (isLeaf) rightChildAndFlags |= 0x20000000;
-                else        rightChildAndFlags &= ~0x20000000;
-            }
-
-            bool isLeaf() const {
-                return (rightChildAndFlags & 0x20000000) != 0;
-            }
-        };
-
         KdTree() = default;
 
         void build(std::vector<T> items) {
             m_nodes.clear();
             if (items.empty()) return;
 
-            m_nodes.reserve(items.size());
-            buildRecursive(items, 0, items.size(), 0);
+            m_nodes.resize(items.size());
+            buildRecursive(items, 0, items.size(), 0, 0);
         }
 
-        const std::vector<Node> &getNodes() const { return m_nodes; }
+        const std::vector<T>& getNodes() const { return m_nodes; }
         bool isEmpty() const { return m_nodes.empty(); }
 
         template<typename Visitor>
@@ -74,7 +40,7 @@ namespace gnd {
         }
 
     private:
-        std::vector<Node> m_nodes;
+        std::vector<T> m_nodes;
 
         static float getAxis(const T &item, int axis) {
             if (axis == 0) return item.p.x();
@@ -82,11 +48,24 @@ namespace gnd {
             return item.p.z();
         }
 
-        uint32_t buildRecursive(std::vector<T>& items, size_t start, size_t end, int depth) {
-            if (start >= end) return InvalidNode;
+        size_t getLeftSubtreeSize(size_t n) const {
+            if (n <= 1) return 0;
+            size_t m = 1;
+            while (2 * m <= n) m *= 2;
+            size_t k = m - 1;
+            size_t leftExceptBottom = (k - 1) / 2;
+            size_t bottomNodes = n - k;
+            size_t leftBottom = std::min(bottomNodes, m / 2);
+            return leftExceptBottom + leftBottom;
+        }
+
+        void buildRecursive(std::vector<T>& items, size_t start, size_t end, size_t targetIdx, int depth) {
+            if (start >= end) return;
 
             int axis = depth % 3;
-            size_t mid = start + (end - start) / 2;
+            size_t n = end - start;
+            size_t leftSize = getLeftSubtreeSize(n);
+            size_t mid = start + leftSize;
 
             std::nth_element(
                 items.begin() + start,
@@ -97,49 +76,39 @@ namespace gnd {
                 }
             );
 
-            uint32_t nodeIndex = m_nodes.size();
-            m_nodes.emplace_back(Node(items[mid]));
+            T node = items[mid];
+            node.setAxis(axis);
+            m_nodes[targetIdx] = node;
 
-            bool isLeaf = (end - start == 1);
-            m_nodes[nodeIndex].setAxis(axis);
-            m_nodes[nodeIndex].setLeaf(isLeaf);
-
-            if (!isLeaf) {
-                buildRecursive(items, start, mid, depth + 1);
-
-                uint32_t rightChild = buildRecursive(items, mid + 1, end, depth + 1);
-                m_nodes[nodeIndex].setRightChild(rightChild);
-            }
-
-            return nodeIndex;
+            buildRecursive(items, start, mid, 2 * targetIdx + 1, depth + 1);
+            buildRecursive(items, mid + 1, end, 2 * targetIdx + 2, depth + 1);
         }
 
         template <typename Visitor>
-        void searchRadiusRecursive(uint32_t nodeIdx, const T& query, float radius2, Visitor& visitor) const {
-            if (nodeIdx == InvalidNode) return;
+        void searchRadiusRecursive(size_t nodeIdx, const T& query, float radius2, Visitor& visitor) const {
+            if (nodeIdx >= m_nodes.size()) return;
 
-            const Node& node = m_nodes[nodeIdx];
+            const T& node = m_nodes[nodeIdx];
 
-            float dx = query.p.x() - node.data.p.x();
-            float dy = query.p.y() - node.data.p.y();
-            float dz = query.p.z() - node.data.p.z();
+            float dx = query.p.x() - node.p.x();
+            float dy = query.p.y() - node.p.y();
+            float dz = query.p.z() - node.p.z();
             float dist2 = dx*dx + dy*dy + dz*dz;
 
-            if (dist2 <= radius2) visitor(node.data, dist2);
-            if (node.isLeaf()) return;
+            if (dist2 <= radius2) visitor(node, dist2);
 
-            float axisDist = getAxis(query, node.getAxis()) - getAxis(node.data, node.getAxis());
+            int axis = node.getAxis();
+            float axisDist = getAxis(query, axis) - getAxis(node, axis);
 
-            uint32_t firstChild = nodeIdx + 1;
-            uint32_t secondChild = node.getRightChild();
+            size_t firstChild = 2 * nodeIdx + 1;
+            size_t secondChild = 2 * nodeIdx + 2;
 
-            if (axisDist > 0.0f)
-                std::swap(firstChild, secondChild);
+            if (axisDist > 0.0f) std::swap(firstChild, secondChild);
 
-            if (firstChild != InvalidNode)
+            if (firstChild < m_nodes.size())
                 searchRadiusRecursive(firstChild, query, radius2, visitor);
 
-            if (secondChild != InvalidNode && (axisDist * axisDist) <= radius2)
+            if (secondChild < m_nodes.size() && (axisDist * axisDist) <= radius2)
                 searchRadiusRecursive(secondChild, query, radius2, visitor);
         }
     };
