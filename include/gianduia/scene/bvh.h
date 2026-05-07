@@ -20,6 +20,7 @@ namespace gnd {
         void build();
 
         bool rayIntersect(const Ray& ray, SurfaceInteraction& isect, bool shadowRay) const;
+        const Bounds3f& getBounds() const { return m_bounds; }
 
         size_t getSizeBytes() const { return m_nodes4.size() * sizeof(BVHNode4); }
 
@@ -30,6 +31,7 @@ namespace gnd {
         std::vector<BVHNode4> m_nodes4;
 
         std::vector<std::shared_ptr<Primitive>> m_primitives;
+        Bounds3f m_bounds;
     };
 
 }

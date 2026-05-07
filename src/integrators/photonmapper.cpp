@@ -12,18 +12,23 @@ namespace gnd {
         PhotonMapperIntegrator(const PropertyList& props) : SamplerIntegrator(props) {
             // Global Map
             m_globalPhotonCount = props.getInteger("global_photons", 1000000);
-            m_globalRadius = props.getFloat("global_radius", 0.1f);
+            m_globalRadius = props.getFloat("global_radius", -1.0f);
 
             // Caustic Map
             m_causticPhotonCount = props.getInteger("caustic_photons", 500000);
-            m_causticRadius = props.getFloat("caustic_radius", 0.015f);
+            m_causticRadius = props.getFloat("caustic_radius", -1.0f);
         }
 
         void preprocess(Scene *scene) override {
             Photon::initTables();
             auto sampler = scene->getSampler();
-            std::cout << "Shooting " << m_globalPhotonCount << " global photons..." << std::endl;
 
+            const Bounds3f sceneBounds = scene->getBounds();
+            float sceneDiagonal = (sceneBounds.pMax - sceneBounds.pMin).length();
+            if (m_globalRadius <= 0.0f)  m_globalRadius = sceneDiagonal * 0.02f;
+            if (m_causticRadius <= 0.0f) m_causticRadius = sceneDiagonal * 0.005f;
+
+            std::cout << "Shooting " << m_globalPhotonCount << " global photons..." << std::endl;
             std::vector<Photon> globalPhotons;
 
             float emittersCount = scene->getEmitters().size();
@@ -63,7 +68,7 @@ namespace gnd {
                     BxDFType diffuseFlags = BxDFType(BSDF_DIFFUSE | BSDF_REFLECTION | BSDF_TRANSMISSION);
                     bool hasDiffuse = isect.bsdf->numComponents(diffuseFlags) > 0;
 
-                    if (hasDiffuse && (!specularPath && depth > 0)) {
+                    if (hasDiffuse && !specularPath && depth > 0) {
                         globalPhotons.emplace_back(isect.p, photonPower, wi);
                         storedPhotons++;
 
@@ -113,7 +118,7 @@ namespace gnd {
                 m_emittedCausticPhotons++;
 
                 int depth = 0;
-                bool specularBounce = true;
+                bool specularPath = true;
 
                 while (true) {
                     SurfaceInteraction isect;
@@ -131,14 +136,15 @@ namespace gnd {
                     bool hasDiffuse = isect.bsdf->numComponents(diffuseFlags) > 0;
 
                     if (hasDiffuse) {
-                        if (specularBounce && depth > 0) {
+                        if (specularPath && depth > 0) {
                             causticPhotons.emplace_back(isect.p, photonPower, wi);
                             storedPhotons++;
                         }
+                        break;
                     }
 
                     BxDFType specularFlags = BxDFType(BSDF_SPECULAR | BSDF_REFLECTION | BSDF_TRANSMISSION);
-                    specularBounce = isect.bsdf->numComponents(specularFlags) > 0;
+                    specularPath &= isect.bsdf->numComponents(specularFlags) > 0;
 
                     Color3f prevPower = photonPower;
                     Vector3f wo;

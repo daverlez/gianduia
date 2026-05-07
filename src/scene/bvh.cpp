@@ -20,6 +20,8 @@ namespace gnd {
 
         BVHBuildResult result = BVHBuilder::build(buildData);
         std::vector<BVHNode> nodes = std::move(result.nodes);
+        if (!nodes.empty())
+            m_bounds = nodes[0].bounds;
 
         std::vector<std::shared_ptr<Primitive>> orderedPrims;
         orderedPrims.resize(m_primitives.size());
