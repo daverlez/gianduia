@@ -96,50 +96,99 @@ namespace gnd {
 
         Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena,
                    AOVRecord* aovs = nullptr) const override {
+            auto powerHeuristic = [](int nf, float fPdf, int ng, float gPdf) -> float {
+                float f = nf * fPdf; float g = ng * gPdf;
+                float denom = (f * f) + (g * g);
+                return denom > 0.0f ? (f * f) / denom : 0.0f;
+            };
+
             Color3f L(0.0f);
             Color3f tp(1.0f);
             Ray r = ray;
             float time = r.time;
-            float depth = 0;
+
+            int depth = 0;
+            bool specularBounce = true;
+            float pdfPrev = 1.0f;
+            Point3f lastScatterPoint = r.o;
 
             while (true) {
                 SurfaceInteraction isect;
                 if (!scene.rayIntersect(r, isect)) break;
 
-                if (isect.primitive->getEmitter())
-                    L += isect.primitive->getEmitter()->eval(isect, -r.d);
-
                 isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
+
+                // Emitted radiance
+                if (isect.primitive->getEmitter()) {
+                    std::shared_ptr<Emitter> emitter = isect.primitive->getEmitter();
+                    bool skipEmission = (depth == 0 && !isect.bsdf);
+
+                    if (!skipEmission) {
+                        Color3f Le = emitter->eval(isect, -r.d);
+                        if (!Le.isBlack()) {
+                            float weight = 1.0f;
+                            if (!specularBounce) {
+                                SurfaceInteraction dummyRef; dummyRef.p = lastScatterPoint;
+                                float lightPdf = emitter->pdf(dummyRef, isect);
+                                float p_light = lightPdf * (1.0f / scene.getEmitters().size());
+                                weight = powerHeuristic(1, pdfPrev, 1, p_light);
+                            }
+                            L += tp * Le * weight;
+                        }
+                    }
+                }
+
                 if (!isect.bsdf) {
                     r = isect.spawnRay(r.d);
                     r.time = time;
                     continue;
                 }
 
-                // Next event estimation
-                // Emitter sampling
+                // Next Event Estimation
+                float lightSelectPdf = 1.0f / scene.getEmitters().size();
                 auto emitter = scene.getRandomEmitter(sampler.next1D());
+
                 SurfaceInteraction lightInfo;
                 float lightPdf;
                 Ray shadowRay;
                 Color3f Ld = emitter->sample(isect, sampler.next2D(), lightInfo, lightPdf, shadowRay);
-                Ld *= scene.getEmitters().size();
+                Ld /= lightSelectPdf;
 
-                if (!Ld.isBlack() && lightPdf > 0.0f) {
-                    Vector3f wi = shadowRay.d;
-                    float bsdfPdf = isect.bsdf->pdf(-r.d, wi);
-                    Color3f f = isect.bsdf->f(-r.d, wi);
+                if (!Ld.isBlack() && lightPdf > 1e-6f) {
+                    bool occluded = false;
+                    Ray traceRay = shadowRay;
 
-                    if (!f.isBlack() && bsdfPdf > 0.0f) {
-                        if (!scene.rayIntersect(shadowRay)) {
-                            float weight = 1.0f;
-                            L += tp * f * Ld * std::abs(Dot(isect.n, wi)) * weight;
+                    while (true) {
+                        SurfaceInteraction shadowIsect;
+                        if (!scene.rayIntersect(traceRay, shadowIsect)) break;
+
+                        shadowIsect.primitive->getMaterial()->computeScatteringFunctions(shadowIsect, arena);
+                        if (shadowIsect.bsdf != nullptr) {
+                            occluded = true;
+                            break;
+                        }
+
+                        float nextTmax = traceRay.tMax - (shadowIsect.p - traceRay.o).length();
+                        traceRay = shadowIsect.spawnRay(traceRay.d);
+                        traceRay.tMax = nextTmax;
+                        traceRay.time = shadowIsect.time;
+                    }
+
+                    if (!occluded) {
+                        Vector3f wi = Normalize(lightInfo.p - isect.p);
+                        float bsdfPdf = isect.bsdf->pdf(-r.d, wi);
+                        Color3f f = isect.bsdf->f(-r.d, wi);
+
+                        if (!f.isBlack() && bsdfPdf > 1e-6f) {
+                            float p_light = lightPdf * lightSelectPdf;
+                            float p_bsdf = emitter->isDelta() ? 0.0f : bsdfPdf;
+                            float weightLight = powerHeuristic(1, p_light, 1, p_bsdf);
+                            L += tp * f * Ld * std::abs(Dot(isect.n, wi)) * weightLight;
                         }
                     }
                 }
 
-
-                // Diffuse surface: photon gather
+                // Photon Gather
                 BxDFType diffuseFlags = BxDFType(BSDF_DIFFUSE | BSDF_REFLECTION | BSDF_TRANSMISSION);
                 if (isect.bsdf->numComponents(diffuseFlags) > 0) {
                     Color3f indirect(0.0f);
@@ -157,22 +206,30 @@ namespace gnd {
 
                     if (foundPhotons > 0) {
                         float area = Pi * radius2;
-                        L += tp * indirect / (m_emittedPhotons * area);
+                        L += tp * indirect / (static_cast<float>(m_emittedPhotons) * area);
                     }
 
                     break;
                 }
 
-                // Non-diffuse surface: bouncing
+                // Russian Roulette
                 if (depth > 2) {
-                    float successProb = std::min(0.99f, tp.luminance());
+                    float successProb = std::max(0.05f, std::min(0.99f, tp.luminance()));
                     if (sampler.next1D() > successProb) break;
                     tp /= successProb;
                 }
 
+                // BSDF sampling
                 Vector3f wi;
-                float bsdfPdf;
-                tp *= isect.bsdf->sample(-r.d, &wi, sampler.next2D(), sampler.next1D(), &bsdfPdf);
+                BxDFType sampledType;
+                Color3f f_cos = isect.bsdf->sample(-r.d, &wi, sampler.next2D(), sampler.next1D(), &pdfPrev, &sampledType);
+
+                if (f_cos.isBlack() || pdfPrev <= 1e-6f) break;
+
+                specularBounce = (sampledType & BSDF_SPECULAR) != 0;
+                tp *= f_cos;
+
+                lastScatterPoint = isect.p;
                 r = isect.spawnRay(wi);
                 r.time = time;
                 depth++;
