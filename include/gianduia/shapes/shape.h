@@ -45,6 +45,10 @@ namespace gnd {
         const Medium* getMedium(const Vector3f& w) const {
             return Dot(w, n) > 0.0f ? mediumInterface.outside : mediumInterface.inside;
         }
+
+        Ray spawnRay(const Vector3f& dir) const {
+            return Ray(p, dir);
+        }
     };
 
     class Shape : public GndObject {

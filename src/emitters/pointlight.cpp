@@ -35,6 +35,16 @@ namespace gnd {
             return 0.0f;                // Shall check if the emitter is delta instead of evaluating the pdf
         }
 
+        virtual Color3f samplePhoton(const Point2f& uPos, const Point2f& uDir, float time, Ray& photonRay) const override {
+            photonRay.o = m_position;
+            photonRay.d = Warp::squareToUniformSphere(uDir);
+            photonRay.tMin = Epsilon;
+            photonRay.tMax = std::numeric_limits<float>::max();
+            photonRay.time = time;
+
+            return m_power;
+        }
+
         std::string toString() const override {
             return std::format(
                 "PointLight[\n"

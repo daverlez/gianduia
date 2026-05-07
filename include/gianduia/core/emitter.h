@@ -38,6 +38,14 @@ namespace gnd {
         /// @param info Point on the emitter
         virtual float pdf(const SurfaceInteraction& ref, const SurfaceInteraction& info) const = 0;
 
+        /// Samples a photon from the light source.
+        /// @param uPos 2D uniform sample to pick a position on the emitter.
+        /// @param uDir 2D uniform sample to pick an emission direction.
+        /// @param time Emission time (for motion blur)
+        /// @param photonRay [out] Ray representing the initial trajectory of the photon.
+        /// @return Power associated with the photon, divided by the pdf (positional and directional).
+        virtual Color3f samplePhoton(const Point2f& uPos, const Point2f& uDir, float time, Ray& photonRay) const = 0;
+
         virtual void setPrimitive(const Primitive* primitive) { m_primitive = primitive; }
 
         bool isDelta() const { return (m_type & EMITTER_DELTA) != 0; }
