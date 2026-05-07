@@ -10,36 +10,40 @@ namespace gnd {
     class PhotonMapperIntegrator : public SamplerIntegrator {
     public:
         PhotonMapperIntegrator(const PropertyList& props) : SamplerIntegrator(props) {
-            m_photonCount = props.getInteger("photons", 1000000);
-            m_lookupRadius = props.getFloat("lookup_radius", 0.1f);
+            // Global Map
+            m_globalPhotonCount = props.getInteger("global_photons", 1000000);
+            m_globalRadius = props.getFloat("global_radius", 0.1f);
+
+            // Caustic Map
+            m_causticPhotonCount = props.getInteger("caustic_photons", 500000);
+            m_causticRadius = props.getFloat("caustic_radius", 0.015f);
         }
 
         void preprocess(Scene *scene) override {
             Photon::initTables();
             auto sampler = scene->getSampler();
-            std::cout << "Shooting " << m_photonCount << " photons..." << std::endl;
-            
+            std::cout << "Shooting " << m_globalPhotonCount << " global photons..." << std::endl;
+
             std::vector<Photon> globalPhotons;
 
             float emittersCount = scene->getEmitters().size();
-            m_emittedPhotons = 0;
+            m_emittedGlobalPhotons = 0;
             int storedPhotons = 0;
-            int maxShootingAttempts = m_photonCount * 100;
+            int maxShootingAttempts = m_globalPhotonCount * 100;
 
             MemoryArena arena(262144);
 
-            while (storedPhotons < m_photonCount && m_emittedPhotons < maxShootingAttempts) {
+            // Tracing global photons
+            while (storedPhotons < m_globalPhotonCount && m_emittedGlobalPhotons < maxShootingAttempts) {
                 arena.reset();
-
-                if (storedPhotons > 0 && storedPhotons % 10000 == 0 )
-                    std::cout << storedPhotons << "/" << m_photonCount << std::endl;
 
                 auto emitter = scene->getRandomEmitter(sampler->next1D());
                 Ray photonRay;
+                float time = sampler->next1D();
                 Color3f photonPower = emitter->samplePhoton(
-                    sampler->next2D(), sampler->next2D(), sampler->next1D(), photonRay)
+                    sampler->next2D(), sampler->next2D(), time, photonRay)
                     * emittersCount;
-                m_emittedPhotons++;
+                m_emittedGlobalPhotons++;
 
                 int depth = 0;
                 bool specularPath = true;
@@ -47,8 +51,6 @@ namespace gnd {
                 while (true) {
                     SurfaceInteraction isect;
                     if (!scene->rayIntersect(photonRay, isect)) break;
-
-                    float time = photonRay.time;
                     isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
 
                     if (!isect.bsdf) {
@@ -61,11 +63,11 @@ namespace gnd {
                     BxDFType diffuseFlags = BxDFType(BSDF_DIFFUSE | BSDF_REFLECTION | BSDF_TRANSMISSION);
                     bool hasDiffuse = isect.bsdf->numComponents(diffuseFlags) > 0;
 
-                    if (hasDiffuse && (!specularPath || depth > 0)) {
+                    if (hasDiffuse && (!specularPath && depth > 0)) {
                         globalPhotons.emplace_back(isect.p, photonPower, wi);
                         storedPhotons++;
 
-                        if (storedPhotons == m_photonCount) break;
+                        if (storedPhotons == m_globalPhotonCount) break;
                     }
 
                     BxDFType specularFlags = BxDFType(BSDF_SPECULAR | BSDF_REFLECTION | BSDF_TRANSMISSION);
@@ -87,11 +89,78 @@ namespace gnd {
                 }
             }
 
-            std::cout << "Building KD-Tree with " << globalPhotons.size() << " photons..." << std::endl;
-            m_photonMap.build(globalPhotons);
+            std::cout << "Building KD-Tree with " << globalPhotons.size() << " global photons..." << std::endl;
+            m_globalMap.build(globalPhotons);
+            std::cout << "Global photon Map ready." << std::endl;
+
+            std::cout << "Shooting " << m_causticPhotonCount << " caustic photons..." << std::endl;
+            std::vector<Photon> causticPhotons;
+
+            m_emittedCausticPhotons = 0;
+            storedPhotons = 0;
+            maxShootingAttempts = m_causticPhotonCount * 100;
+
+            // Tracing caustic photons
+            while (storedPhotons < m_causticPhotonCount && m_emittedCausticPhotons < maxShootingAttempts) {
+                arena.reset();
+
+                auto emitter = scene->getRandomEmitter(sampler->next1D());
+                Ray photonRay;
+                float time = sampler->next1D();
+                Color3f photonPower = emitter->samplePhoton(
+                    sampler->next2D(), sampler->next2D(), time, photonRay)
+                    * emittersCount;
+                m_emittedCausticPhotons++;
+
+                int depth = 0;
+                bool specularBounce = true;
+
+                while (true) {
+                    SurfaceInteraction isect;
+                    if (!scene->rayIntersect(photonRay, isect)) break;
+                    isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
+
+                    if (!isect.bsdf) {
+                        photonRay = isect.spawnRay(photonRay.d);
+                        photonRay.time = time;
+                        continue;
+                    }
+
+                    Vector3f wi = -photonRay.d;
+                    BxDFType diffuseFlags = BxDFType(BSDF_DIFFUSE | BSDF_REFLECTION | BSDF_TRANSMISSION);
+                    bool hasDiffuse = isect.bsdf->numComponents(diffuseFlags) > 0;
+
+                    if (hasDiffuse) {
+                        if (specularBounce && depth > 0) {
+                            causticPhotons.emplace_back(isect.p, photonPower, wi);
+                            storedPhotons++;
+                        }
+                    }
+
+                    BxDFType specularFlags = BxDFType(BSDF_SPECULAR | BSDF_REFLECTION | BSDF_TRANSMISSION);
+                    specularBounce = isect.bsdf->numComponents(specularFlags) > 0;
+
+                    Color3f prevPower = photonPower;
+                    Vector3f wo;
+                    float bsdfPdf;
+                    photonPower *= isect.bsdf->sample(wi, &wo, sampler->next2D(), sampler->next1D(), &bsdfPdf);
+
+                    if (depth > 2) {
+                        float survivalProb = std::min(0.99f, (photonPower.luminance() / prevPower.luminance()));
+                        if (survivalProb == 0.0f || sampler->next1D() > survivalProb) break;
+                        photonPower /= survivalProb;
+                    }
+                    photonRay = isect.spawnRay(wo);
+                    photonRay.time = time;
+                    depth++;
+                }
+            }
+
+            std::cout << "Building KD-Tree with " << causticPhotons.size() << " caustic photons..." << std::endl;
+            m_causticMap.build(causticPhotons);
             arena.reset();
-            
-            std::cout << "Photon Map ready." << std::endl;
+
+            std::cout << "Caustic photon Map ready." << std::endl;
         }
 
         Color3f Li(const Ray& ray, Scene& scene, Sampler& sampler, MemoryArena& arena,
@@ -192,23 +261,36 @@ namespace gnd {
                 BxDFType diffuseFlags = BxDFType(BSDF_DIFFUSE | BSDF_REFLECTION | BSDF_TRANSMISSION);
                 if (isect.bsdf->numComponents(diffuseFlags) > 0) {
                     Color3f indirect(0.0f);
-                    int foundPhotons = 0;
-                    float radius2 = m_lookupRadius * m_lookupRadius;
-                    Photon query;
-                    query.p = isect.p;
+                    Color3f caustics(0.0f);
+                    Photon query; query.p = isect.p;
 
-                    m_photonMap.searchRadius(query, m_lookupRadius, [&](const Photon& photon, float dist2) {
-                        Vector3f wi = photon.getDirection();
-                        Color3f f = isect.bsdf->f(-r.d, wi);
+                    // Gather Global Map
+                    int foundGlobal = 0;
+                    m_globalMap.searchRadius(query, m_globalRadius, [&](const Photon& photon, float dist2) {
+                        Vector3f photonWi = photon.getDirection();
+                        Color3f f = isect.bsdf->f(-r.d, photonWi);
                         if (!f.isBlack()) indirect += f * photon.getPower();
-                        foundPhotons++;
+                        foundGlobal++;
                     });
-
-                    if (foundPhotons > 0) {
-                        float area = Pi * radius2;
-                        L += tp * indirect / (static_cast<float>(m_emittedPhotons) * area);
+                    if (foundGlobal > 0) {
+                        float globalArea = Pi * m_globalRadius * m_globalRadius;
+                        indirect /= (static_cast<float>(m_emittedGlobalPhotons) * globalArea);
                     }
 
+                    // Gather Caustic Map
+                    int foundCaustic = 0;
+                    m_causticMap.searchRadius(query, m_causticRadius, [&](const Photon& photon, float dist2) {
+                        Vector3f photonWi = photon.getDirection();
+                        Color3f f = isect.bsdf->f(-r.d, photonWi);
+                        if (!f.isBlack()) caustics += f * photon.getPower();
+                        foundCaustic++;
+                    });
+                    if (foundCaustic > 0) {
+                        float causticArea = Pi * m_causticRadius * m_causticRadius;
+                        caustics /= (static_cast<float>(m_emittedCausticPhotons) * causticArea);
+                    }
+
+                    L += tp * (indirect + caustics);
                     break;
                 }
 
@@ -241,18 +323,25 @@ namespace gnd {
         std::string toString() const override {
             return std::format(
                 "PhotonMapperIntegrator[\n"
-                "  photons = {},\n"
-                "  lookup_radius = {}\n"
+                "  global photons = {},\n"
+                "  caustic photons = {},\n"
+                "  global photons lookup radius = {},\n"
+                "  caustic photons lookup radius = {}\n"
                 "]",
-                m_photonCount, m_lookupRadius);
+                m_globalPhotonCount, m_causticPhotonCount, m_globalRadius, m_causticRadius);
         }
 
     private:
-        int m_photonCount;          // Photons stored in the photon map
-        int m_emittedPhotons;       // Amount of photons shot from emitters
-        float m_lookupRadius;
+        int m_globalPhotonCount;
+        int m_causticPhotonCount;
+        float m_globalRadius;
+        float m_causticRadius;
 
-        KdTree<Photon> m_photonMap;
+        uint64_t m_emittedGlobalPhotons;
+        uint64_t m_emittedCausticPhotons;
+
+        KdTree<Photon> m_globalMap;
+        KdTree<Photon> m_causticMap;
     };
 
     GND_REGISTER_CLASS(PhotonMapperIntegrator, "photonmapper");
