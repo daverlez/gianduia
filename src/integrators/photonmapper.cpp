@@ -18,7 +18,7 @@ namespace gnd {
             m_causticPhotonCount = props.getInteger("caustic_photons", 500000);
             m_causticRadius = props.getFloat("caustic_radius", -1.0f);
 
-            m_performFinalGather = props.getBoolean("final_gather", false);
+            m_performFinalGather = props.getBoolean("final_gather", true);
         }
 
         void preprocess(Scene *scene) override {
