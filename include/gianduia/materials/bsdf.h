@@ -25,7 +25,7 @@ namespace gnd {
         /// Evaluates the function given directions in world space. Both directions point away from the
         /// evaluation point.
         /// @param woWorld outgoing direction (follows path towards camera)
-        /// @param wiWorld incident direction (follows path towards
+        /// @param wiWorld incident direction (follows path towards light)
         /// @param flags restricts evaluation to the specified lobe flags
         /// @return value given the specified directions
         Color3f f(const Vector3f& woWorld, const Vector3f& wiWorld,

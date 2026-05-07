@@ -20,6 +20,7 @@ namespace gnd {
         virtual ~Integrator() = default;
         virtual void render(Scene *scene) = 0;
         virtual void cancel() { m_stopRequested = true; }
+        virtual void preprocess(Scene *scene) { }
 
         using RenderCallback = std::function<void(int sampleIndex, const Film& film)>;
         void setCallback(RenderCallback cb) { m_callback = cb; }

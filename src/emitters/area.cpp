@@ -18,9 +18,6 @@ namespace gnd {
         }
 
         void addChild(std::shared_ptr<GndObject> child) override {
-            if (!m_primitive)
-                throw std::runtime_error("AreaLight: no attached primitive!");
-
             if (child->getClassType() != ETexture)
                 throw std::runtime_error("AreaLight: cannot add specified child!");
 
