@@ -17,6 +17,8 @@ namespace gnd {
             // Caustic Map
             m_causticPhotonCount = props.getInteger("caustic_photons", 500000);
             m_causticRadius = props.getFloat("caustic_radius", -1.0f);
+
+            m_performFinalGather = props.getBoolean("final_gather", false);
         }
 
         void preprocess(Scene *scene) override {
@@ -75,7 +77,7 @@ namespace gnd {
                         if (storedPhotons == m_globalPhotonCount) break;
                     }
 
-                    BxDFType specularFlags = BxDFType(BSDF_SPECULAR | BSDF_REFLECTION | BSDF_TRANSMISSION);
+                    BxDFType specularFlags = BxDFType(BSDF_SPECULAR | BSDF_GLOSSY | BSDF_REFLECTION | BSDF_TRANSMISSION);
                     specularPath &= isect.bsdf->numComponents(specularFlags) > 0;
 
                     Color3f prevPower = photonPower;
@@ -143,7 +145,7 @@ namespace gnd {
                         break;
                     }
 
-                    BxDFType specularFlags = BxDFType(BSDF_SPECULAR | BSDF_REFLECTION | BSDF_TRANSMISSION);
+                    BxDFType specularFlags = BxDFType(BSDF_SPECULAR | BSDF_GLOSSY | BSDF_REFLECTION | BSDF_TRANSMISSION);
                     specularPath &= isect.bsdf->numComponents(specularFlags) > 0;
 
                     Color3f prevPower = photonPower;
@@ -208,6 +210,8 @@ namespace gnd {
                                 float lightPdf = emitter->pdf(dummyRef, isect);
                                 float p_light = lightPdf * (1.0f / scene.getEmitters().size());
                                 weight = powerHeuristic(1, pdfPrev, 1, p_light);
+                            } else if (!firstDiffuseBounce) {
+                                weight = 0.0f;
                             }
                             L += tp * Le * weight;
                         }
@@ -283,7 +287,7 @@ namespace gnd {
                         L += tp * caustics / (static_cast<float>(m_emittedCausticPhotons) * causticArea);
                     }
 
-                    if (!firstDiffuseBounce) {
+                    if (!firstDiffuseBounce || !m_performFinalGather) {
                         Color3f indirect(0.0f);
                         int foundGlobal = 0;
                         m_globalMap.searchRadius(query, m_globalRadius, [&](const Photon& photon, float dist2) {
@@ -336,9 +340,14 @@ namespace gnd {
                 "  global photons = {},\n"
                 "  caustic photons = {},\n"
                 "  global photons lookup radius = {},\n"
-                "  caustic photons lookup radius = {}\n"
+                "  caustic photons lookup radius = {},\n"
+                "  perform final gather = {}\n"
                 "]",
-                m_globalPhotonCount, m_causticPhotonCount, m_globalRadius, m_causticRadius);
+                m_globalPhotonCount,
+                m_causticPhotonCount,
+                m_globalRadius,
+                m_causticRadius,
+                m_performFinalGather ? "true" : "false");
         }
 
     private:
@@ -349,6 +358,8 @@ namespace gnd {
 
         uint64_t m_emittedGlobalPhotons;
         uint64_t m_emittedCausticPhotons;
+
+        bool m_performFinalGather;
 
         KdTree<Photon> m_globalMap;
         KdTree<Photon> m_causticMap;
