@@ -25,8 +25,8 @@ namespace gnd {
 
             const Bounds3f sceneBounds = scene->getBounds();
             float sceneDiagonal = (sceneBounds.pMax - sceneBounds.pMin).length();
-            if (m_globalRadius <= 0.0f)  m_globalRadius = sceneDiagonal * 0.02f;
-            if (m_causticRadius <= 0.0f) m_causticRadius = sceneDiagonal * 0.005f;
+            if (m_globalRadius <= 0.0f)  m_globalRadius = sceneDiagonal * 0.01f;
+            if (m_causticRadius <= 0.0f) m_causticRadius = sceneDiagonal * 0.002f;
 
             std::cout << "Shooting " << m_globalPhotonCount << " global photons..." << std::endl;
             std::vector<Photon> globalPhotons;
@@ -186,6 +186,7 @@ namespace gnd {
             bool specularBounce = true;
             float pdfPrev = 1.0f;
             Point3f lastScatterPoint = r.o;
+            bool firstDiffuseBounce = true;
 
             while (true) {
                 SurfaceInteraction isect;
@@ -263,27 +264,12 @@ namespace gnd {
                     }
                 }
 
-                // Photon Gather
+                // Photon Gather & Final Gather Routing
                 BxDFType diffuseFlags = BxDFType(BSDF_DIFFUSE | BSDF_REFLECTION | BSDF_TRANSMISSION);
                 if (isect.bsdf->numComponents(diffuseFlags) > 0) {
-                    Color3f indirect(0.0f);
+
                     Color3f caustics(0.0f);
                     Photon query; query.p = isect.p;
-
-                    // Gather Global Map
-                    int foundGlobal = 0;
-                    m_globalMap.searchRadius(query, m_globalRadius, [&](const Photon& photon, float dist2) {
-                        Vector3f photonWi = photon.getDirection();
-                        Color3f f = isect.bsdf->f(-r.d, photonWi);
-                        if (!f.isBlack()) indirect += f * photon.getPower();
-                        foundGlobal++;
-                    });
-                    if (foundGlobal > 0) {
-                        float globalArea = Pi * m_globalRadius * m_globalRadius;
-                        indirect /= (static_cast<float>(m_emittedGlobalPhotons) * globalArea);
-                    }
-
-                    // Gather Caustic Map
                     int foundCaustic = 0;
                     m_causticMap.searchRadius(query, m_causticRadius, [&](const Photon& photon, float dist2) {
                         Vector3f photonWi = photon.getDirection();
@@ -291,13 +277,31 @@ namespace gnd {
                         if (!f.isBlack()) caustics += f * photon.getPower();
                         foundCaustic++;
                     });
+
                     if (foundCaustic > 0) {
                         float causticArea = Pi * m_causticRadius * m_causticRadius;
-                        caustics /= (static_cast<float>(m_emittedCausticPhotons) * causticArea);
+                        L += tp * caustics / (static_cast<float>(m_emittedCausticPhotons) * causticArea);
                     }
 
-                    L += tp * (indirect + caustics);
-                    break;
+                    if (!firstDiffuseBounce) {
+                        Color3f indirect(0.0f);
+                        int foundGlobal = 0;
+                        m_globalMap.searchRadius(query, m_globalRadius, [&](const Photon& photon, float dist2) {
+                            Vector3f photonWi = photon.getDirection();
+                            Color3f f = isect.bsdf->f(-r.d, photonWi);
+                            if (!f.isBlack()) indirect += f * photon.getPower();
+                            foundGlobal++;
+                        });
+
+                        if (foundGlobal > 0) {
+                            float globalArea = Pi * m_globalRadius * m_globalRadius;
+                            L += tp * indirect / (static_cast<float>(m_emittedGlobalPhotons) * globalArea);
+                        }
+
+                        break;
+                    }
+
+                    firstDiffuseBounce = false;
                 }
 
                 // Russian Roulette
