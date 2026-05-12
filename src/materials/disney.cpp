@@ -233,6 +233,7 @@ namespace gnd {
             loadFloat("sheenTint", m_sheenTint);
             loadFloat("clearcoat", m_clearcoat);
             loadFloat("clearcoatGloss", m_clearcoatGloss);
+            loadFloat("anisotropyRotation", m_anisotropyRotation);
 
             m_subsurface = props.getFloat("subsurface", 0.0f);
             m_eta = props.getFloat("eta", 1.4f);
@@ -262,6 +263,7 @@ namespace gnd {
             CHECK_AND_ADD_FLOAT("sheenTint", m_sheenTint)
             CHECK_AND_ADD_FLOAT("clearcoat", m_clearcoat)
             CHECK_AND_ADD_FLOAT("clearcoatGloss", m_clearcoatGloss)
+            CHECK_AND_ADD_FLOAT("anisotropyRotation", m_anisotropyRotation)
 
             #undef CHECK_AND_ADD_COLOR
             #undef CHECK_AND_ADD_FLOAT
@@ -303,6 +305,20 @@ namespace gnd {
 
         void computeScatteringFunctions(SurfaceInteraction &isect, MemoryArena &arena) const override {
             applyNormalOrBump(isect);
+
+            if (m_anisotropyRotation) {
+                float rotVal = m_anisotropyRotation->evaluate(isect);
+                float angle = rotVal * 2.0f * Pi;
+
+                float cosTheta = std::cos(angle);
+                float sinTheta = std::sin(angle);
+
+                Vector3f t = isect.dpdu;
+                Vector3f b = Normalize(Cross(isect.n, t));
+                Vector3f rotatedDpdu = t * cosTheta + b * sinTheta;
+
+                isect.dpdu = Normalize(rotatedDpdu);
+            }
 
             Color3f color = m_baseColor->evaluate(isect);
             float metallic = m_metallic->evaluate(isect);
@@ -375,6 +391,7 @@ namespace gnd {
                 "  specularTransmission= \t{}\n"
                 "  specularTint = \t{}\n"
                 "  anisotropic = \t{}\n"
+                "  anisotropyRotation = {}\n"
                 "  sheen = \t\t\t{}\n"
                 "  sheenTint = \t\t{}\n"
                 "  clearcoat = \t\t{}\n"
@@ -389,6 +406,7 @@ namespace gnd {
                 indent(m_specularTransmission->toString(), 2),
                 indent(m_specularTint->toString(), 2),
                 indent(m_anisotropic->toString(), 2),
+                m_anisotropyRotation ? indent(m_anisotropyRotation->toString(), 2) : "  null",
                 indent(m_sheen->toString(), 2),
                 indent(m_sheenTint->toString(), 2),
                 indent(m_clearcoat->toString(), 2),
@@ -401,6 +419,7 @@ namespace gnd {
         std::shared_ptr<Texture<Color3f>> m_baseColor;
         std::shared_ptr<Texture<float>> m_metallic, m_roughness, m_specular, m_specularTint, m_specularTransmission;
         std::shared_ptr<Texture<float>> m_anisotropic, m_sheen, m_sheenTint, m_clearcoat, m_clearcoatGloss;
+        std::shared_ptr<Texture<float>> m_anisotropyRotation;
         float m_subsurface, m_eta;
     };
 
