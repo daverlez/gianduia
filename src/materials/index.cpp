@@ -5,11 +5,10 @@ namespace gnd {
 
     class IndexMaterial : public Material {
     public:
-        IndexMaterial(const PropertyList& props) {
-        }
+        IndexMaterial(const PropertyList& props) : Material(props) { }
 
         void computeScatteringFunctions(SurfaceInteraction& isect, MemoryArena& arena) const override {
-            applyNormalMap(isect);
+            applyNormalOrBump(isect);
             applyMediums(isect);
 
             // Leaving isect.bsdf = nullptr, so shadow rays pass through it.

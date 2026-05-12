@@ -8,7 +8,7 @@ namespace gnd {
 
     class Conductor : public Material {
     public:
-        Conductor(const PropertyList& props) {
+        Conductor(const PropertyList& props) : Material(props) {
             if (props.hasColor("R")) {
                 PropertyList p;
                 p.setColor("value", props.getColor("R"));
@@ -99,7 +99,7 @@ namespace gnd {
         }
 
         void computeScatteringFunctions(SurfaceInteraction &isect, MemoryArena &arena) const override {
-            applyNormalMap(isect);
+            applyNormalOrBump(isect);
 
             Color3f r = m_R->evaluate(isect);
             Color3f eta = m_eta->evaluate(isect);

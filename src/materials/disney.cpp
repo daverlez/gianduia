@@ -201,7 +201,7 @@ namespace gnd {
 
     class DisneyMaterial : public Material {
     public:
-        DisneyMaterial(const PropertyList& props) {
+        DisneyMaterial(const PropertyList& props) : Material(props) {
             auto loadColor = [&](const std::string& name, std::shared_ptr<Texture<Color3f>>& tex) {
                 if (props.hasColor(name)) {
                     PropertyList p;
@@ -302,7 +302,7 @@ namespace gnd {
         }
 
         void computeScatteringFunctions(SurfaceInteraction &isect, MemoryArena &arena) const override {
-            applyNormalMap(isect);
+            applyNormalOrBump(isect);
 
             Color3f color = m_baseColor->evaluate(isect);
             float metallic = m_metallic->evaluate(isect);
