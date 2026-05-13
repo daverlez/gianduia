@@ -19,6 +19,9 @@ namespace gnd {
             m_g = props.getFloat("g", 0.0f);
 
             m_worldToLocal = props.getTransform("toLocal", Transform());
+            Point3f bMin = props.getPoint3("boundMin", Point3f(-1.0f));
+            Point3f bMax = props.getPoint3("boundMax", Point3f(1.0f));
+            m_localBounds = Bounds3f(bMin, bMax);
 
             m_noiseType = props.getInteger("noiseType", 1);
             m_densityScale = props.getFloat("densityScale", 1.0f);
@@ -26,28 +29,26 @@ namespace gnd {
             m_noiseScale = props.getFloat("noiseScale", 1.0f);
             m_octaves = props.getInteger("octaves", 4);
 
+            float max_color_t = std::max({m_base_sigma_t.r(), m_base_sigma_t.g(), m_base_sigma_t.b()});
+            m_globalMajorant = max_color_t * m_densityScale;
+
             m_emissionColor = props.getColor("emissionColor", Color3f(1.0f, 1.0f, 1.0f));
             m_emissionScale = props.getFloat("emissionScale", 0.0f);
             m_emissionOffset = props.getFloat("emissionOffset", 0.4f);
             m_temperatureMin = props.getFloat("temperatureMin", 1000.0f);
             m_temperatureMax = props.getFloat("temperatureMax", 3500.0f);
 
-            Point3f bMin = props.getPoint3("boundMin", Point3f(-1.0f));
-            Point3f bMax = props.getPoint3("boundMax", Point3f(1.0f));
-            m_localBounds = Bounds3f(bMin, bMax);
-
             m_falloffStart = props.getFloat("falloffStart", 0.6f);
             m_useFalloff = m_falloffStart < 1.0f;
             m_localCenter = 0.5f * (m_localBounds.pMin + m_localBounds.pMax);
             m_localExtents = 0.5f * (m_localBounds.pMax - m_localBounds.pMin);
-
             std::string falloffType = props.getString("falloffType", "ellipsoid");
             if (falloffType == "box") m_falloffType = 1;
             else if (falloffType == "planar") m_falloffType = 2;
             else m_falloffType = 0;
 
-            float max_color_t = std::max({m_base_sigma_t.r(), m_base_sigma_t.g(), m_base_sigma_t.b()});
-            m_globalMajorant = max_color_t * m_densityScale;
+            m_warpStrength = props.getFloat("warpStrength", 0.0f);
+            m_warpScale = props.getFloat("warpScale", 1.0f);
         }
 
         Color3f Tr(const Ray& ray, Sampler& sampler) const override {
@@ -103,6 +104,7 @@ namespace gnd {
             }
 
             Point3f pScaled = pLocal * m_noiseScale;
+            pScaled = applyWarp(pScaled);
             float noiseValue = 0.0f;
 
             switch (m_noiseType) {
@@ -177,6 +179,7 @@ namespace gnd {
         virtual float getDensity(const Point3f& pWorld) const override {
             Point3f pLocal = m_worldToLocal(pWorld);
             Point3f pScaled = pLocal * m_noiseScale;
+            pScaled = applyWarp(pScaled);
             float noiseValue = 0.0f;
 
             switch (m_noiseType) {
@@ -211,6 +214,7 @@ namespace gnd {
                 "  density scale = {}, offset = {}\n"
                 "  emission scale = {}, offset = {}, temp = [{}K -> {}K], tint = {}\n"
                 "  falloff enabled = {}, type = {}, start = {}\n"
+                "  warp strength = {}, warp scale = {}\n"
                 "  base absorption = {}\n"
                 "  base scattering = {}\n"
                 "  anisotropy (g) = {}\n"
@@ -220,6 +224,7 @@ namespace gnd {
                 m_densityScale, m_densityOffset,
                 m_emissionScale, m_emissionOffset, m_temperatureMin, m_temperatureMax, m_emissionColor.toString(),
                 m_useFalloff ? "true" : "false", fTypeStr, m_falloffStart,
+                m_warpStrength, m_warpScale,
                 m_base_sigma_a.toString(),
                 m_base_sigma_s.toString(),
                 m_g
@@ -234,26 +239,33 @@ namespace gnd {
 
         Transform m_worldToLocal;
         Bounds3f m_localBounds;
+        float m_globalMajorant;
 
+        // Density and noise pattern
         int m_noiseType; // 0: base noise; 1: fBm; 2: turbulence
         float m_densityScale;
         float m_densityOffset;
         float m_noiseScale;
         int m_octaves;
 
+        // Emission data
         Color3f m_emissionColor;
         float m_emissionScale;
         float m_emissionOffset;
         float m_temperatureMin;
         float m_temperatureMax;
 
+        // Falloff settings
         bool m_useFalloff;
         int m_falloffType;      // 0: ellipsoid; 1: box; 2: planar along z
         float m_falloffStart;
         Point3f m_localCenter;
         Vector3f m_localExtents;
 
-        float m_globalMajorant;
+        // Domain warping parameters
+        float m_warpStrength;
+        float m_warpScale;
+
 
         Color3f blackbody(float temp) const {
             if (temp <= 1000.0f) return Color3f(0.0f);
@@ -303,6 +315,21 @@ namespace gnd {
 
             float falloff = 1.0f - ((r - m_falloffStart) / (1.0f - m_falloffStart));
             return falloff * falloff * (3.0f - 2.0f * falloff);
+        }
+
+        Point3f applyWarp(const Point3f& pScaled) const {
+            if (m_warpStrength <= 0.0f) return pScaled;
+
+            Point3f warpP = pScaled * m_warpScale;
+
+            // Arbitrary offsets along different coordinates to avoid shifting only along diagonals
+            Vector3f offset(
+                Perlin::noise(warpP),
+                Perlin::noise(warpP + Point3f(13.2f, -4.3f, 7.8f)),
+                Perlin::noise(warpP + Point3f(-21.1f, 18.4f, -15.5f))
+            );
+
+            return pScaled + (offset * m_warpStrength);
         }
     };
 
