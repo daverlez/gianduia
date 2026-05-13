@@ -39,9 +39,9 @@ namespace gnd {
 
                         float dist = 0.0f;
 
-                        if (metric == WorleyMetric::Euclidean) {
+                        if (metric == WorleyMetric::Euclidean)
                             dist = diff.length();
-                        } else if (metric == WorleyMetric::Manhattan)
+                        else if (metric == WorleyMetric::Manhattan)
                             dist = std::abs(diff.x()) + std::abs(diff.y()) + std::abs(diff.z());
                         else if (metric == WorleyMetric::Chebyshev)
                             dist = std::max({std::abs(diff.x()), std::abs(diff.y()), std::abs(diff.z())});

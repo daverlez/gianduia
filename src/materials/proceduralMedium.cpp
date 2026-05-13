@@ -4,11 +4,20 @@
 #include <gianduia/math/color.h>
 #include <gianduia/math/bounds.h>
 #include <gianduia/math/perlin.h>
+#include <gianduia/math/worley.h>
 
 #include <cmath>
 #include <algorithm>
 
 namespace gnd {
+
+    enum class ProceduralNoiseType {
+        PerlinBase,
+        PerlinFBM,
+        PerlinTurbulence,
+        WorleyF1,
+        WorleyCracks
+    };
 
     class ProceduralMedium : public Medium {
     public:
@@ -23,7 +32,17 @@ namespace gnd {
             Point3f bMax = props.getPoint3("boundMax", Point3f(1.0f));
             m_localBounds = Bounds3f(bMin, bMax);
 
-            m_noiseType = props.getInteger("noiseType", 1);
+            m_noiseTypeStr = props.getString("noiseType", "perlin_turbulence");
+            if (m_noiseTypeStr == "perlin_base") m_noiseType = ProceduralNoiseType::PerlinBase;
+            else if (m_noiseTypeStr == "perlin_fbm") m_noiseType = ProceduralNoiseType::PerlinFBM;
+            else if (m_noiseTypeStr == "perlin_turbulence") m_noiseType = ProceduralNoiseType::PerlinTurbulence;
+            else if (m_noiseTypeStr == "worley_f1") m_noiseType = ProceduralNoiseType::WorleyF1;
+            else if (m_noiseTypeStr == "worley_cracks") m_noiseType = ProceduralNoiseType::WorleyCracks;
+            else {
+                m_noiseType = ProceduralNoiseType::PerlinTurbulence;
+                m_noiseTypeStr = "perlin_turbulence";
+            }
+
             m_densityScale = props.getFloat("densityScale", 1.0f);
             m_densityOffset = props.getFloat("densityOffset", 0.2f);
             m_noiseScale = props.getFloat("noiseScale", 1.0f);
@@ -37,6 +56,7 @@ namespace gnd {
             m_emissionOffset = props.getFloat("emissionOffset", 0.4f);
             m_temperatureMin = props.getFloat("temperatureMin", 1000.0f);
             m_temperatureMax = props.getFloat("temperatureMax", 3500.0f);
+            m_invertEmission = props.getBoolean("invertEmission", false);
 
             m_falloffStart = props.getFloat("falloffStart", 0.6f);
             m_useFalloff = m_falloffStart < 1.0f;
@@ -49,6 +69,11 @@ namespace gnd {
 
             m_warpStrength = props.getFloat("warpStrength", 0.0f);
             m_warpScale = props.getFloat("warpScale", 1.0f);
+
+            std::string worleyMetricStr = props.getString("worley_metric", "euclidean");
+            if (worleyMetricStr == "manhattan") m_worleyMetric = WorleyMetric::Manhattan;
+            else if (worleyMetricStr == "chebyshev") m_worleyMetric = WorleyMetric::Chebyshev;
+            else m_worleyMetric = WorleyMetric::Euclidean;
         }
 
         Color3f Tr(const Ray& ray, Sampler& sampler) const override {
@@ -107,22 +132,26 @@ namespace gnd {
             pScaled = applyWarp(pScaled);
             float noiseValue = 0.0f;
 
-            switch (m_noiseType) {
-                case 0:
-                    noiseValue = (Perlin::noise(pScaled) + 1.0f) * 0.5f;
-                    break;
-                case 1:
-                    noiseValue = Perlin::fBm(pScaled, m_octaves);
-                    break;
-                case 2:
-                    noiseValue = Perlin::turbulence(pScaled, m_octaves);
-                    break;
-                default:
-                    noiseValue = Perlin::fBm(pScaled, m_octaves);
-                    break;
+            if (m_noiseType == ProceduralNoiseType::PerlinBase ||
+                m_noiseType == ProceduralNoiseType::PerlinFBM ||
+                m_noiseType == ProceduralNoiseType::PerlinTurbulence) {
+
+                switch (m_noiseType) {
+                    case ProceduralNoiseType::PerlinBase: noiseValue = (Perlin::noise(pScaled) + 1.0f) * 0.5f; break;
+                    case ProceduralNoiseType::PerlinFBM: noiseValue = Perlin::fBm(pScaled, m_octaves); break;
+                    case ProceduralNoiseType::PerlinTurbulence: noiseValue = Perlin::turbulence(pScaled, m_octaves); break;
+                    default: break;
+                }
+            } else {
+                WorleyResult wr = Worley::noise(pScaled, m_worleyMetric);
+                if (m_noiseType == ProceduralNoiseType::WorleyF1) noiseValue = wr.f1;
+                else if (m_noiseType == ProceduralNoiseType::WorleyCracks) noiseValue = wr.f2 - wr.f1;
             }
 
-            float emissionStrength = std::clamp(noiseValue - m_emissionOffset, 0.0f, 1.0f);
+            float emissionStrength = 0.0f;
+            if (m_invertEmission) emissionStrength = std::clamp(m_emissionOffset - noiseValue, 0.0f, 1.0f);
+            else emissionStrength = std::clamp(noiseValue - m_emissionOffset, 0.0f, 1.0f);
+            
             if (emissionStrength <= 0.0f) return Color3f(0.0f);
 
             float temp = Lerp(emissionStrength, m_temperatureMin, m_temperatureMax);
@@ -182,19 +211,20 @@ namespace gnd {
             pScaled = applyWarp(pScaled);
             float noiseValue = 0.0f;
 
-            switch (m_noiseType) {
-                case 0:
-                    noiseValue = (Perlin::noise(pScaled) + 1.0f) * 0.5f;
-                    break;
-                case 1:
-                    noiseValue = Perlin::fBm(pScaled, m_octaves);
-                    break;
-                case 2:
-                    noiseValue = Perlin::turbulence(pScaled, m_octaves);
-                    break;
-                default:
-                    noiseValue = Perlin::fBm(pScaled, m_octaves);
-                    break;
+            if (m_noiseType == ProceduralNoiseType::PerlinBase ||
+                m_noiseType == ProceduralNoiseType::PerlinFBM ||
+                m_noiseType == ProceduralNoiseType::PerlinTurbulence) {
+
+                switch (m_noiseType) {
+                    case ProceduralNoiseType::PerlinBase: noiseValue = (Perlin::noise(pScaled) + 1.0f) * 0.5f; break;
+                    case ProceduralNoiseType::PerlinFBM: noiseValue = Perlin::fBm(pScaled, m_octaves); break;
+                    case ProceduralNoiseType::PerlinTurbulence: noiseValue = Perlin::turbulence(pScaled, m_octaves); break;
+                    default: break;
+                }
+            } else {
+                WorleyResult wr = Worley::noise(pScaled, m_worleyMetric);
+                if (m_noiseType == ProceduralNoiseType::WorleyF1) noiseValue = wr.f1;
+                else if (m_noiseType == ProceduralNoiseType::WorleyCracks) noiseValue = wr.f2 - wr.f1;
             }
 
             float densityMap = std::clamp(noiseValue - m_densityOffset, 0.0f, 1.0f);
@@ -220,7 +250,7 @@ namespace gnd {
                 "  anisotropy (g) = {}\n"
                 "]",
                 m_localBounds.pMin.toString(), m_localBounds.pMax.toString(),
-                m_noiseType, m_octaves, m_noiseScale,
+                m_noiseTypeStr, m_octaves, m_noiseScale,
                 m_densityScale, m_densityOffset,
                 m_emissionScale, m_emissionOffset, m_temperatureMin, m_temperatureMax, m_emissionColor.toString(),
                 m_useFalloff ? "true" : "false", fTypeStr, m_falloffStart,
@@ -242,7 +272,8 @@ namespace gnd {
         float m_globalMajorant;
 
         // Density and noise pattern
-        int m_noiseType; // 0: base noise; 1: fBm; 2: turbulence
+        ProceduralNoiseType m_noiseType;
+        std::string m_noiseTypeStr;
         float m_densityScale;
         float m_densityOffset;
         float m_noiseScale;
@@ -254,6 +285,7 @@ namespace gnd {
         float m_emissionOffset;
         float m_temperatureMin;
         float m_temperatureMax;
+        bool m_invertEmission;
 
         // Falloff settings
         bool m_useFalloff;
@@ -266,6 +298,8 @@ namespace gnd {
         float m_warpStrength;
         float m_warpScale;
 
+        // Worley metric (if Worley noise is used)
+        WorleyMetric m_worleyMetric;
 
         Color3f blackbody(float temp) const {
             if (temp <= 1000.0f) return Color3f(0.0f);
