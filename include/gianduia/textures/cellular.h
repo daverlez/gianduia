@@ -3,8 +3,15 @@
 #include <gianduia/textures/texture.h>
 #include <gianduia/math/worley.h>
 #include <algorithm>
+#include <string>
 
 namespace gnd {
+
+    enum class CellularMode {
+        Distance,
+        Cracks
+    };
+
     template<ProceduralTextureValue T>
     class CellularTexture : public Texture<T> {
     public:
@@ -18,12 +25,34 @@ namespace gnd {
             }
 
             m_scale = props.getFloat("scale", 1.0f);
+
+            m_modeStr = props.getString("mode", "distance");
+            if (m_modeStr == "cracks") {
+                m_mode = CellularMode::Cracks;
+            } else {
+                m_mode = CellularMode::Distance;
+                m_modeStr = "distance";
+            }
+
+            m_metricStr = props.getString("metric", "euclidean");
+            if (m_metricStr == "manhattan") {
+                m_metric = WorleyMetric::Manhattan;
+            } else if (m_metricStr == "chebyshev") {
+                m_metric = WorleyMetric::Chebyshev;
+            } else {
+                m_metric = WorleyMetric::Euclidean;
+                m_metricStr = "euclidean";
+            }
         }
 
         T evaluate(const SurfaceInteraction& isect) const override {
-            WorleyResult wr = Worley::noise(isect.p / m_scale);
+            WorleyResult wr = Worley::noise(isect.p / m_scale, m_metric);
 
-            float noiseVal = wr.f1;
+            float noiseVal = 0.0f;
+            if (m_mode == CellularMode::Cracks)
+                noiseVal = wr.f2 - wr.f1;
+            else
+                noiseVal = wr.f1;
             noiseVal = std::clamp(noiseVal, 0.0f, 1.0f);
 
             return Lerp(noiseVal, m_value1, m_value2);
@@ -32,9 +61,11 @@ namespace gnd {
         std::string toString() const override {
             return std::format(
                 "CellularTexture([\n"
+                "  mode = {}\n"
+                "  metric = {}\n"
                 "  scale = {}\n"
                 "]",
-                m_scale
+                m_modeStr, m_metricStr, m_scale
             );
         }
 
@@ -42,5 +73,9 @@ namespace gnd {
         T m_value1;
         T m_value2;
         float m_scale;
+        CellularMode m_mode;
+        std::string m_modeStr;
+        WorleyMetric m_metric;
+        std::string m_metricStr;
     };
 }

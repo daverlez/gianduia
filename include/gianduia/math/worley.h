@@ -11,9 +11,15 @@ namespace gnd {
         float f2;
     };
 
+    enum class WorleyMetric {
+        Euclidean,
+        Manhattan,
+        Chebyshev
+    };
+
     class Worley {
     public:
-        static WorleyResult noise(const Point3f& p) {
+        static WorleyResult noise(const Point3f& p, WorleyMetric metric = WorleyMetric::Euclidean) {
             int x0 = static_cast<int>(std::floor(p.x()));
             int y0 = static_cast<int>(std::floor(p.y()));
             int z0 = static_cast<int>(std::floor(p.z()));
@@ -29,7 +35,16 @@ namespace gnd {
                         int cz = z0 + k;
 
                         Point3f featurePoint = Point3f(cx, cy, cz) + hash3(cx, cy, cz);
-                        float dist = (p - featurePoint).length();
+                        Vector3f diff = Vector3f(p) - Vector3f(featurePoint);
+
+                        float dist = 0.0f;
+
+                        if (metric == WorleyMetric::Euclidean) {
+                            dist = diff.length();
+                        } else if (metric == WorleyMetric::Manhattan)
+                            dist = std::abs(diff.x()) + std::abs(diff.y()) + std::abs(diff.z());
+                        else if (metric == WorleyMetric::Chebyshev)
+                            dist = std::max({std::abs(diff.x()), std::abs(diff.y()), std::abs(diff.z())});
 
                         if (dist < minDist1) {
                             minDist2 = minDist1;
