@@ -34,6 +34,16 @@ namespace gnd {
             Point3f bMax = props.getPoint3("boundMax", Point3f(1.0f));
             m_localBounds = Bounds3f(bMin, bMax);
 
+            m_falloffStart = props.getFloat("falloffStart", 0.6f);
+            m_useFalloff = m_falloffStart < 1.0f;
+            m_localCenter = 0.5f * (m_localBounds.pMin + m_localBounds.pMax);
+            m_localExtents = 0.5f * (m_localBounds.pMax - m_localBounds.pMin);
+
+            std::string falloffType = props.getString("falloffType", "ellipsoid");
+            if (falloffType == "box") m_falloffType = 1;
+            else if (falloffType == "planar") m_falloffType = 2;
+            else m_falloffType = 0;
+
             float max_color_t = std::max({m_base_sigma_t.r(), m_base_sigma_t.g(), m_base_sigma_t.b()});
             m_globalMajorant = max_color_t * m_densityScale;
         }
@@ -111,7 +121,7 @@ namespace gnd {
             float emissionStrength = std::clamp(noiseValue - m_emissionOffset, 0.0f, 1.0f);
             if (emissionStrength <= 0.0f) return Color3f(0.0f);
 
-            return m_emissionColor * (emissionStrength * m_emissionScale);
+            return m_emissionColor * (emissionStrength * m_emissionScale * evaluateFalloff(pLocal));
         }
 
         Color3f sample(const Ray& ray, Sampler& sampler, MemoryArena& arena, MediumInteraction& mi) const override {
@@ -181,22 +191,30 @@ namespace gnd {
 
             float densityMap = std::clamp(noiseValue - m_densityOffset, 0.0f, 1.0f);
 
-            return densityMap * m_densityScale;
+            return densityMap * m_densityScale * evaluateFalloff(pLocal);
         }
 
         std::string toString() const override {
+            std::string fTypeStr = "ellipsoid";
+            if (m_falloffType == 1) fTypeStr = "box";
+            else if (m_falloffType == 2) fTypeStr = "planar";
+
             return std::format(
                 "ProceduralMedium[\n"
                 "  bounds = {} -> {}\n"
-                "  noise type = {}\n"
-                "  octaves = {}\n"
-                "  density scale = {}\n"
+                "  noise type = {}, octaves = {}, noise scale = {}\n"
+                "  density scale = {}, offset = {}\n"
+                "  emission scale = {}, offset = {}, color = {}\n"
+                "  falloff enabled = {}, type = {}, start = {}\n"
                 "  base absorption = {}\n"
                 "  base scattering = {}\n"
                 "  anisotropy (g) = {}\n"
                 "]",
                 m_localBounds.pMin.toString(), m_localBounds.pMax.toString(),
-                m_noiseType, m_octaves, m_densityScale,
+                m_noiseType, m_octaves, m_noiseScale,
+                m_densityScale, m_densityOffset,
+                m_emissionScale, m_emissionOffset, m_emissionColor.toString(),
+                m_useFalloff ? "true" : "false", fTypeStr, m_falloffStart,
                 m_base_sigma_a.toString(),
                 m_base_sigma_s.toString(),
                 m_g
@@ -204,6 +222,33 @@ namespace gnd {
         }
 
     private:
+        float evaluateFalloff(const Point3f& pLocal) const {
+            if (!m_useFalloff) return 1.0f;
+
+            float ex = std::max(m_localExtents.x(), Epsilon);
+            float ey = std::max(m_localExtents.y(), Epsilon);
+            float ez = std::max(m_localExtents.z(), Epsilon);
+
+            float nx = std::abs((pLocal.x() - m_localCenter.x()) / ex);
+            float ny = std::abs((pLocal.y() - m_localCenter.y()) / ey);
+            float nz = std::abs((pLocal.z() - m_localCenter.z()) / ez);
+
+            float r = 0.0f;
+
+            if (m_falloffType == 0)
+                r = std::sqrt(nx*nx + ny*ny + nz*nz);   // Ellipsoid (Euclidean distance)
+            else if (m_falloffType == 1)
+                r = std::max({nx, ny, nz});             // Box (Chebyshev distance)
+            else if (m_falloffType == 2)
+                r = nz;                                   // Planar along Z
+
+            if (r < m_falloffStart) return 1.0f;
+            if (r >= 1.0f) return 0.0f;
+
+            float falloff = 1.0f - ((r - m_falloffStart) / (1.0f - m_falloffStart));
+            return falloff * falloff * (3.0f - 2.0f * falloff);
+        }
+
         Color3f m_base_sigma_a;
         Color3f m_base_sigma_s;
         Color3f m_base_sigma_t;
@@ -221,6 +266,12 @@ namespace gnd {
         Color3f m_emissionColor;
         float m_emissionScale;
         float m_emissionOffset;
+
+        bool m_useFalloff;
+        int m_falloffType;      // 0: ellipsoid; 1: box; 2: planar along z
+        float m_falloffStart;
+        Point3f m_localCenter;
+        Vector3f m_localExtents;
 
         float m_globalMajorant;
     };
