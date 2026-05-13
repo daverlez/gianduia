@@ -5,4 +5,5 @@ target_sources(GianduiaEngine PRIVATE
         imageTexture.cpp
         marble.cpp
         perlin.cpp
+        wood.cpp
 )

@@ -153,6 +153,8 @@ namespace gnd {
         Point3f(float x, float y, float z) : p(x, y, z) {}
         explicit Point3f(const glm::vec3& _p) : p(_p) {}
 
+        explicit operator Vector3f() const { return Vector3f(p); }
+
         float operator[](int i) const { return p[i]; }
         float& operator[](int i) { return p[i]; }
 
