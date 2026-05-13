@@ -16,6 +16,9 @@ namespace gnd {
         float time;
         const Medium* medium = nullptr;
 
+        Color3f sigma_a;
+        Color3f sigma_s;
+
         const PhaseFunction* phase = nullptr;
 
         bool isValid() const { return medium != nullptr; }

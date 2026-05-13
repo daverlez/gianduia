@@ -42,15 +42,17 @@ namespace gnd {
                 if (r.medium) {
                     tp *= r.medium->sample(r, sampler, arena, mi);
                 }
-                if (tp.isBlack()) break;
 
                 // Volumetric scattering
                 if (mi.isValid()) {
                     // Volumetric emission
                     Color3f emission = mi.medium->Le(mi.p);
                     if (!emission.isBlack()) {
-                        L += tp * emission;
+                        L += tp * mi.sigma_a * emission;
                     }
+
+                    tp *= mi.sigma_s;
+                    if (tp.isBlack()) break;
 
                     // Volume NEE
                     float lightSelectPdf = 1.0f / scene.getEmitters().size();

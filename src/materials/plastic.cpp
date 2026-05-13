@@ -7,7 +7,7 @@ namespace gnd {
 
     class Plastic : public Material {
     public:
-        Plastic(const PropertyList& props) {
+        Plastic(const PropertyList& props) : Material(props) {
             if (props.hasColor("Kd")) {
                 PropertyList p;
                 p.setColor("value", props.getColor("Kd"));
@@ -72,7 +72,7 @@ namespace gnd {
         }
 
         void computeScatteringFunctions(SurfaceInteraction &isect, MemoryArena &arena) const override {
-            applyNormalMap(isect);
+            applyNormalOrBump(isect);
 
             Color3f kd = m_Kd->evaluate(isect);
             Color3f ks = m_Ks->evaluate(isect);

@@ -6,9 +6,10 @@ target_sources(GianduiaEngine PRIVATE
         hair.cpp
         heterogeneous.cpp
         homogeneous.cpp
+        index.cpp
         matte.cpp
         plastic.cpp
+        proceduralMedium.cpp
         reflection.cpp
-        index.cpp
         transmission.cpp
 )

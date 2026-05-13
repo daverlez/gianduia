@@ -54,10 +54,9 @@ namespace gnd {
                 mi.p = ray.o + ray.d * t;
                 mi.wo = -ray.d;
                 mi.medium = this;
-                
                 mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
-
-                return (Tr_val * m_sigma_s) / pdf;
+                mi.sigma_a = m_sigma_a;
+                mi.sigma_s = m_sigma_s;
             }
 
             return Tr_val / pdf;

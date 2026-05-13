@@ -7,7 +7,7 @@ namespace gnd {
 
     class Matte : public Material {
     public:
-        Matte(const PropertyList& props) {
+        Matte(const PropertyList& props) : Material(props) {
             if (props.hasColor("albedo")) {
                 PropertyList p;
                 p.setColor("value", props.getColor("albedo"));
@@ -44,7 +44,7 @@ namespace gnd {
         }
 
         void computeScatteringFunctions(SurfaceInteraction& isect, MemoryArena& arena) const override {
-            applyNormalMap(isect);
+            applyNormalOrBump(isect);
 
             isect.bsdf = arena.create<BSDF>(isect);
 

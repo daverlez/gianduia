@@ -10,6 +10,9 @@ namespace gnd {
 
     class Material : public GndObject {
     public:
+        Material(const PropertyList& props) {
+            m_bumpScale = props.getFloat("bump_scale", 1.0f);
+        }
         virtual ~Material() = default;
 
         /// Basing on surface interaction infos, populates the fields on scattering functions.
@@ -36,6 +39,10 @@ namespace gnd {
                     throw std::runtime_error("Material: normal map already defined!");
                 m_normalMap = std::static_pointer_cast<Texture<Normal3f>>(child);
             }
+            else if (child->getClassType() == ETexture && child->getName() == "bump") {
+                if (m_bumpMap) throw std::runtime_error("Material: bump map already defined!");
+                m_bumpMap = std::static_pointer_cast<Texture<float>>(child);
+            }
             else if (child->getClassType() == EMedium && child->getName() == "inside") {
                 if (m_inside)
                     throw std::runtime_error("Material: inside medium already defined!");
@@ -55,10 +62,13 @@ namespace gnd {
 
     protected:
         std::shared_ptr<Texture<Normal3f>> m_normalMap;
+        std::shared_ptr<Texture<float>> m_bumpMap;
+        float m_bumpScale;
+
         std::shared_ptr<Medium> m_inside;
         std::shared_ptr<Medium> m_outside;
 
-        void applyNormalMap(SurfaceInteraction& isect) const {
+        void applyNormalOrBump(SurfaceInteraction& isect) const {
             if (m_normalMap) {
                 Normal3f normal = m_normalMap->evaluate(isect);
 
@@ -71,6 +81,38 @@ namespace gnd {
 
                 Vector3f newDpdu = isect.dpdu - Vector3f(isect.n) * Dot(isect.n, isect.dpdu);
                 isect.dpdu = Normalize(newDpdu);
+            }
+            else if (m_bumpMap) {
+                Vector3f dpdu = isect.dpdu;
+                Vector3f dpdv = Normalize(Cross(isect.n, dpdu));
+
+                float du = 0.001f;
+                float dv = 0.001f;
+
+                float hBase = m_bumpMap->evaluate(isect);
+
+                SurfaceInteraction isectDu = isect;
+                isectDu.p = isect.p + dpdu * du;
+                isectDu.uv.x() += du;
+                float hDu = m_bumpMap->evaluate(isectDu);
+
+                SurfaceInteraction isectDv = isect;
+                isectDv.p = isect.p + dpdv * dv;
+                isectDv.uv.y() += dv;
+                float hDv = m_bumpMap->evaluate(isectDv);
+
+                float dhdu = (hDu - hBase) / du;
+                float dhdv = (hDv - hBase) / dv;
+                dhdu *= m_bumpScale;
+                dhdv *= m_bumpScale;
+
+                Vector3f newDpdu = dpdu + Vector3f(isect.n) * dhdu;
+                Vector3f newDpdv = dpdv + Vector3f(isect.n) * dhdv;
+
+                isect.n = Normal3f(Normalize(Cross(newDpdu, newDpdv)));
+
+                Vector3f dpduProj = newDpdu - Vector3f(isect.n) * Dot(isect.n, newDpdu);
+                isect.dpdu = Normalize(dpduProj);
             }
         }
 

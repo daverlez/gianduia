@@ -8,7 +8,7 @@ namespace gnd {
 
     class Glass : public Material {
     public:
-        Glass(const PropertyList& props) {
+        Glass(const PropertyList& props) : Material(props) {
             if (props.hasColor("R")) {
                 PropertyList p;
                 p.setColor("value", props.getColor("R"));
@@ -96,7 +96,7 @@ namespace gnd {
         }
 
         void computeScatteringFunctions(SurfaceInteraction &isect, MemoryArena &arena) const override {
-            applyNormalMap(isect);
+            applyNormalOrBump(isect);
             applyMediums(isect);
 
             Color3f r = m_R->evaluate(isect);

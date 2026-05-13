@@ -443,7 +443,7 @@ namespace gnd {
 
     class HairMaterial : public Material {
     public:
-        explicit HairMaterial(const PropertyList &props) {
+        explicit HairMaterial(const PropertyList &props) : Material(props) {
             m_beta_m = props.getFloat("beta_m", 0.3f);
             m_beta_n = props.getFloat("beta_n", 0.3f);
             m_alpha = props.getFloat("alpha", 2.0f);
@@ -476,7 +476,7 @@ namespace gnd {
 
         void computeScatteringFunctions(SurfaceInteraction &isect,
                                         MemoryArena &arena) const override {
-            applyNormalMap(isect);
+            applyNormalOrBump(isect);
             applyMediums(isect);
 
             float h = (isect.uv.y() > 0.f || isect.uv.y() < 0.f)
