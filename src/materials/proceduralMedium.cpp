@@ -20,15 +20,15 @@ namespace gnd {
 
             m_worldToLocal = props.getTransform("toLocal", Transform());
 
+            m_noiseType = props.getInteger("noiseType", 1);
             m_densityScale = props.getFloat("densityScale", 1.0f);
             m_densityOffset = props.getFloat("densityOffset", 0.2f);
             m_noiseScale = props.getFloat("noiseScale", 1.0f);
             m_octaves = props.getInteger("octaves", 4);
 
-            // 0 = base noise
-            // 1 = fBm
-            // 2 = turbulence
-            m_noiseType = props.getInteger("noiseType", 1); 
+            m_emissionColor = props.getColor("emissionColor", Color3f(1.0f, 1.0f, 1.0f));
+            m_emissionScale = props.getFloat("emissionScale", 0.0f);
+            m_emissionOffset = props.getFloat("emissionOffset", 0.4f);
 
             Point3f bMin = props.getPoint3("boundMin", Point3f(-1.0f));
             Point3f bMax = props.getPoint3("boundMax", Point3f(1.0f));
@@ -79,6 +79,39 @@ namespace gnd {
                 }
             }
             return tr;
+        }
+
+        virtual Color3f Le(const Point3f& pWorld) const override {
+            Point3f pLocal = m_worldToLocal(pWorld);
+
+            if (pLocal.x() < m_localBounds.pMin.x() || pLocal.x() > m_localBounds.pMax.x() ||
+                pLocal.y() < m_localBounds.pMin.y() || pLocal.y() > m_localBounds.pMax.y() ||
+                pLocal.z() < m_localBounds.pMin.z() || pLocal.z() > m_localBounds.pMax.z()) {
+                return Color3f(0.0f);
+            }
+
+            Point3f pScaled = pLocal * m_noiseScale;
+            float noiseValue = 0.0f;
+
+            switch (m_noiseType) {
+                case 0:
+                    noiseValue = (Perlin::noise(pScaled) + 1.0f) * 0.5f;
+                    break;
+                case 1:
+                    noiseValue = Perlin::fBm(pScaled, m_octaves);
+                    break;
+                case 2:
+                    noiseValue = Perlin::turbulence(pScaled, m_octaves);
+                    break;
+                default:
+                    noiseValue = Perlin::fBm(pScaled, m_octaves);
+                    break;
+            }
+
+            float emissionStrength = std::clamp(noiseValue - m_emissionOffset, 0.0f, 1.0f);
+            if (emissionStrength <= 0.0f) return Color3f(0.0f);
+
+            return m_emissionColor * (emissionStrength * m_emissionScale);
         }
 
         Color3f sample(const Ray& ray, Sampler& sampler, MemoryArena& arena, MediumInteraction& mi) const override {
@@ -179,11 +212,15 @@ namespace gnd {
         Transform m_worldToLocal;
         Bounds3f m_localBounds;
 
+        int m_noiseType; // 0: base noise; 1: fBm; 2: turbulence
         float m_densityScale;
         float m_densityOffset;
         float m_noiseScale;
         int m_octaves;
-        int m_noiseType;
+
+        Color3f m_emissionColor;
+        float m_emissionScale;
+        float m_emissionOffset;
 
         float m_globalMajorant;
     };
