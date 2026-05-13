@@ -151,7 +151,7 @@ namespace gnd {
             float emissionStrength = 0.0f;
             if (m_invertEmission) emissionStrength = std::clamp(m_emissionOffset - noiseValue, 0.0f, 1.0f);
             else emissionStrength = std::clamp(noiseValue - m_emissionOffset, 0.0f, 1.0f);
-            
+
             if (emissionStrength <= 0.0f) return Color3f(0.0f);
 
             float temp = Lerp(emissionStrength, m_temperatureMin, m_temperatureMax);
@@ -196,9 +196,10 @@ namespace gnd {
                         mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
 
                         Color3f local_sigma_t = m_base_sigma_t * localDensity;
-                        Color3f local_sigma_s = m_base_sigma_s * localDensity;
+                        mi.sigma_a = m_base_sigma_a * localDensity;
+                        mi.sigma_s = m_base_sigma_s * localDensity;
 
-                        return local_sigma_s / local_sigma_t[channel];
+                        return Color3f(1.0f) / local_sigma_t[channel];
                     }
                 }
             }

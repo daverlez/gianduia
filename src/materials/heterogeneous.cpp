@@ -343,8 +343,9 @@ namespace gnd {
                                 mi.phase = arena.create<HenyeyGreensteinPhaseFunction>(m_g);
 
                                 Color3f local_sigma_t = m_base_sigma_t * localDensity;
-                                Color3f local_sigma_s = m_base_sigma_s * localDensity;
-                                return local_sigma_s / local_sigma_t[channel];
+                                mi.sigma_a = m_base_sigma_a * localDensity;
+                                mi.sigma_s = m_base_sigma_s * localDensity;
+                                return Color3f(1.0f) / local_sigma_t[channel];
                             }
                         }
                     }
