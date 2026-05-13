@@ -29,6 +29,8 @@ namespace gnd {
             m_emissionColor = props.getColor("emissionColor", Color3f(1.0f, 1.0f, 1.0f));
             m_emissionScale = props.getFloat("emissionScale", 0.0f);
             m_emissionOffset = props.getFloat("emissionOffset", 0.4f);
+            m_temperatureMin = props.getFloat("temperatureMin", 1000.0f);
+            m_temperatureMax = props.getFloat("temperatureMax", 3500.0f);
 
             Point3f bMin = props.getPoint3("boundMin", Point3f(-1.0f));
             Point3f bMax = props.getPoint3("boundMax", Point3f(1.0f));
@@ -121,7 +123,10 @@ namespace gnd {
             float emissionStrength = std::clamp(noiseValue - m_emissionOffset, 0.0f, 1.0f);
             if (emissionStrength <= 0.0f) return Color3f(0.0f);
 
-            return m_emissionColor * (emissionStrength * m_emissionScale * evaluateFalloff(pLocal));
+            float temp = Lerp(emissionStrength, m_temperatureMin, m_temperatureMax);
+            Color3f fireColor = blackbody(temp) * m_emissionColor;
+
+            return fireColor * (emissionStrength * m_emissionScale * evaluateFalloff(pLocal));
         }
 
         Color3f sample(const Ray& ray, Sampler& sampler, MemoryArena& arena, MediumInteraction& mi) const override {
@@ -204,7 +209,7 @@ namespace gnd {
                 "  bounds = {} -> {}\n"
                 "  noise type = {}, octaves = {}, noise scale = {}\n"
                 "  density scale = {}, offset = {}\n"
-                "  emission scale = {}, offset = {}, color = {}\n"
+                "  emission scale = {}, offset = {}, temp = [{}K -> {}K], tint = {}\n"
                 "  falloff enabled = {}, type = {}, start = {}\n"
                 "  base absorption = {}\n"
                 "  base scattering = {}\n"
@@ -213,7 +218,7 @@ namespace gnd {
                 m_localBounds.pMin.toString(), m_localBounds.pMax.toString(),
                 m_noiseType, m_octaves, m_noiseScale,
                 m_densityScale, m_densityOffset,
-                m_emissionScale, m_emissionOffset, m_emissionColor.toString(),
+                m_emissionScale, m_emissionOffset, m_temperatureMin, m_temperatureMax, m_emissionColor.toString(),
                 m_useFalloff ? "true" : "false", fTypeStr, m_falloffStart,
                 m_base_sigma_a.toString(),
                 m_base_sigma_s.toString(),
@@ -222,6 +227,57 @@ namespace gnd {
         }
 
     private:
+        Color3f m_base_sigma_a;
+        Color3f m_base_sigma_s;
+        Color3f m_base_sigma_t;
+        float m_g;
+
+        Transform m_worldToLocal;
+        Bounds3f m_localBounds;
+
+        int m_noiseType; // 0: base noise; 1: fBm; 2: turbulence
+        float m_densityScale;
+        float m_densityOffset;
+        float m_noiseScale;
+        int m_octaves;
+
+        Color3f m_emissionColor;
+        float m_emissionScale;
+        float m_emissionOffset;
+        float m_temperatureMin;
+        float m_temperatureMax;
+
+        bool m_useFalloff;
+        int m_falloffType;      // 0: ellipsoid; 1: box; 2: planar along z
+        float m_falloffStart;
+        Point3f m_localCenter;
+        Vector3f m_localExtents;
+
+        float m_globalMajorant;
+
+        Color3f blackbody(float temp) const {
+            if (temp <= 1000.0f) return Color3f(0.0f);
+
+            temp /= 100.0f;
+            float r, g, b;
+
+            if (temp <= 66.0f) r = 255.0f;
+            else r = 329.698727446f * std::pow(temp - 60.0f, -0.1332047592f);
+
+            if (temp <= 66.0f) g = 99.4708025861f * std::log(temp) - 161.1195681661f;
+            else g = 288.1221695283f * std::pow(temp - 60.0f, -0.0755148492f);
+
+            if (temp >= 66.0f) b = 255.0f;
+            else if (temp <= 19.0f) b = 0.0f;
+            else b = 138.5177312231f * std::log(temp - 10.0f) - 305.0447927307f;
+
+            return Color3f(
+                std::clamp(r / 255.0f, 0.0f, 1.0f),
+                std::clamp(g / 255.0f, 0.0f, 1.0f),
+                std::clamp(b / 255.0f, 0.0f, 1.0f)
+            );
+        }
+
         float evaluateFalloff(const Point3f& pLocal) const {
             if (!m_useFalloff) return 1.0f;
 
@@ -248,32 +304,6 @@ namespace gnd {
             float falloff = 1.0f - ((r - m_falloffStart) / (1.0f - m_falloffStart));
             return falloff * falloff * (3.0f - 2.0f * falloff);
         }
-
-        Color3f m_base_sigma_a;
-        Color3f m_base_sigma_s;
-        Color3f m_base_sigma_t;
-        float m_g;
-
-        Transform m_worldToLocal;
-        Bounds3f m_localBounds;
-
-        int m_noiseType; // 0: base noise; 1: fBm; 2: turbulence
-        float m_densityScale;
-        float m_densityOffset;
-        float m_noiseScale;
-        int m_octaves;
-
-        Color3f m_emissionColor;
-        float m_emissionScale;
-        float m_emissionOffset;
-
-        bool m_useFalloff;
-        int m_falloffType;      // 0: ellipsoid; 1: box; 2: planar along z
-        float m_falloffStart;
-        Point3f m_localCenter;
-        Vector3f m_localExtents;
-
-        float m_globalMajorant;
     };
 
     GND_REGISTER_CLASS(ProceduralMedium, "procedural_medium");
