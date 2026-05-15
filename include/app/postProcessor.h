@@ -10,7 +10,9 @@ enum class TonemapOperator {
     Reinhard = 1,
     Uncharted2 = 2,
     ACES = 3,
-    KhronosPBR = 4
+    KhronosPBR = 4,
+    AgX = 5,
+    AgXPunchy = 6
 };
 
 class PostProcessor {

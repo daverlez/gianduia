@@ -359,7 +359,9 @@ void Application::renderSidebar() {
                 "Reinhard",
                 "Uncharted 2",
                 "ACES",
-                "Khronos PBR Neutral"
+                "Khronos PBR Neutral",
+                "AgX (Base)",
+                "AgX (Punchy)"
             };
 
             if (ImGui::Combo("##Tonemapper", &currentTonemap, items, IM_ARRAYSIZE(items))) {
