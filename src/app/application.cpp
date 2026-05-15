@@ -306,7 +306,7 @@ void Application::renderSidebar() {
             ImGui::EndDisabled();
         }
 
-        if (ImGui::CollapsingHeader(ICON_FA_DISPLAY " Viewport Options", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::CollapsingHeader(ICON_FA_DISPLAY " Viewport Options")) {
             ImGui::Text(ICON_FA_CUBE " Viewport Mode:");
             if (ImGui::RadioButton("Render", m_viewportMode == ViewportMode::Render)) m_viewportMode = ViewportMode::Render;
             ImGui::SameLine();
@@ -350,9 +350,9 @@ void Application::renderSidebar() {
             }
         }
 
-        if (m_viewportMode == ViewportMode::Render && ImGui::CollapsingHeader(ICON_FA_IMAGE " Post Processing", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (m_viewportMode == ViewportMode::Render && ImGui::CollapsingHeader(ICON_FA_IMAGE " Post Processing")) {
 
-            ImGui::Text("Tonemapping Operator");
+            ImGui::Text(ICON_FA_CIRCLE_HALF_STROKE " Tonemapping Operator");
             int currentTonemap = static_cast<int>(m_postProcessor.tonemapper);
             const char* items[] = {
                 "Linear (None)",
@@ -371,6 +371,20 @@ void Application::renderSidebar() {
             ImGui::Spacing();
             ImGui::SliderFloat("Exposure (EV)", &m_postProcessor.exposure, -5.0f, 5.0f, "%.2f");
             ImGui::Spacing();
+
+            ImGui::Separator();
+            ImGui::Text(ICON_FA_STAR " Bloom");
+            ImGui::Checkbox("Enable Bloom", &m_postProcessor.enableBloom);
+
+            ImGui::BeginDisabled(!m_postProcessor.enableBloom);
+            ImGui::SliderFloat("Intensity", &m_postProcessor.bloomIntensity, 0.0f, 1.0f, "%.3f");
+            ImGui::SliderFloat("Threshold", &m_postProcessor.bloomThreshold, 0.0f, 10.0f, "%.2f");
+            ImGui::SliderFloat("Radius", &m_postProcessor.bloomRadius, 0.1f, 1.5f, "%.2f");
+            int maxBloomMips = std::max(1, m_postProcessor.getBloomMipsCount());
+            ImGui::SliderInt("Blur Levels", &m_postProcessor.activeBloomMips, 1, maxBloomMips);
+            ImGui::EndDisabled();
+
+            ImGui::Separator();
 
             bool canSave = !m_isRendering && currentSamples > 0;
             ImGui::BeginDisabled(!canSave);

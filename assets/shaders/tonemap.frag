@@ -6,6 +6,10 @@ uniform sampler2D screenTexture;
 uniform int u_tonemapper;
 uniform float u_exposure;
 
+uniform sampler2D bloomTexture;
+uniform bool u_enableBloom;
+uniform float u_bloomIntensity;
+
 
 // Credits for the following implementations: https://github.com/dmnsgn/glsl-tone-map
 
@@ -179,6 +183,12 @@ vec3 AgXPunchy(vec3 color) {
 
 void main() {
     vec3 color = texture(screenTexture, TexCoords).rgb;
+
+    if (u_enableBloom) {
+        vec3 bloom = texture(bloomTexture, TexCoords).rgb;
+        color += bloom * u_bloomIntensity;
+    }
+
     color *= exp2(u_exposure);
 
     if (u_tonemapper == 1) {
