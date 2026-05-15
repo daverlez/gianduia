@@ -7,65 +7,14 @@ PostProcessor::~PostProcessor() {
     glDeleteTextures(1, &m_outputTexture);
     glDeleteVertexArrays(1, &m_VAO);
     glDeleteBuffers(1, &m_VBO);
-    glDeleteProgram(m_shaderProgram);
 }
 
 void PostProcessor::init() {
-    const char* vertexShaderSource = R"(
-        #version 330 core
-        layout (location = 0) in vec2 aPos;
-        layout (location = 1) in vec2 aTexCoords;
+    if (m_isInitialized) return;
 
-        out vec2 TexCoords;
-
-        void main() {
-            TexCoords = aTexCoords;
-            gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
-        }
-    )";
-
-    const char* fragmentShaderSource = R"(
-        #version 330 core
-        out vec4 FragColor;
-        in vec2 TexCoords;
-
-        uniform sampler2D screenTexture;
-
-        void main() {
-            vec3 mapped = texture(screenTexture, TexCoords).rgb;
-
-            // Gamma correction
-            for (int i = 0; i < 3; ++i) {
-                float x = mapped[i];
-                if (x <= 0.0031308f) {
-                    mapped[i] = 12.92f * x;
-                } else {
-                    mapped[i] = 1.055f * pow(x, 0.41666f) - 0.055f;
-                }
-            }
-
-            FragColor = vec4(mapped, 1.0);
-        }
-    )";
-
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-    checkCompileErrors(vertexShader, "VERTEX");
-
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-    checkCompileErrors(fragmentShader, "FRAGMENT");
-
-    m_shaderProgram = glCreateProgram();
-    glAttachShader(m_shaderProgram, vertexShader);
-    glAttachShader(m_shaderProgram, fragmentShader);
-    glLinkProgram(m_shaderProgram);
-    checkCompileErrors(m_shaderProgram, "PROGRAM");
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    m_gammaCorrectionShader = glShader(
+        "assets/shaders/fullscreen.vert",
+        "assets/shaders/gammaCorrect.frag");
 
     float quadVertices[] = {
         // pos (x,y)   // texCoords (u,v)
@@ -126,8 +75,8 @@ void PostProcessor::render(GLuint inputTextureID) {
     glViewport(0, 0, m_width, m_height);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glUseProgram(m_shaderProgram);
-    glUniform1i(glGetUniformLocation(m_shaderProgram, "screenTexture"), 0);
+    m_gammaCorrectionShader.use();
+    m_gammaCorrectionShader.setInt("screenTexture", 0);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, inputTextureID);
@@ -137,22 +86,4 @@ void PostProcessor::render(GLuint inputTextureID) {
 
     glBindVertexArray(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-void PostProcessor::checkCompileErrors(GLuint shader, std::string type) {
-    GLint success;
-    GLchar infoLog[1024];
-    if (type != "PROGRAM") {
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-        if (!success) {
-            glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-            std::cerr << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
-        }
-    } else {
-        glGetProgramiv(shader, GL_LINK_STATUS, &success);
-        if (!success) {
-            glGetProgramInfoLog(shader, 1024, NULL, infoLog);
-            std::cerr << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
-        }
-    }
 }

@@ -3,6 +3,8 @@
 #include <iostream>
 #include <vector>
 
+#include "app/glShader.h"
+
 class PostProcessor {
 public:
     PostProcessor() = default;
@@ -14,12 +16,10 @@ public:
     GLuint getOutputTexture() const { return m_outputTexture; }
 
 private:
-    void checkCompileErrors(GLuint shader, std::string type);
-
-private:
     bool m_isInitialized = false;
 
-    GLuint m_shaderProgram = 0;
+    glShader m_gammaCorrectionShader;
+
     GLuint m_VAO = 0;
     GLuint m_VBO = 0;
 
