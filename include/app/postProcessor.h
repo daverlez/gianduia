@@ -7,8 +7,10 @@
 
 enum class TonemapOperator {
     Linear = 0,
-    ACES = 1,
-    KhronosPBR = 2
+    Reinhard = 1,
+    Uncharted2 = 2,
+    ACES = 3,
+    KhronosPBR = 4
 };
 
 class PostProcessor {

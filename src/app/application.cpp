@@ -354,7 +354,13 @@ void Application::renderSidebar() {
 
             ImGui::Text("Tonemapping Operator");
             int currentTonemap = static_cast<int>(m_tonemapper);
-            const char* items[] = { "Linear (None)", "ACES", "Khronos PBR Neutral" };
+            const char* items[] = {
+                "Linear (None)",
+                "Reinhard",
+                "Uncharted 2",
+                "ACES",
+                "Khronos PBR Neutral"
+            };
 
             if (ImGui::Combo("##Tonemapper", &currentTonemap, items, IM_ARRAYSIZE(items))) {
                 m_tonemapper = static_cast<TonemapOperator>(currentTonemap);

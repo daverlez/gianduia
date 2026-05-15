@@ -5,6 +5,31 @@ in vec2 TexCoords;
 uniform sampler2D screenTexture;
 uniform int u_tonemapper; // 0: Linear, 1: ACES, 2: Khronos
 
+vec3 Reinhard(vec3 color) {
+    float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    float toneMappedLuma = luma / (1.0 + luma);
+
+    return color * (toneMappedLuma / max(luma, 0.00001));
+}
+
+vec3 Uncharted2Curve(vec3 x) {
+    float A = 0.15; // Shoulder Strength
+    float B = 0.50; // Linear Strength
+    float C = 0.10; // Linear Angle
+    float D = 0.20; // Toe Strength
+    float E = 0.02; // Toe Numerator
+    float F = 0.30; // Toe Denominator
+    return ((x * (A * x + C * B) + D * E) / (x * (A * x + B) + D * F)) - E / F;
+}
+
+vec3 Uncharted2(vec3 color) {
+    float exposureBias = 2.0;
+    vec3 curr = Uncharted2Curve(exposureBias * color);
+    vec3 whiteScale = 1.0 / Uncharted2Curve(vec3(11.2));
+
+    return curr * whiteScale;
+}
+
 // sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
 const mat3 ACESInputMat = mat3(
     0.59719, 0.07600, 0.02840,
@@ -29,7 +54,6 @@ vec3 ACESFilm(vec3 color) {
     color = ACESInputMat * color;
     color = RRTAndODTFit(color);
     color = ACESOutputMat * color;
-
     return clamp(color, 0.0, 1.0);
 }
 
@@ -56,8 +80,12 @@ void main() {
     vec3 color = texture(screenTexture, TexCoords).rgb;
 
     if (u_tonemapper == 1) {
-        color = ACESFilm(color);
+        color = Reinhard(color);
     } else if (u_tonemapper == 2) {
+        color = Uncharted2(color);
+    } else if (u_tonemapper == 3) {
+        color = ACESFilm(color);
+    } else if (u_tonemapper == 4) {
         color = KhronosPBRNeutral(color);
     }
 
