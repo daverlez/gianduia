@@ -151,7 +151,7 @@ namespace gnd {
         return c0 * (1.0f - dy) + c1 * dy;
     }
 
-    void Film::savePNG() const {
+    void Film::savePNG(const std::string& relativeOutPath) const {
         std::vector<uint8_t> data(m_width * m_height * 3);
 
         const Color3f* pixels = m_radiance.data();
@@ -169,7 +169,7 @@ namespace gnd {
             data[index++] = static_cast<uint8_t>(final.b());
         }
 
-        std::string filename = FileResolver::getOutputPath().string() + "/" + FileResolver::getOutputName() + ".png";
+        std::string filename = FileResolver::getOutputPath().string() + "/" + relativeOutPath + ".png";
         int success = stbi_write_png(filename.c_str(), m_width, m_height, 3, data.data(), m_width * 3);
 
         if (!success) {
@@ -179,12 +179,18 @@ namespace gnd {
         }
     }
 
-    void Film::saveEXR() const {
-        std::string basePath = FileResolver::getOutputPath().string() + "/" + FileResolver::getOutputName();
+    void Film::savePNG() const {
+        this->savePNG(FileResolver::getOutputName());
+    }
 
-        m_radiance.saveEXR(basePath + ".exr");
-        //m_albedo.saveEXR(basePath + "_albedo.exr");
-        //m_normal.saveEXR(basePath + "_normal.exr");
+    void Film::saveEXR(const std::string& relativeOutPath) const {
+        std::string filename = FileResolver::getOutputPath().string() + "/" + relativeOutPath + ".exr";
+        m_radiance.saveEXR(filename);
+    }
+
+    void Film::saveEXR() const {
+        std::string filename = FileResolver::getOutputPath().string() + "/" + FileResolver::getOutputName() + ".exr";
+        m_radiance.saveEXR(filename);
     }
 
 }
