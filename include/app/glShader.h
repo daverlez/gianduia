@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <filesystem>
 #include <glad/glad.h>
 #include <glm/vec2.hpp>
 
@@ -22,8 +23,8 @@ public:
         fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 
         try {
-            vShaderFile.open(vertexShaderPath);
-            fShaderFile.open(fragmentShaderPath);
+            vShaderFile.open(std::filesystem::path(vertexShaderPath));
+            fShaderFile.open(std::filesystem::path(fragmentShaderPath));
 
             std::stringstream vShaderStream, fShaderStream;
             vShaderStream << vShaderFile.rdbuf();
