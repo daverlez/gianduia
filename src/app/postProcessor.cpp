@@ -89,7 +89,7 @@ void PostProcessor::resize(int width, int height) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void PostProcessor::render(GLuint inputTextureID, TonemapOperator tonemapper) {
+void PostProcessor::render(GLuint inputTextureID) {
     glViewport(0, 0, m_width, m_height);
 
     // Pass 1: Tonemapping
@@ -99,6 +99,7 @@ void PostProcessor::render(GLuint inputTextureID, TonemapOperator tonemapper) {
     m_tonemapShader.use();
     m_tonemapShader.setInt("screenTexture", 0);
     m_tonemapShader.setInt("u_tonemapper", static_cast<int>(tonemapper));
+    m_tonemapShader.setFloat("u_exposure", exposure);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, inputTextureID);

@@ -353,7 +353,7 @@ void Application::renderSidebar() {
         if (m_viewportMode == ViewportMode::Render && ImGui::CollapsingHeader(ICON_FA_IMAGE " Post Processing", ImGuiTreeNodeFlags_DefaultOpen)) {
 
             ImGui::Text("Tonemapping Operator");
-            int currentTonemap = static_cast<int>(m_tonemapper);
+            int currentTonemap = static_cast<int>(m_postProcessor.tonemapper);
             const char* items[] = {
                 "Linear (None)",
                 "Reinhard",
@@ -365,9 +365,11 @@ void Application::renderSidebar() {
             };
 
             if (ImGui::Combo("##Tonemapper", &currentTonemap, items, IM_ARRAYSIZE(items))) {
-                m_tonemapper = static_cast<TonemapOperator>(currentTonemap);
+                m_postProcessor.tonemapper = static_cast<TonemapOperator>(currentTonemap);
             }
 
+            ImGui::Spacing();
+            ImGui::SliderFloat("Exposure (EV)", &m_postProcessor.exposure, -5.0f, 5.0f, "%.2f");
             ImGui::Spacing();
 
             bool canSave = !m_isRendering && currentSamples > 0;
@@ -379,7 +381,7 @@ void Application::renderSidebar() {
                 int renderH = cameraFilm->height();
 
                 m_postProcessor.resize(renderW, renderH);
-                m_postProcessor.render(m_texture.id, m_tonemapper);
+                m_postProcessor.render(m_texture.id);
                 std::vector<float> rawFloatData = m_postProcessor.getTonemappedData();
 
                 gnd::Film exportFilm(renderW, renderH);
@@ -448,7 +450,7 @@ void Application::renderViewport() {
                 else imageSize.y = viewportSize.x / aspect;
 
                 m_postProcessor.resize((int)imageSize.x, (int)imageSize.y);
-                m_postProcessor.render(m_texture.id, m_tonemapper);
+                m_postProcessor.render(m_texture.id);
 
                 ImGui::SetCursorPosX((viewportSize.x - imageSize.x) * 0.5f);
                 ImGui::Image((ImTextureID)(uintptr_t)m_postProcessor.getOutputTexture(),

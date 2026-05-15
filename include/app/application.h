@@ -76,7 +76,6 @@ private:
     PostProcessor m_postProcessor;
     InteractiveCamera m_interactiveCamera;
     DebugRenderer m_debugRenderer;
-    TonemapOperator m_tonemapper = TonemapOperator::Linear;
 
     std::vector<gnd::BvhDebugNode> m_cachedBvhNodes;
     bool m_showTLAS = true;

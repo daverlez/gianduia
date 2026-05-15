@@ -20,10 +20,13 @@ public:
     PostProcessor() = default;
     ~PostProcessor();
 
+    TonemapOperator tonemapper = TonemapOperator::Linear;
+    float exposure = 0.0f;
+
     void init();
     void resize(int width, int height);
 
-    void render(GLuint inputTextureID, TonemapOperator tonemapper);
+    void render(GLuint inputTextureID);
     GLuint getOutputTexture() const { return m_displayTexture; }
     std::vector<float> getTonemappedData() const;
 
