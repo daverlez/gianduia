@@ -1,74 +1,45 @@
 #include <app/postProcessor.h>
 
+#include <algorithm>
+
 PostProcessor::~PostProcessor() {
     if (!m_isInitialized) return;
 
-    glDeleteFramebuffers(1, &m_FBO);
-    glDeleteTextures(1, &m_outputTexture);
+    glDeleteFramebuffers(1, &m_hdrFBO);
+    glDeleteTextures(1, &m_hdrTexture);
+
+    glDeleteFramebuffers(1, &m_ldrFBO);
+    glDeleteTextures(1, &m_displayTexture);
+
     glDeleteVertexArrays(1, &m_VAO);
     glDeleteBuffers(1, &m_VBO);
-    glDeleteProgram(m_shaderProgram);
+
+    for (const auto& mip : m_bloomMips) {
+        glDeleteFramebuffers(1, &mip.fbo);
+        glDeleteTextures(1, &mip.texture);
+    }
 }
 
 void PostProcessor::init() {
-    const char* vertexShaderSource = R"(
-        #version 330 core
-        layout (location = 0) in vec2 aPos;
-        layout (location = 1) in vec2 aTexCoords;
+    if (m_isInitialized) return;
 
-        out vec2 TexCoords;
-
-        void main() {
-            TexCoords = aTexCoords;
-            gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
-        }
-    )";
-
-    const char* fragmentShaderSource = R"(
-        #version 330 core
-        out vec4 FragColor;
-        in vec2 TexCoords;
-
-        uniform sampler2D screenTexture;
-
-        void main() {
-            vec3 mapped = texture(screenTexture, TexCoords).rgb;
-
-            // Gamma correction
-            for (int i = 0; i < 3; ++i) {
-                float x = mapped[i];
-                if (x <= 0.0031308f) {
-                    mapped[i] = 12.92f * x;
-                } else {
-                    mapped[i] = 1.055f * pow(x, 0.41666f) - 0.055f;
-                }
-            }
-
-            FragColor = vec4(mapped, 1.0);
-        }
-    )";
-
-    GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
-    glCompileShader(vertexShader);
-    checkCompileErrors(vertexShader, "VERTEX");
-
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
-    glCompileShader(fragmentShader);
-    checkCompileErrors(fragmentShader, "FRAGMENT");
-
-    m_shaderProgram = glCreateProgram();
-    glAttachShader(m_shaderProgram, vertexShader);
-    glAttachShader(m_shaderProgram, fragmentShader);
-    glLinkProgram(m_shaderProgram);
-    checkCompileErrors(m_shaderProgram, "PROGRAM");
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    m_tonemapShader = glShader(
+        "assets/shaders/fullscreen.vert",
+        "assets/shaders/tonemap.frag");
+    m_gammaCorrectionShader = glShader(
+        "assets/shaders/fullscreen.vert",
+        "assets/shaders/gammaCorrect.frag");
+    m_bloomPrefilterShader = glShader(
+        "assets/shaders/fullscreen.vert",
+        "assets/shaders/bloom_prefilter.frag");
+    m_bloomDownsampleShader = glShader(
+        "assets/shaders/fullscreen.vert",
+        "assets/shaders/bloom_downsample.frag");
+    m_bloomUpsampleShader = glShader(
+        "assets/shaders/fullscreen.vert",
+        "assets/shaders/bloom_upsample.frag");
 
     float quadVertices[] = {
-        // pos (x,y)   // texCoords (u,v)
         -1.0f,  1.0f,  0.0f, 1.0f,
         -1.0f, -1.0f,  0.0f, 0.0f,
          1.0f, -1.0f,  1.0f, 0.0f,
@@ -90,7 +61,7 @@ void PostProcessor::init() {
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
 
-    bool m_isInitialized = true;
+    m_isInitialized = true;
 }
 
 void PostProcessor::resize(int width, int height) {
@@ -98,61 +69,177 @@ void PostProcessor::resize(int width, int height) {
     m_width = width;
     m_height = height;
 
-    if (m_FBO) {
-        glDeleteFramebuffers(1, &m_FBO);
-        glDeleteTextures(1, &m_outputTexture);
+    if (m_hdrFBO) {
+        glDeleteFramebuffers(1, &m_hdrFBO);
+        glDeleteTextures(1, &m_hdrTexture);
     }
 
-    glGenFramebuffers(1, &m_FBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
+    if (m_ldrFBO) {
+        glDeleteFramebuffers(1, &m_ldrFBO);
+        glDeleteTextures(1, &m_displayTexture);
+    }
 
-    glGenTextures(1, &m_outputTexture);
-    glBindTexture(GL_TEXTURE_2D, m_outputTexture);
-    // LDR image: using GL_RGB
+    for (const auto& mip : m_bloomMips) {
+        glDeleteFramebuffers(1, &mip.fbo);
+        glDeleteTextures(1, &mip.texture);
+    }
+    m_bloomMips.clear();
+
+    // FBO 1: Tonemapping (Float)
+    glGenFramebuffers(1, &m_hdrFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_hdrFBO);
+
+    glGenTextures(1, &m_hdrTexture);
+    glBindTexture(GL_TEXTURE_2D, m_hdrTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_hdrTexture, 0);
+
+    // FBO 2: Gamma Correction (LDR / 8-bit)
+    glGenFramebuffers(1, &m_ldrFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, m_ldrFBO);
+
+    glGenTextures(1, &m_displayTexture);
+    glBindTexture(GL_TEXTURE_2D, m_displayTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_displayTexture, 0);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_outputTexture, 0);
+    for (const auto& mip : m_bloomMips) {
+        glDeleteFramebuffers(1, &mip.fbo);
+        glDeleteTextures(1, &mip.texture);
+    }
+    m_bloomMips.clear();
 
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        std::cerr << "ERROR::POSTPROCESSOR:: Framebuffer is not complete!" << std::endl;
+    // Bloom pyramid (five levels)
+    int mipWidth = width / 2;
+    int mipHeight = height / 2;
+    const int maxMips = 6;
+
+    for (int i = 0; i < maxMips; i++) {
+        BloomMip mip;
+        mip.width = mipWidth;
+        mip.height = mipHeight;
+
+        glGenFramebuffers(1, &mip.fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, mip.fbo);
+
+        glGenTextures(1, &mip.texture);
+        glBindTexture(GL_TEXTURE_2D, mip.texture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, mipWidth, mipHeight, 0, GL_RGB, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mip.texture, 0);
+        m_bloomMips.push_back(mip);
+
+        mipWidth /= 2;
+        mipHeight /= 2;
+        if (mipWidth < 2 || mipHeight < 2) break;
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void PostProcessor::render(GLuint inputTextureID) {
-    glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
+    glViewport(0, 0, m_width, m_height);
+    glBindVertexArray(m_VAO);
+
+    // Bloom pass
+    if (enableBloom && !m_bloomMips.empty()) {
+        int renderMips = std::min(activeBloomMips, static_cast<int>(m_bloomMips.size()));
+
+        // Prefilter
+        glBindFramebuffer(GL_FRAMEBUFFER, m_bloomMips[0].fbo);
+        glViewport(0, 0, m_bloomMips[0].width, m_bloomMips[0].height);
+
+        m_bloomPrefilterShader.use();
+        m_bloomPrefilterShader.setInt("srcTexture", 0);
+        m_bloomPrefilterShader.setFloat("u_threshold", bloomThreshold);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, inputTextureID);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // Downsample
+        m_bloomDownsampleShader.use();
+        m_bloomDownsampleShader.setInt("srcTexture", 0);
+
+        for (size_t i = 1; i < renderMips; i++) {
+            glBindFramebuffer(GL_FRAMEBUFFER, m_bloomMips[i].fbo);
+            glViewport(0, 0, m_bloomMips[i].width, m_bloomMips[i].height);
+
+            m_bloomDownsampleShader.setVec2("u_srcResolution", glm::vec2(m_bloomMips[i-1].width, m_bloomMips[i-1].height));
+
+            glBindTexture(GL_TEXTURE_2D, m_bloomMips[i-1].texture);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        // Upsample
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE, GL_ONE);
+        glBlendEquation(GL_FUNC_ADD);
+
+        m_bloomUpsampleShader.use();
+        m_bloomUpsampleShader.setInt("srcTexture", 0);
+        m_bloomUpsampleShader.setFloat("u_filterRadius", bloomRadius);
+
+        for (int i = renderMips - 1; i > 0; i--) {
+            glBindFramebuffer(GL_FRAMEBUFFER, m_bloomMips[i-1].fbo);
+            glViewport(0, 0, m_bloomMips[i-1].width, m_bloomMips[i-1].height);
+
+            glBindTexture(GL_TEXTURE_2D, m_bloomMips[i].texture);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        glDisable(GL_BLEND);
+    }
+
+    // Tonemapping pass
+    glBindFramebuffer(GL_FRAMEBUFFER, m_hdrFBO);
     glViewport(0, 0, m_width, m_height);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    glUseProgram(m_shaderProgram);
-    glUniform1i(glGetUniformLocation(m_shaderProgram, "screenTexture"), 0);
+    m_tonemapShader.use();
+    m_tonemapShader.setInt("screenTexture", 0);
+    m_tonemapShader.setInt("u_tonemapper", static_cast<int>(tonemapper));
+    m_tonemapShader.setFloat("u_exposure", exposure);
+    m_tonemapShader.setInt("bloomTexture", 1);
+    m_tonemapShader.setBool("u_enableBloom", enableBloom);
+    m_tonemapShader.setFloat("u_bloomIntensity", bloomIntensity);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, inputTextureID);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, m_bloomMips.empty() ? 0 : m_bloomMips[0].texture);
 
-    glBindVertexArray(m_VAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // Gamma Correction pass
+    glBindFramebuffer(GL_FRAMEBUFFER, m_ldrFBO);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    m_gammaCorrectionShader.use();
+    m_gammaCorrectionShader.setInt("screenTexture", 0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_hdrTexture);
+
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     glBindVertexArray(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void PostProcessor::checkCompileErrors(GLuint shader, std::string type) {
-    GLint success;
-    GLchar infoLog[1024];
-    if (type != "PROGRAM") {
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-        if (!success) {
-            glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-            std::cerr << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
-        }
-    } else {
-        glGetProgramiv(shader, GL_LINK_STATUS, &success);
-        if (!success) {
-            glGetProgramInfoLog(shader, 1024, NULL, infoLog);
-            std::cerr << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
-        }
-    }
+std::vector<float> PostProcessor::getTonemappedData() const {
+    std::vector<float> data(m_width * m_height * 3);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, m_hdrFBO);
+    glReadPixels(0, 0, m_width, m_height, GL_RGB, GL_FLOAT, data.data());
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return data;
 }

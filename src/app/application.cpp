@@ -16,6 +16,8 @@
 
 #include <GLFW/glfw3.h>
 
+#include "gianduia/core/fileResolver.h"
+
 static Application* s_appInstance = nullptr;
 
 void handleSignal(int signal) {
@@ -304,7 +306,7 @@ void Application::renderSidebar() {
             ImGui::EndDisabled();
         }
 
-        if (ImGui::CollapsingHeader(ICON_FA_DISPLAY " Viewport Options", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::CollapsingHeader(ICON_FA_DISPLAY " Viewport Options")) {
             ImGui::Text(ICON_FA_CUBE " Viewport Mode:");
             if (ImGui::RadioButton("Render", m_viewportMode == ViewportMode::Render)) m_viewportMode = ViewportMode::Render;
             ImGui::SameLine();
@@ -347,6 +349,76 @@ void Application::renderSidebar() {
                 }
             }
         }
+
+        if (m_viewportMode == ViewportMode::Render && ImGui::CollapsingHeader(ICON_FA_IMAGE " Post Processing")) {
+
+            ImGui::Text(ICON_FA_CIRCLE_HALF_STROKE " Tonemapping Operator");
+            int currentTonemap = static_cast<int>(m_postProcessor.tonemapper);
+            const char* items[] = {
+                "Linear (None)",
+                "Reinhard",
+                "Uncharted 2",
+                "ACES",
+                "Khronos PBR Neutral",
+                "AgX (Base)",
+                "AgX (Punchy)"
+            };
+
+            if (ImGui::Combo("##Tonemapper", &currentTonemap, items, IM_ARRAYSIZE(items))) {
+                m_postProcessor.tonemapper = static_cast<TonemapOperator>(currentTonemap);
+            }
+
+            ImGui::Spacing();
+            ImGui::SliderFloat("Exposure (EV)", &m_postProcessor.exposure, -5.0f, 5.0f, "%.2f");
+            ImGui::Spacing();
+
+            ImGui::Separator();
+            ImGui::Text(ICON_FA_STAR " Bloom");
+            ImGui::Checkbox("Enable Bloom", &m_postProcessor.enableBloom);
+
+            ImGui::BeginDisabled(!m_postProcessor.enableBloom);
+            ImGui::SliderFloat("Intensity", &m_postProcessor.bloomIntensity, 0.0f, 1.0f, "%.3f");
+            ImGui::SliderFloat("Threshold", &m_postProcessor.bloomThreshold, 0.0f, 10.0f, "%.2f");
+            ImGui::SliderFloat("Radius", &m_postProcessor.bloomRadius, 0.1f, 1.5f, "%.2f");
+            int maxBloomMips = std::max(1, m_postProcessor.getBloomMipsCount());
+            ImGui::SliderInt("Blur Levels", &m_postProcessor.activeBloomMips, 1, maxBloomMips);
+            ImGui::EndDisabled();
+
+            ImGui::Separator();
+
+            bool canSave = !m_isRendering && currentSamples > 0;
+            ImGui::BeginDisabled(!canSave);
+
+            if (ImGui::Button(ICON_FA_FLOPPY_DISK " Save edited image", ImVec2(-1, 30))) {
+                auto cameraFilm = m_scene->getCamera()->getFilm();
+                int renderW = cameraFilm->width();
+                int renderH = cameraFilm->height();
+
+                m_postProcessor.resize(renderW, renderH);
+                m_postProcessor.render(m_texture.id);
+                std::vector<float> rawFloatData = m_postProcessor.getTonemappedData();
+
+                gnd::Film exportFilm(renderW, renderH);
+                for (int y = 0; y < renderH; ++y) {
+                    for (int x = 0; x < renderW; ++x) {
+                        int gl_y = y;
+                        int idx = (gl_y * renderW + x) * 3;
+
+                        gnd::Color3f color(
+                            rawFloatData[idx + 0],
+                            rawFloatData[idx + 1],
+                            rawFloatData[idx + 2]
+                        );
+                        exportFilm.setPixel(x, y, color);
+                    }
+                }
+
+                exportFilm.saveEXR(gnd::FileResolver::getOutputName() + "-postprocessed");
+                exportFilm.savePNG(gnd::FileResolver::getOutputName() + "-postprocessed");
+            }
+            ImGui::EndDisabled();
+        }
+
     } else {
         ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), ICON_FA_TRIANGLE_EXCLAMATION " No scene loaded.");
     }
@@ -385,14 +457,14 @@ void Application::renderViewport() {
     if (viewportSize.x > 0 && viewportSize.y > 0) {
         if (m_viewportMode == ViewportMode::Render) {
             if (m_texture.id != 0) {
-                m_postProcessor.resize((int)viewportSize.x, (int)viewportSize.y);
-                m_postProcessor.render(m_texture.id);
-
                 float aspect = (float)m_texture.width / (float)m_texture.height;
                 float viewAspect = viewportSize.x / viewportSize.y;
                 ImVec2 imageSize = viewportSize;
                 if (viewAspect > aspect) imageSize.x = viewportSize.y * aspect;
                 else imageSize.y = viewportSize.x / aspect;
+
+                m_postProcessor.resize((int)imageSize.x, (int)imageSize.y);
+                m_postProcessor.render(m_texture.id);
 
                 ImGui::SetCursorPosX((viewportSize.x - imageSize.x) * 0.5f);
                 ImGui::Image((ImTextureID)(uintptr_t)m_postProcessor.getOutputTexture(),
@@ -529,6 +601,7 @@ void Application::cancelRender() {
     if (m_isRendering && m_scene && m_scene->getIntegrator()) m_scene->getIntegrator()->cancel();
     if (m_renderThread.joinable()) m_renderThread.join();
     m_isRendering = false;
+    m_textureDirty = true;  // Force texture synchronization (for coherent post-processing)
 }
 
 void Application::onRenderUpdate(int sample, const gnd::Film& film) {

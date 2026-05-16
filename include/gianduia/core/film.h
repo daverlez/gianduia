@@ -85,6 +85,8 @@ namespace gnd {
 
         void savePNG() const;
         void saveEXR() const;
+        void savePNG(const std::string& absolutePath) const;
+        void saveEXR(const std::string& absolutePath) const;
 
         int width() const { return m_width; }
         int height() const { return m_height; }
