@@ -159,7 +159,7 @@ The project is built using CMake (version 3.20 or higher required) and relies on
       <img src="docs/gallery/measure.png" alt="Complex Scene Geometry" width="100%"/>
       <br/>
       <p align="center">
-        <strong>Measuring One</strong><br/>
+        <strong>Measure One</strong><br/>
         Benchmark scene with high geometric density.<br/>
         <i>Features: BVH Acceleration.</i><br/>
         <i>Models: BEEPLE Zero-Day, NVIDIA.</i>
