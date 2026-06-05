@@ -2,6 +2,7 @@
 #include <vector>
 #include <memory>
 #include <stdexcept>
+#include <cmath>
 
 #include "gianduia/core/film.h"
 #include "gianduia/core/emitter.h"
@@ -24,35 +25,51 @@ namespace gnd {
             m_bitmap = Film(absPath.string());
             m_strength = props.getFloat("strength", 1.0f);
 
+            float rotationDeg = props.getFloat("rotation", 0.0f);
+            m_rotationRad = Radians(rotationDeg);
+
             this->buildPDFs();
         }
 
         virtual Color3f eval(const SurfaceInteraction& isect, const Vector3f& w) const override {
-            Point2f spherical = SphericalCoordinates(w);
-            float theta = spherical.x();
-            float phi = spherical.y();
+            float theta = std::acos(Clamp(w.z(), -1.0f, 1.0f));
+            float phiRot = std::atan2(w.x(), -w.y());
+            phiRot -= m_rotationRad;
 
-            float u = phi * M_1_PI * 0.5f;
-            float v = theta * M_1_PI;
+            float u = phiRot * Inv2Pi + 0.5f;
+            u -= std::floor(u);
+            float v = theta * InvPi;
 
             return m_strength * m_bitmap.getPixelBilinear(u, v);
         }
 
         virtual Color3f sample(const SurfaceInteraction& ref, const Point2f& sample_val,
-                               SurfaceInteraction& info, float& pdf_val, Ray& shadowRay) const override {
-
+                               SurfaceInteraction& info, float& pdf, Ray& shadowRay) const override {
             float mapPdf;
             Point2f uv = m_distribution->SampleContinuous(sample_val, &mapPdf);
 
             if (mapPdf == 0.0f) {
-                pdf_val = 0.0f;
+                pdf = 0.0f;
                 return Color3f(0.0f);
             }
 
-            float theta = uv.y() * M_PI;
-            float phi = uv.x() * 2.0f * M_PI;
+            float theta = uv.y() * Pi;
+            float phiRot = (uv.x() - 0.5f) * TwoPi;
+            float phi = phiRot + m_rotationRad;
 
-            Vector3f wi = SphericalDirection(Point2f(theta, phi));
+            float sinTheta = std::sin(theta);
+            float cosTheta = std::cos(theta);
+
+            Vector3f wi(
+                sinTheta * std::sin(phi),
+               -sinTheta * std::cos(phi),
+                cosTheta
+            );
+
+            if (sinTheta <= 0.0f) {
+                pdf = 0.0f;
+                return Color3f(0.0f);
+            }
 
             info.p = ref.p + wi * 1e5f;
             info.n = Normal3f(-wi);
@@ -61,32 +78,28 @@ namespace gnd {
             shadowRay = Ray(ref.p, wi);
             shadowRay.time = ref.time;
 
-            float sinTheta = std::sin(theta);
-            if (sinTheta <= 0.0f) {
-                pdf_val = 0.0f;
-                return Color3f(0.0f);
-            }
+            pdf = mapPdf / (TwoPi * Pi * sinTheta);
 
-            pdf_val = mapPdf / (2.0f * M_PI * M_PI * sinTheta);
-
-            return eval(info, wi) / pdf_val;
+            return eval(info, wi) / pdf;
         }
 
         virtual float pdf(const SurfaceInteraction& ref, const SurfaceInteraction& info) const override {
             Vector3f wi = Normalize(info.p - ref.p);
-            Point2f spherical = SphericalCoordinates(wi);
-            float theta = spherical.x();
-            float phi = spherical.y();
+            float theta = std::acos(Clamp(wi.z(), -1.0f, 1.0f));
             float sinTheta = std::sin(theta);
 
             if (sinTheta <= 0.0f)
                 return 0.0f;
 
-            float u = phi * M_1_PI * 0.5f;
-            float v = theta * M_1_PI;
+            float phiRot = std::atan2(wi.x(), -wi.y());
+            phiRot -= m_rotationRad;
+
+            float u = phiRot * Inv2Pi + 0.5f;
+            u -= std::floor(u);
+            float v = theta * InvPi;
 
             float mapPdf = m_distribution->Pdf(Point2f(u, v));
-            return mapPdf / (2.0f * M_PI * M_PI * sinTheta);
+            return mapPdf / (TwoPi * Pi * sinTheta);
         }
 
         virtual Color3f samplePhoton(const Point2f& uPos, const Point2f& uDir, float time, Ray& photonRay) const override {
@@ -99,11 +112,13 @@ namespace gnd {
         virtual std::string toString() const override {
             return std::format(
                 "EnvironmentMap[\n"
-                        "  path = {}\n"
-                        "  strength = {}\n"
-                        "]",
-                        m_relPath,
-                        m_strength);
+                "  path = {}\n"
+                "  strength = {}\n"
+                "  rotationRad = {}\n"
+                "]",
+                m_relPath,
+                m_strength,
+                m_rotationRad);
         }
 
     private:
@@ -114,7 +129,7 @@ namespace gnd {
             std::vector<float> imgData(rows * cols);
 
             for (int i = 0; i < rows; i++) {
-                float sinTheta = std::sin(M_PI * (i + 0.5f) / rows);
+                float sinTheta = std::sin(Pi * (i + 0.5f) / rows);
                 for (int j = 0; j < cols; j++) {
                     imgData[i * cols + j] = m_bitmap.getPixel(j, i).luminance() * sinTheta;
                 }
@@ -128,6 +143,7 @@ namespace gnd {
         std::unique_ptr<Distribution2D> m_distribution;
         std::string m_relPath;
         float m_strength;
+        float m_rotationRad;
     };
 
     GND_REGISTER_CLASS(EnvironmentMap, "environment")
