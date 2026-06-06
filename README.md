@@ -47,6 +47,20 @@ The project is built using CMake (version 3.20 or higher required) and relies on
 * A compiler with C++20 support (GCC, Clang, or MSVC).
 * CMake >= 3.20
 * [vcpkg](https://github.com/microsoft/vcpkg) for automatic dependency management.
+### System Prerequisites
+
+#### Linux / WSL (Ubuntu)
+
+Before running the cmake build step, install the following system-level dependencies.
+These are required by GLFW3 and OpenVDB and are not handled automatically by vcpkg:
+
+```bash
+sudo apt update
+sudo apt install libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-config
+```
+
+> **Note:** This has been tested on Ubuntu 24.04 (x86-64) under WSL (Windows Subsystem for Linux).
+> Other distributions will require equivalent packages via their own package manager (e.g. `pacman` on Arch, `dnf` on Fedora).
 
 ### Instructions
 
