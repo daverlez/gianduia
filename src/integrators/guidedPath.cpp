@@ -7,6 +7,7 @@ namespace gnd {
 
     struct SpatialRecord {
         Point3f p;
+        Vector3f dir;
         float radiance;
     };
 
@@ -125,12 +126,13 @@ namespace gnd {
                     for (auto& state : threadStates) {
                         for (const auto& record : state.spatialRecords) {
                             sTree.addSample(record.p, record.radiance);
+                            if (DTree* dtree = sTree.getDTree(record.p))
+                                dtree->addSample(record.dir, record.radiance);
                         }
                         state.spatialRecords.clear();
                     }
 
                     sTree.refine(spatialThreshold);
-
                     sTree.clearAccumulators();
                 }
 
@@ -178,13 +180,14 @@ namespace gnd {
 
             struct PathVertex {
                 Point3f p;
+                Vector3f wi;
                 Color3f throughputToHere;
                 Color3f L_accum_before;
             };
             std::vector<PathVertex> pathVertices;
 
             if (isTraining)
-                pathVertices.push_back({primaryRay.o, tp, L});
+                pathVertices.push_back({primaryRay.o, primaryRay.d, tp, L});
 
             while (bounces < maxDepth) {
                 SurfaceInteraction isect;
@@ -198,7 +201,7 @@ namespace gnd {
                 // Volumetric scattering
                 if (mi.isValid()) {
                     if (isTraining)
-                        pathVertices.push_back({mi.p, tp, L});
+                        pathVertices.push_back({mi.p, Vector3f(1.0f), tp, L});
 
                     // Volumetric emission
                     Color3f emission = mi.medium->Le(mi.p);
@@ -244,6 +247,9 @@ namespace gnd {
                     Vector3f wi;
                     pdfPrev = mi.phase->sample(mi.wo, &wi, sampler.next2D());
                     specularBounce = false;
+
+                    if (isTraining)
+                        pathVertices.back().wi = wi;
 
                     const Medium* prevMedium = r.medium;
                     float prevTime = r.time;
@@ -303,7 +309,7 @@ namespace gnd {
                 }
 
                 if (isTraining)
-                    pathVertices.push_back({isect.p, tp, L});
+                    pathVertices.push_back({isect.p, Vector3f(1.0f), tp, L});
 
                 isect.primitive->getMaterial()->computeScatteringFunctions(isect, arena);
 
@@ -377,18 +383,58 @@ namespace gnd {
                     }
                 }
 
-                // BSDF Sampling
+                // Path Guiding (Directional Sampling via MIS)
+                const DTree* dTree = sTree.getDTree(isect.p);
+                float guidingFraction = (dTree && dTree->getStatisticalWeight() > 0.0f) ? 0.5f : 0.0f;
+                float bsdfFraction = 1.0f - guidingFraction;
+
                 BxDFType sampledType;
                 Vector3f wi;
-                Color3f f_cos = isect.bsdf->sample(-r.d, &wi, sampler.next2D(), sampler.next1D(), &pdfPrev, &sampledType);
+                Color3f f_cos(0.0f);
+                float combinedPdf = 0.0f;
 
-                if (f_cos.isBlack() || pdfPrev <= 1e-6f) break;
+                if (sampler.next1D() < guidingFraction) {
+                    // Guiding with D-Tree
+                    float dTreePdf;
+                    wi = dTree->sample(sampler.next2D(), dTreePdf);
 
+                    f_cos = isect.bsdf->f(-r.d, wi) * std::abs(Dot(isect.n, wi));
+                    float bsdfPdf = isect.bsdf->pdf(-r.d, wi);
+                    if (f_cos.isBlack() || bsdfPdf < Epsilon) break;
+
+                    combinedPdf = guidingFraction * dTreePdf + bsdfFraction * bsdfPdf;
+                    sampledType = BxDFType(BSDF_GLOSSY | BSDF_DIFFUSE);
+                } else {
+                    // BSDF sampling
+                    float bsdfPdf;
+                    Color3f bsdfSampleWeight = isect.bsdf->sample(-r.d, &wi, sampler.next2D(), sampler.next1D(), &bsdfPdf, &sampledType);
+
+                    if (bsdfSampleWeight.isBlack() || bsdfPdf <= 1e-6f) break;
+
+                    float dTreePdf = 0.0f;
+                    bool isSpecular = (sampledType & BSDF_SPECULAR) != 0;
+
+                    if (guidingFraction > 0.0f && !isSpecular) {
+                        dTreePdf = dTree->pdf(wi);
+                    }
+
+                    if (isSpecular) {
+                        combinedPdf = bsdfPdf;
+                        f_cos = bsdfSampleWeight * bsdfPdf;
+                    } else {
+                        f_cos = isect.bsdf->f(-r.d, wi) * std::abs(Dot(isect.n, wi));
+                        combinedPdf = guidingFraction * dTreePdf + bsdfFraction * bsdfPdf;
+                    }
+                }
+
+                if (combinedPdf <= Epsilon) break;
+                tp *= f_cos / combinedPdf;
                 specularBounce = (sampledType & BSDF_SPECULAR) != 0;
-                tp *= f_cos;
+
+                if (isTraining)
+                    pathVertices.back().wi = wi;
 
                 Vector3f incidentDir = -r.d;
-
                 lastScatterPoint = isect.p;
 
                 r = Ray(isect.p, wi);
@@ -422,7 +468,7 @@ namespace gnd {
                     if (tpLum > 1e-8f) {
                         float radianceAtVertex = suffixL.luminance() / tpLum;
                         if (!std::isnan(radianceAtVertex) && !std::isinf(radianceAtVertex) && radianceAtVertex >= 0.0f)
-                            localRecords.push_back({vertex.p, radianceAtVertex});
+                            localRecords.push_back({vertex.p, vertex.wi, radianceAtVertex});
                     }
                 }
             }
