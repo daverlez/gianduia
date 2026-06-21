@@ -3,6 +3,7 @@
 #include <gianduia/core/sampler.h>
 #include <gianduia/scene/scene.h>
 #include <gianduia/core/film.h>
+#include <gianduia/core/arena.h>
 
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
@@ -10,8 +11,6 @@
 
 #include <iostream>
 #include <functional>
-
-#include <gianduia/core/arena.h>
 
 namespace gnd {
 
@@ -98,8 +97,8 @@ namespace gnd {
                             Point2f pixelSample = threadSampler.next2D();
                             Point2f pFilm(x + pixelSample.x(), y + pixelSample.y());
                             camSample.pFilm = Point2f(pFilm.x() / width, 1.0f - pFilm.y() / height);
-
                             camSample.pLens = threadSampler.next2D();
+                            camSample.time = threadSampler.next1D();
 
                             float channelRnd = threadSampler.next1D();
                             int channel; // 0 = R, 1 = G, 2 = B, -1 = no aberration
@@ -118,8 +117,6 @@ namespace gnd {
                                 channel = 2;
                                 camSample.lambdaOffset = -1.0f;
                             }
-
-                            camSample.time = threadSampler.next1D();
 
                             Ray ray;
                             float rayWeight = camera->shootRay(camSample, &ray);
