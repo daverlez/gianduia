@@ -4,8 +4,9 @@ add_executable(GianduiaTests
         materials/fresnel_test.cpp
         materials/reflection_test.cpp
         materials/transmission_test.cpp
-        math/color_test.cpp
         math/bounds_test.cpp
+        math/color_test.cpp
+        math/dtree_test.cpp
         math/frame_test.cpp
         math/kdtree_test.cpp
         math/microfacet_test.cpp

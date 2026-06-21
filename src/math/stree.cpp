@@ -51,6 +51,10 @@ namespace gnd {
     void STree::refine(int maxSamplesPerLeaf) {
         if (m_nodes.empty()) return;
         refineRecursive(0, m_bounds, maxSamplesPerLeaf);
+
+        for (auto& dtree : m_dtrees) {
+            dtree.refine(0.01f);
+        }
     }
 
     void STree::refineRecursive(int nodeIdx, const Bounds3f& nodeBounds, int maxSamplesPerLeaf) {
@@ -78,6 +82,38 @@ namespace gnd {
 
                 m_nodes[leftChildIdx].estimate = m_nodes[nodeIdx].estimate;
                 m_nodes[leftChildIdx + 1].estimate = m_nodes[nodeIdx].estimate;
+
+                int parentDTreeIdx = m_nodes[nodeIdx].dTreeIndex;
+                if (parentDTreeIdx >= 0) {
+                    int leftDTreeIdx;
+                    if (!m_freeDTreeIndices.empty()) {
+                        leftDTreeIdx = m_freeDTreeIndices.back();
+                        m_freeDTreeIndices.pop_back();
+                        if (leftDTreeIdx >= m_dtrees.size()) m_dtrees.resize(leftDTreeIdx + 1);
+                    } else {
+                        leftDTreeIdx = static_cast<int>(m_dtrees.size());
+                        m_dtrees.emplace_back();
+                    }
+
+                    int rightDTreeIdx;
+                    if (!m_freeDTreeIndices.empty()) {
+                        rightDTreeIdx = m_freeDTreeIndices.back();
+                        m_freeDTreeIndices.pop_back();
+                        if (rightDTreeIdx >= m_dtrees.size()) m_dtrees.resize(rightDTreeIdx + 1);
+                    } else {
+                        rightDTreeIdx = static_cast<int>(m_dtrees.size());
+                        m_dtrees.emplace_back();
+                    }
+
+                    m_dtrees[leftDTreeIdx] = m_dtrees[parentDTreeIdx];
+                    m_dtrees[rightDTreeIdx] = m_dtrees[parentDTreeIdx];
+
+                    m_nodes[leftChildIdx].dTreeIndex = leftDTreeIdx;
+                    m_nodes[leftChildIdx + 1].dTreeIndex = rightDTreeIdx;
+
+                    m_freeDTreeIndices.push_back(parentDTreeIdx);
+                    m_nodes[nodeIdx].dTreeIndex = -1;
+                }
             }
         } else {
             Bounds3f leftBounds = nodeBounds;
@@ -103,6 +139,37 @@ namespace gnd {
             node.sumRadiance = 0.0f;
             node.count = 0;
         }
+        for (auto& dtree : m_dtrees) {
+            dtree.clearAccumulators();
+        }
+    }
+
+    const DTree* STree::getDTree(const Point3f& p) const {
+        if (m_nodes.empty()) return nullptr;
+        int leafIdx = findLeafIndex(m_bounds.clamp(p));
+        int dTreeIdx = m_nodes[leafIdx].dTreeIndex;
+
+        if (dTreeIdx >= 0) return &m_dtrees[dTreeIdx];
+        return nullptr;
+    }
+
+    DTree* STree::getDTree(const Point3f& p) {
+        if (m_nodes.empty()) return nullptr;
+        int leafIdx = findLeafIndex(m_bounds.clamp(p));
+        int dTreeIdx = m_nodes[leafIdx].dTreeIndex;
+
+        if (dTreeIdx < 0) {
+            if (!m_freeDTreeIndices.empty()) {
+                dTreeIdx = m_freeDTreeIndices.back();
+                m_freeDTreeIndices.pop_back();
+                m_dtrees[dTreeIdx] = DTree();
+            } else {
+                dTreeIdx = static_cast<int>(m_dtrees.size());
+                m_dtrees.emplace_back();
+            }
+            m_nodes[leafIdx].dTreeIndex = dTreeIdx;
+        }
+        return &m_dtrees[dTreeIdx];
     }
 
 }
