@@ -3,5 +3,6 @@ target_sources(GianduiaEngine PRIVATE
         distribution.cpp
         microfacet.cpp
         photon.cpp
+        stree.cpp
         warp.cpp
 )

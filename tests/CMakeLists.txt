@@ -11,6 +11,7 @@ add_executable(GianduiaTests
         math/microfacet_test.cpp
         math/photon_test.cpp
         math/reservoir_test.cpp
+        math/stree_test.cpp
         math/warp_test.cpp
         shapes/cube_test.cpp
         shapes/curve_test.cpp
