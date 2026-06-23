@@ -19,7 +19,7 @@
     },
     {
       "name": "openvdb",
-      "features": ["tools"]
+      "default-features": false
     },
     "blosc",
     "tinyobjloader",

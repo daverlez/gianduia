@@ -78,6 +78,14 @@ namespace gnd {
         Point3f centroid() const {
             return pMin * 0.5f + pMax * 0.5f;
         }
+
+        Point3f clamp(const Point3f& pt) const {
+            return {
+                std::clamp(pt.p.x, pMin.p.x, pMax.p.x),
+                std::clamp(pt.p.y, pMin.p.y, pMax.p.y),
+                std::clamp(pt.p.z, pMin.p.z, pMax.p.z)
+            };
+        }
     };
 
 

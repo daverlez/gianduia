@@ -180,7 +180,7 @@ sudo apt install libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-co
       </p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/gallery/when_you_take_the_heart_of_a_graphics_engineer.png" alt="Depth of Field" width="100%"/>
+      <img src="docs/gallery/strawberries.png" alt="Depth of Field" width="100%"/>
       <br/>
       <p align="center">
         <strong>Strawberries</strong><br/>

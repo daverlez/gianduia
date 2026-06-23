@@ -44,6 +44,8 @@ namespace gnd {
         Color3f operator*(const Color3f& other) const { return Color3f(v * other.v); }
         Color3f& operator*=(const Color3f& other) { v *= other.v; return *this; }
 
+        Color3f operator/(const Color3f& other) const { return Color3f(v / other.v); }
+        Color3f& operator/=(const Color3f& other) { v /= other.v; return *this; }
 
         float luminance() const {
             return v.x * 0.212671f + v.y * 0.715160f + v.z * 0.072169f;

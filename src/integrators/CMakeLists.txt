@@ -1,8 +1,9 @@
 target_sources(GianduiaEngine PRIVATE
-        normals.cpp
         ao.cpp
-        material.cpp
         direct.cpp
+        guidedPath.cpp
+        material.cpp
+        normals.cpp
         path.cpp
         photonmapper.cpp
         vdbDebug.cpp
