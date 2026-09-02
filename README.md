@@ -180,13 +180,13 @@ sudo apt install libxinerama-dev libxcursor-dev xorg-dev libglu1-mesa-dev pkg-co
       </p>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/gallery/strawberries.png" alt="Depth of Field" width="100%"/>
+      <img src="docs/gallery/gum_dragon.png" alt="Depth of Field" width="100%"/>
       <br/>
       <p align="center">
-        <strong>Strawberries</strong><br/>
-        Macro-photography of a cake with toppings.<br/>
-        <i>Features: Thin-lens Camera model, Depth of Field (DoF).</i><br/>
-        <i>Models: Stanford Graphics Library, Polyheaven.</i><br/>
+        <strong>Gum Dragon</strong><br/>
+        Dragon model filled with a volume, displaying subsurface scattering.<br/>
+        <i>Features: Subsurface scattering.</i><br/>
+        <i>Models: Stanford Graphics Library.</i><br/>
         <i>Envmap: Polyheaven.</i>
       </p>
     </td>
